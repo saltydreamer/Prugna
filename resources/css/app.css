@@ -1,0 +1,13 @@
+/* Global tweaks on top of Vuetify. Prefer Vuetify utility classes and component defaults. */
+
+html {
+    overflow-y: auto;
+}
+
+.text-pre-line {
+    white-space: pre-line;
+}
+
+.cursor-pointer {
+    cursor: pointer;
+}
