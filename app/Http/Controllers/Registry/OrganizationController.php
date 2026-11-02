@@ -2,14 +2,17 @@
 
 namespace App\Http\Controllers\Registry;
 
+use App\Actions\Documents\OrganizationDraft;
 use App\Enums\LocationType;
 use App\Enums\OrganizationRole;
 use App\Enums\OrganizationType;
+use App\Enums\Permission;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Registry\OrganizationRequest;
 use App\Http\Requests\Registry\QuickOrganizationRequest;
 use App\Http\Resources\CustomerPriceResource;
 use App\Http\Resources\OrganizationResource;
+use App\Models\AiExtraction;
 use App\Models\Organization;
 use App\Models\PaymentTerm;
 use App\Models\Product;
@@ -71,25 +74,32 @@ class OrganizationController extends Controller
         ]);
     }
 
-    public function create(string $role): Response
+    public function create(Request $request, string $role, OrganizationDraft $draft): Response
     {
         $role = OrganizationRole::from($role);
         $this->authorize('create', [Organization::class, $role]);
+
+        $extraction = $request->integer('extraction') ? AiExtraction::query()->where('kind', AiExtraction::KIND_ORGANIZATION)->find($request->integer('extraction')) : null;
+        $prefill = $extraction?->succeeded() ? $draft->fromExtraction($extraction) : null;
 
         return Inertia::render('registry/organizations/Create', [
             'role' => $this->roleData($role),
             'types' => OrganizationType::options(),
             'paymentTerms' => $this->paymentTermOptions(),
+            'defaults' => $prefill['defaults'] ?? null,
+            'review' => $prefill['review'] ?? null,
+            'canUseAi' => $request->user()->can(Permission::AiUse->value),
         ]);
     }
 
-    public function store(OrganizationRequest $request): RedirectResponse
+    /**
+     * New customer or supplier, with optional registered office and contact person.
+     */
+    public function store(QuickOrganizationRequest $request): RedirectResponse
     {
-        $organization = new Organization($request->validated());
-        $organization->created_by = $request->user()->id;
-        $organization->save();
+        $organization = $this->createWithDetails($request->validated(), $request->user()->id);
 
-        Inertia::flash('toast', ['type' => 'success', 'message' => __(':role creato. Aggiungi ora sedi e contatti.', ['role' => $organization->role->label()])]);
+        Inertia::flash('toast', ['type' => 'success', 'message' => __(':role creato.', ['role' => $organization->role->label()])]);
 
         return to_route('registry.organizations.show', $organization);
     }
@@ -102,29 +112,7 @@ class OrganizationController extends Controller
     {
         $data = $request->validated();
 
-        $organization = DB::transaction(function () use ($data, $request): Organization {
-            $organization = new Organization(Arr::except($data, ['location', 'contact']));
-            $organization->created_by = $request->user()->id;
-            $organization->save();
-
-            if (filled($data['location']['address'] ?? null)) {
-                $organization->locations()->create([
-                    ...Arr::only($data['location'], ['address', 'postal_code', 'city', 'province', 'country']),
-                    'name' => __('Sede legale'),
-                    'type' => LocationType::Registered,
-                    'is_primary' => true,
-                ]);
-            }
-
-            if (filled($data['contact']['first_name'] ?? null)) {
-                $organization->contacts()->create([
-                    ...Arr::only($data['contact'], ['first_name', 'last_name', 'job_title', 'email', 'phone']),
-                    'is_primary' => true,
-                ]);
-            }
-
-            return $organization;
-        });
+        $organization = $this->createWithDetails($data, $request->user()->id);
 
         Inertia::flash([
             'toast' => ['type' => 'success', 'message' => __(':name aggiunto alle anagrafiche.', ['name' => $organization->name])],
@@ -230,6 +218,36 @@ class OrganizationController extends Controller
         Inertia::flash('toast', ['type' => 'success', 'message' => __(':name ripristinata.', ['name' => $organization->name])]);
 
         return to_route('registry.organizations.show', $organization);
+    }
+
+    /**
+     * @param  array<string, mixed>  $data  Organization fields plus optional "location" and "contact".
+     */
+    private function createWithDetails(array $data, int $userId): Organization
+    {
+        return DB::transaction(function () use ($data, $userId): Organization {
+            $organization = new Organization(Arr::except($data, ['location', 'contact']));
+            $organization->created_by = $userId;
+            $organization->save();
+
+            if (filled($data['location']['address'] ?? null)) {
+                $organization->locations()->create([
+                    ...Arr::only($data['location'], ['address', 'postal_code', 'city', 'province', 'country']),
+                    'name' => __('Sede legale'),
+                    'type' => LocationType::Registered,
+                    'is_primary' => true,
+                ]);
+            }
+
+            if (filled($data['contact']['first_name'] ?? null)) {
+                $organization->contacts()->create([
+                    ...Arr::only($data['contact'], ['first_name', 'last_name', 'job_title', 'email', 'phone']),
+                    'is_primary' => true,
+                ]);
+            }
+
+            return $organization;
+        });
     }
 
     /**

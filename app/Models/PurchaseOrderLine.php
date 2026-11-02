@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\InvoiceType;
 use App\Enums\QuoteLineType;
 use App\Models\Concerns\IsDocumentLine;
+use App\Models\Concerns\IsRebillableCost;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -17,7 +18,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 ])]
 class PurchaseOrderLine extends Model
 {
-    use IsDocumentLine;
+    use IsDocumentLine, IsRebillableCost;
 
     /**
      * Get the attributes that should be cast.
@@ -55,14 +56,6 @@ class PurchaseOrderLine extends Model
     {
         return $this->hasMany(InvoiceLine::class)
             ->whereHas('invoice', fn (Builder $query) => $query->where('type', '!=', InvoiceType::CreditNote->value));
-    }
-
-    /**
-     * Unit price charged to the customer: net cost plus markup.
-     */
-    public function rebillUnitPrice(): float
-    {
-        return round((float) $this->unit_price * (1 - (float) $this->discount_percent / 100) * (1 + (float) $this->markup_percent / 100), 4);
     }
 
     /**

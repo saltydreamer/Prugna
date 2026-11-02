@@ -7,10 +7,15 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Settings\CompanySettingsRequest;
 use App\Http\Requests\Settings\MailSettingsRequest;
 use App\Mail\TestMail;
+use App\Models\AiExtraction;
 use App\Models\PaymentTerm;
 use App\Models\VatRate;
+use App\Support\Ai\AiException;
+use App\Support\Ai\DocumentReader;
+use App\Support\Ai\OpenRouterClient;
 use App\Support\Fiscal\FiscalCodes;
 use App\Support\Settings;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
@@ -23,7 +28,7 @@ use Inertia\Response;
 use Throwable;
 
 /**
- * Impostazioni: company data, outgoing email (SMTP), quotes defaults, payment terms.
+ * Impostazioni: company data, outgoing email (SMTP), quotes defaults, payment terms, AI.
  */
 class SettingsController extends Controller
 {
@@ -48,6 +53,14 @@ class SettingsController extends Controller
                 'has_password' => $this->settings->has('mail.password'),
             ],
             'quotes' => $this->settings->group('quotes'),
+            'ai' => [
+                'enabled' => (bool) $this->settings->get('ai.enabled'),
+                'model' => $this->settings->get('ai.model'),
+                'privacy' => $this->settings->get('ai.privacy'),
+                'has_api_key' => $this->settings->has('ai.api_key'),
+            ],
+            'aiPrivacyLevels' => collect(OpenRouterClient::PRIVACY_LEVELS)->map(fn (string $title, string $value) => ['value' => $value, 'title' => $title])->values(),
+            'aiUsage' => Inertia::optional(fn () => $this->aiUsage()),
             'fiscal' => $this->settings->group('fiscal'),
             'fiscalOptions' => [
                 'regimes' => FiscalCodes::options(FiscalCodes::REGIMES),
@@ -119,6 +132,103 @@ class SettingsController extends Controller
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Impostazioni email salvate. Invia un\'email di prova per verificarle.')]);
 
         return back();
+    }
+
+    public function updateAi(Request $request): RedirectResponse
+    {
+        Gate::authorize(Permission::SettingsManage->value);
+
+        $data = $request->validate([
+            'enabled' => ['boolean'],
+            'api_key' => ['nullable', 'string', 'max:255'],
+            'model' => ['nullable', 'required_if:enabled,true', 'string', 'max:255'],
+            'privacy' => ['required', Rule::in(array_keys(OpenRouterClient::PRIVACY_LEVELS))],
+        ], [], ['api_key' => 'chiave API', 'model' => 'modello', 'privacy' => 'privacy']);
+
+        if (blank($data['api_key'] ?? null)) {
+            unset($data['api_key']);
+        }
+
+        if ($request->boolean('enabled') && ! isset($data['api_key']) && ! $this->settings->has('ai.api_key')) {
+            return back()->withErrors(['api_key' => __('Inserisci la chiave API di OpenRouter.')]);
+        }
+
+        $this->settings->set(collect($data)->mapWithKeys(fn ($value, $key) => ["ai.{$key}" => $value])->all());
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => __('Impostazioni AI salvate.')]);
+
+        return back();
+    }
+
+    /**
+     * Models available on OpenRouter for reading documents (images + JSON schema), cheapest first.
+     */
+    public function aiModels(Request $request, OpenRouterClient $client): JsonResponse
+    {
+        Gate::authorize(Permission::SettingsManage->value);
+
+        $request->validate(['api_key' => ['nullable', 'string', 'max:255']]);
+
+        try {
+            return response()->json(['data' => $client->models($request->boolean('refresh'), $request->input('api_key') ?: null)]);
+        } catch (AiException $exception) {
+            return response()->json(['message' => $exception->getMessage()], 422);
+        }
+    }
+
+    /**
+     * Reads a sample document with the chosen model and returns what was extracted, cost and time.
+     */
+    public function testAi(Request $request, DocumentReader $reader): JsonResponse
+    {
+        Gate::authorize(Permission::SettingsManage->value);
+
+        $data = $request->validate([
+            'file' => ['required', 'file', 'max:20480', 'mimes:jpg,jpeg,png,webp,pdf'],
+            'kind' => ['required', Rule::in([AiExtraction::KIND_EXPENSE, AiExtraction::KIND_ORGANIZATION])],
+            'model' => ['nullable', 'string', 'max:255'],
+        ], [], ['file' => 'documento', 'model' => 'modello']);
+
+        $extraction = $reader->read($request->file('file'), $data['kind'], $request->user(), $data['model'] ?: null);
+
+        return response()->json([
+            'ok' => $extraction->succeeded(),
+            'error' => $extraction->error,
+            'result' => $extraction->result,
+            'model' => $extraction->model,
+            'cost' => $extraction->cost !== null ? (float) $extraction->cost : null,
+            'duration_ms' => $extraction->duration_ms,
+            'tokens' => ['prompt' => $extraction->prompt_tokens, 'completion' => $extraction->completion_tokens],
+        ], $extraction->succeeded() ? 200 : 422);
+    }
+
+    /**
+     * Readings of the current month and the latest ones.
+     *
+     * @return array<string, mixed>
+     */
+    private function aiUsage(): array
+    {
+        $month = AiExtraction::query()->where('created_at', '>=', now()->startOfMonth());
+
+        return [
+            'month_count' => (clone $month)->where('source', 'ai')->count(),
+            'month_cost' => round((float) (clone $month)->sum('cost'), 4),
+            'latest' => AiExtraction::query()->with('user:id,name')->latest('id')->limit(10)->get()
+                ->map(fn (AiExtraction $extraction) => [
+                    'id' => $extraction->id,
+                    'created_at' => $extraction->created_at?->toIso8601String(),
+                    'user' => $extraction->user?->name,
+                    'kind' => $extraction->kind,
+                    'source' => $extraction->source,
+                    'file' => $extraction->original_name,
+                    'model' => $extraction->model,
+                    'status' => $extraction->status,
+                    'error' => $extraction->error,
+                    'cost' => $extraction->cost !== null ? (float) $extraction->cost : null,
+                    'duration_ms' => $extraction->duration_ms,
+                ]),
+        ];
     }
 
     /**

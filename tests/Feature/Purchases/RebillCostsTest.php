@@ -38,7 +38,8 @@ class RebillCostsTest extends TestCase
         $this->actingAs($this->admin)->getJson("/sales/invoices/lookup/costs?organization_id={$this->customer->id}")
             ->assertOk()
             ->assertJsonCount(1, 'data')
-            ->assertJsonPath('data.0.purchase_order.number', $sent->number)
+            ->assertJsonPath('data.0.source.label', "Ordine {$sent->number}")
+            ->assertJsonPath('data.0.key', 'po-'.$sent->lines()->where('rebill', true)->value('id'))
             ->assertJsonPath('data.0.unit_price', 110)
             ->assertJsonPath('data.0.amount', 220);
     }

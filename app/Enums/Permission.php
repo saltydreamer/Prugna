@@ -54,6 +54,11 @@ enum Permission: string
     case PurchasesView = 'purchases.view';
     case PurchasesManage = 'purchases.manage';
 
+    case ExpensesView = 'expenses.view';
+    case ExpensesManage = 'expenses.manage';
+
+    case AiUse = 'ai.use';
+
     case SettingsManage = 'settings.manage';
 
     public function label(): string
@@ -93,6 +98,9 @@ enum Permission: string
             self::InvoicesIssue => 'Emettere fatture e note di credito',
             self::PurchasesView => 'Consultare gli ordini ai fornitori e i costi',
             self::PurchasesManage => 'Creare, inviare e gestire gli ordini ai fornitori',
+            self::ExpensesView => 'Consultare spese, fatture fornitore e scadenze',
+            self::ExpensesManage => 'Registrare spese e fatture fornitore, segnare i pagamenti',
+            self::AiUse => "Usare l'AI per leggere i documenti",
             self::SettingsManage => 'Gestire impostazioni (azienda, email, pagamenti)',
         };
     }
@@ -110,6 +118,8 @@ enum Permission: string
             self::OrdersView, self::OrdersManage => 'Ordini',
             self::InvoicesView, self::InvoicesManage, self::InvoicesIssue => 'Fatture',
             self::PurchasesView, self::PurchasesManage => 'Acquisti',
+            self::ExpensesView, self::ExpensesManage => 'Spese',
+            self::AiUse => 'Intelligenza artificiale',
             self::SettingsManage => 'Impostazioni',
         };
     }

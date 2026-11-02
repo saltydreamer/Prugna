@@ -212,7 +212,7 @@ async function destroy() {
                             Ricavi dell'ordine più i ricarichi, meno i costi non ribaltati. IVA esclusa.
                         </div>
                     </v-card-text>
-                    <v-list v-if="purchasing.purchase_orders.length" density="compact" class="pt-0">
+                    <v-list v-if="purchasing.purchase_orders.length || purchasing.expenses.length" density="compact" class="pt-0">
                         <v-list-item
                             v-for="purchaseOrder in purchasing.purchase_orders"
                             :key="purchaseOrder.id"
@@ -221,15 +221,33 @@ async function destroy() {
                             prepend-icon="mdi-cart-outline"
                             v-bind="link(route('purchases.orders.show', purchaseOrder.id))"
                         />
+                        <v-list-item
+                            v-for="expense in purchasing.expenses"
+                            :key="`expense-${expense.id}`"
+                            :title="`${expense.label} · ${expense.supplier ?? ''}`"
+                            :subtitle="`${formatDate(expense.document_date)} · ${formatMoney(expense.subtotal)} + IVA`"
+                            prepend-icon="mdi-receipt-text-outline"
+                            v-bind="link(route('purchases.expenses.show', expense.id))"
+                        />
                     </v-list>
-                    <v-card-actions v-if="can('purchases.manage') && order.status !== 'cancelled'">
+                    <v-card-actions v-if="(can('purchases.manage') || can('expenses.manage')) && order.status !== 'cancelled'" class="flex-wrap ga-2">
                         <v-btn
+                            v-if="can('purchases.manage')"
                             block
                             variant="tonal"
                             prepend-icon="mdi-cart-plus"
                             v-bind="link(route('purchases.orders.create', { order: order.id }))"
                         >
                             Ordina al fornitore
+                        </v-btn>
+                        <v-btn
+                            v-if="can('expenses.manage')"
+                            block
+                            variant="tonal"
+                            prepend-icon="mdi-receipt-text-plus-outline"
+                            v-bind="link(route('purchases.expenses.create', { order: order.id }))"
+                        >
+                            Registra spesa
                         </v-btn>
                     </v-card-actions>
                 </v-card>

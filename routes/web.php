@@ -9,11 +9,13 @@ use App\Http\Controllers\Catalog\CatalogSettingsController;
 use App\Http\Controllers\Catalog\CustomerPriceController;
 use App\Http\Controllers\Catalog\ProductController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DocumentImportController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\Profile\AvatarController;
 use App\Http\Controllers\Profile\BrowserSessionController;
 use App\Http\Controllers\Profile\ProfileController;
 use App\Http\Controllers\PublicArea\PublicQuoteController;
+use App\Http\Controllers\Purchases\ExpenseController;
 use App\Http\Controllers\Purchases\PurchaseOrderController;
 use App\Http\Controllers\Purchases\PurchaseOrderDocumentController;
 use App\Http\Controllers\Registry\ContactController;
@@ -153,7 +155,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
         });
     });
 
+    Route::post('documents/read', [DocumentImportController::class, 'store'])->middleware('throttle:20,1')->name('documents.read');
+    Route::get('documents/{extraction}/file', [DocumentImportController::class, 'file'])->name('documents.file');
+
     Route::prefix('purchases')->name('purchases.')->group(function () {
+        Route::resource('expenses', ExpenseController::class);
+        Route::patch('expenses/{expense}/payment', [ExpenseController::class, 'payment'])->name('expenses.payment');
+        Route::get('expenses/{expense}/attachment', [ExpenseController::class, 'attachment'])->name('expenses.attachment');
+
         Route::resource('orders', PurchaseOrderController::class)->parameters(['orders' => 'purchase_order']);
         Route::patch('orders/{purchase_order}/status', [PurchaseOrderController::class, 'updateStatus'])->name('orders.status');
         Route::controller(PurchaseOrderDocumentController::class)->prefix('orders/{purchase_order}')->name('orders.')->group(function () {
@@ -173,6 +182,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::post('mail/test', 'testMail')->middleware('throttle:5,1')->name('mail.test');
             Route::put('quotes', 'updateQuotes')->name('quotes.update');
             Route::put('fiscal', 'updateFiscal')->name('fiscal.update');
+            Route::put('ai', 'updateAi')->name('ai.update');
+            Route::get('ai/models', 'aiModels')->name('ai.models');
+            Route::post('ai/test', 'testAi')->middleware('throttle:10,1')->name('ai.test');
         });
 
         Route::resource('payment-terms', PaymentTermController::class)->only(['store', 'update', 'destroy']);

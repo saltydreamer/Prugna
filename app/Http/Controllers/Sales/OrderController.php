@@ -4,12 +4,14 @@ namespace App\Http\Controllers\Sales;
 
 use App\Actions\Orders\SaveOrder;
 use App\Actions\Purchases\RebillCosts;
+use App\Enums\ExpenseType;
 use App\Enums\OrderStatus;
 use App\Enums\PurchaseOrderStatus;
 use App\Enums\QuoteStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Sales\OrderRequest;
 use App\Http\Resources\OrderResource;
+use App\Models\Expense;
 use App\Models\Order;
 use App\Models\Organization;
 use App\Models\PaymentTerm;
@@ -132,7 +134,7 @@ class OrderController extends Controller
             'order' => OrderResource::make($order)->resolve(),
             'billing' => $order->billingSummary(),
             'openDeposits' => $order->openDeposits()->count(),
-            'purchasing' => $request->user()->can('viewAny', PurchaseOrder::class) ? $this->purchasing($order, $rebillCosts) : null,
+            'purchasing' => $request->user()->can('viewAny', PurchaseOrder::class) || $request->user()->can('viewAny', Expense::class) ? $this->purchasing($order, $rebillCosts) : null,
             'statuses' => OrderStatus::options(),
             'organizationArchived' => $order->organization?->trashed() ?? false,
         ]);
@@ -146,21 +148,29 @@ class OrderController extends Controller
     private function purchasing(Order $order, RebillCosts $rebillCosts): array
     {
         $purchaseOrders = $order->purchaseOrders()->with('lines')->orderBy('id')->get();
+        $expenses = $order->expenses()->with('lines')->orderBy('document_date')->get();
+
+        // Cost lines: supplier orders not cancelled, expenses (supplier credit notes reduce them).
+        $costLines = $purchaseOrders->where('status', '!=', PurchaseOrderStatus::Cancelled)->flatMap->lines
+            ->map(fn ($line) => [$line, 1])
+            ->concat($expenses->flatMap(fn ($expense) => $expense->lines->map(fn ($line) => [$line, $expense->type === ExpenseType::CreditNote ? -1 : 1])))
+            ->filter(fn (array $item) => $item[0]->isItem());
+
         $costs = 0.0;
+        $absorbed = 0.0;
         $markup = 0.0;
 
-        foreach ($purchaseOrders->where('status', '!=', PurchaseOrderStatus::Cancelled) as $purchaseOrder) {
-            foreach ($purchaseOrder->lines->filter(fn ($line) => $line->isItem()) as $line) {
-                $costs += (float) $line->total;
+        foreach ($costLines as [$line, $sign]) {
+            $costs += $sign * (float) $line->total;
 
-                if ($line->rebill) {
-                    $markup += round((float) $line->quantity * $line->rebillUnitPrice(), 2) - (float) $line->total;
-                }
+            if ($line->rebill) {
+                $markup += $sign * ($line->rebillAmount() - (float) $line->total);
+            } else {
+                $absorbed += $sign * (float) $line->total;
             }
         }
 
         $pending = $rebillCosts->pending($order->organization_id, $order);
-        $rebilledCosts = (float) $purchaseOrders->where('status', '!=', PurchaseOrderStatus::Cancelled)->flatMap->lines->where('rebill', true)->sum('total');
 
         return [
             'purchase_orders' => $purchaseOrders->map(fn ($purchaseOrder) => [
@@ -172,11 +182,18 @@ class OrderController extends Controller
                 'status_color' => $purchaseOrder->status->color(),
                 'subtotal' => (float) $purchaseOrder->subtotal,
             ])->all(),
+            'expenses' => $expenses->map(fn ($expense) => [
+                'id' => $expense->id,
+                'label' => trim($expense->type->label().' '.($expense->number ?? '')),
+                'supplier' => $expense->supplier['name'] ?? null,
+                'document_date' => $expense->document_date->toDateString(),
+                'subtotal' => (float) $expense->subtotal,
+            ])->all(),
             'costs' => round($costs, 2),
             // Revenue of the order plus the markup on charged back costs, minus the costs we absorb.
-            'margin' => round((float) $order->subtotal - ($costs - $rebilledCosts) + $markup, 2),
+            'margin' => round((float) $order->subtotal - $absorbed + $markup, 2),
             'rebill_pending_count' => $pending->count(),
-            'rebill_pending_amount' => round($pending->sum(fn ($line) => (float) $line->quantity * $line->rebillUnitPrice()), 2),
+            'rebill_pending_amount' => round($pending->sum(fn ($line) => $line->rebillAmount()), 2),
         ];
     }
 

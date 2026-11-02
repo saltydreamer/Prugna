@@ -11,7 +11,7 @@ const open = defineModel({ type: Boolean, default: false });
 
 const props = defineProps({
     organizationId: { type: Number, default: null },
-    /** purchase_order_line_id already in the invoice. */
+    /** Keys of the costs already in the invoice ("po-12", "ex-7"). */
     exclude: { type: Array, default: () => [] },
 });
 
@@ -21,9 +21,7 @@ const costs = ref([]);
 const selected = ref([]);
 const loading = ref(false);
 
-const total = computed(() =>
-    costs.value.filter((cost) => selected.value.includes(cost.purchase_order_line_id)).reduce((sum, cost) => sum + cost.amount, 0),
-);
+const total = computed(() => costs.value.filter((cost) => selected.value.includes(cost.key)).reduce((sum, cost) => sum + cost.amount, 0));
 
 watch(open, async (value) => {
     if (!value || !props.organizationId) {
@@ -38,7 +36,7 @@ watch(open, async (value) => {
         props.exclude.forEach((id) => query.append('exclude[]', id));
         const { data } = await http.get(`${route('sales.invoices.lookup.costs')}?${query}`);
         costs.value = data;
-        selected.value = data.map((cost) => cost.purchase_order_line_id);
+        selected.value = data.map((cost) => cost.key);
     } finally {
         loading.value = false;
     }
@@ -47,7 +45,7 @@ watch(open, async (value) => {
 function add() {
     emit(
         'add',
-        costs.value.filter((cost) => selected.value.includes(cost.purchase_order_line_id)),
+        costs.value.filter((cost) => selected.value.includes(cost.key)),
     );
     open.value = false;
 }
@@ -61,7 +59,7 @@ function add() {
                     v-if="!loading && !costs.length"
                     icon="mdi-cart-check"
                     title="Nessun costo in attesa"
-                    text="I costi compaiono qui quando un ordine fornitore intestato a questo cliente, con righe «da ribaltare», viene inviato."
+                    text="Qui compaiono le righe «da ribaltare» delle spese e degli ordini fornitore (inviati) collegati a questo cliente."
                     size="48"
                 />
                 <v-table v-else density="compact">
@@ -75,8 +73,8 @@ function add() {
                         </tr>
                     </thead>
                     <tbody>
-                        <tr v-for="cost in costs" :key="cost.purchase_order_line_id">
-                            <td><v-checkbox-btn v-model="selected" :value="cost.purchase_order_line_id" density="compact" /></td>
+                        <tr v-for="cost in costs" :key="cost.key">
+                            <td><v-checkbox-btn v-model="selected" :value="cost.key" density="compact" /></td>
                             <td class="py-2">
                                 <div class="text-body-2">{{ cost.quantity }} {{ cost.unit }} · {{ cost.description }}</div>
                                 <div class="text-caption text-medium-emphasis">

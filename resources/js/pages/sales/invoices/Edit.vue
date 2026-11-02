@@ -148,11 +148,15 @@ function contactCreated(contact) {
 
 // --- Supplier costs charged back --------------------------------------------------------
 const costsDialog = ref(false);
-const rebilledIds = computed(() => form.lines.map((line) => line.purchase_order_line_id).filter(Boolean));
+const rebilledIds = computed(() =>
+    form.lines
+        .flatMap((line) => [line.purchase_order_line_id && `po-${line.purchase_order_line_id}`, line.expense_line_id && `ex-${line.expense_line_id}`])
+        .filter(Boolean),
+);
 
 function addCosts(costs) {
     const lines = costs.map((cost) => ({
-        key: `cost-${cost.purchase_order_line_id}`,
+        key: `cost-${cost.key}`,
         type: 'item',
         product_id: cost.product_id,
         code: cost.code,
@@ -163,6 +167,7 @@ function addCosts(costs) {
         discount_percent: 0,
         vat_rate_id: isFlatRate.value ? defaultVatRateId.value : cost.vat_rate_id,
         purchase_order_line_id: cost.purchase_order_line_id,
+        expense_line_id: cost.expense_line_id,
     }));
 
     form.lines = [...form.lines, ...lines];

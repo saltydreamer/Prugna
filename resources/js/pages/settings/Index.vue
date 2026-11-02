@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue';
 import { router, useForm, usePage } from '@inertiajs/vue3';
 import { route } from 'ziggy-js';
 import PageHeader from '@/components/PageHeader.vue';
+import AiSettings from '@/components/settings/AiSettings.vue';
 import { useConfirm } from '@/composables/useConfirm';
 import { countries } from '@/utils/countries';
 
@@ -15,11 +16,14 @@ const props = defineProps({
     fiscalOptions: { type: Object, required: true },
     paymentTerms: { type: Array, required: true },
     paymentMethods: { type: Array, required: true },
+    ai: { type: Object, required: true },
+    aiPrivacyLevels: { type: Array, required: true },
+    aiUsage: { type: Object, default: null },
 });
 
 const { confirm } = useConfirm();
 
-const tabs = ['company', 'fiscal', 'mail', 'quotes', 'payments'];
+const tabs = ['company', 'fiscal', 'mail', 'quotes', 'payments', 'ai'];
 const current = ref(tabs.includes(props.tab) ? props.tab : 'company');
 
 watch(current, (value) => {
@@ -224,6 +228,7 @@ function dueLabel(term) {
                 <v-tab value="mail" prepend-icon="mdi-email-fast-outline">Email</v-tab>
                 <v-tab value="quotes" prepend-icon="mdi-file-document-edit-outline">Preventivi</v-tab>
                 <v-tab value="payments" prepend-icon="mdi-cash-clock">Pagamenti</v-tab>
+                <v-tab value="ai" prepend-icon="mdi-creation">AI</v-tab>
             </v-tabs>
         </v-card>
 
@@ -605,6 +610,11 @@ function dueLabel(term) {
                         </v-card-actions>
                     </v-form>
                 </v-card>
+            </v-tabs-window-item>
+
+            <!-- AI -->
+            <v-tabs-window-item value="ai">
+                <AiSettings v-if="current === 'ai'" :ai="ai" :privacy-levels="aiPrivacyLevels" :usage="aiUsage" />
             </v-tabs-window-item>
 
             <!-- Payment terms -->
