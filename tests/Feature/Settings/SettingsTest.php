@@ -101,14 +101,17 @@ class SettingsTest extends TestCase
         $this->assertSame(['address' => 'info@reimg.it', 'name' => 'Reimg'], config('mail.from'));
     }
 
-    public function test_a_test_email_is_sent_to_the_current_user(): void
+    public function test_a_test_email_is_sent_to_the_chosen_address(): void
     {
         Mail::fake();
         $admin = User::factory()->admin()->create();
 
-        $this->actingAs($admin)->post('/settings/mail/test')->assertRedirect();
+        $this->actingAs($admin)->post('/settings/mail/test', ['to' => 'not-an-email'])->assertSessionHasErrors('to');
+        Mail::assertNothingSent();
 
-        Mail::assertSent(TestMail::class, fn (TestMail $mail) => $mail->hasTo($admin->email));
+        $this->actingAs($admin)->post('/settings/mail/test', ['to' => 'marco@example.test'])->assertSessionHasNoErrors();
+
+        Mail::assertSent(TestMail::class, fn (TestMail $mail) => $mail->hasTo('marco@example.test') && ! $mail->hasTo($admin->email));
     }
 
     public function test_payment_terms_are_managed_with_a_single_default(): void

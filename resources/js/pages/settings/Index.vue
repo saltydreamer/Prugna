@@ -1,6 +1,6 @@
 <script setup>
 import { computed, ref, watch } from 'vue';
-import { router, useForm } from '@inertiajs/vue3';
+import { router, useForm, usePage } from '@inertiajs/vue3';
 import { route } from 'ziggy-js';
 import PageHeader from '@/components/PageHeader.vue';
 import { useConfirm } from '@/composables/useConfirm';
@@ -104,10 +104,19 @@ function saveMail() {
     mailForm.put(route('settings.mail.update'), { ...options, onSuccess: () => mailForm.reset('password') });
 }
 
-const testing = ref(false);
+// Test email: the recipient is chosen in a small dialog (default: the current user's address).
+const page = usePage();
+const testDialog = ref(false);
+const testForm = useForm({ to: '' });
+
+function openTest() {
+    testForm.clearErrors();
+    testForm.to = testForm.to || props.company.email || page.props.auth.user.email;
+    testDialog.value = true;
+}
 
 function sendTest() {
-    router.post(route('settings.mail.test'), {}, { ...options, onStart: () => (testing.value = true), onFinish: () => (testing.value = false) });
+    testForm.post(route('settings.mail.test'), { ...options, onSuccess: () => (testDialog.value = false) });
 }
 
 // --- Quotes ------------------------------------------------------------------------
@@ -397,9 +406,9 @@ function dueLabel(term) {
                             <v-btn
                                 variant="tonal"
                                 prepend-icon="mdi-email-check-outline"
-                                :loading="testing"
                                 :disabled="mailForm.isDirty"
-                                @click="sendTest"
+                                :title="mailForm.isDirty ? 'Salva le modifiche prima di inviare la prova' : undefined"
+                                @click="openTest"
                             >
                                 Invia email di prova
                             </v-btn>
@@ -509,6 +518,32 @@ function dueLabel(term) {
                 </v-card>
             </v-tabs-window-item>
         </v-tabs-window>
+
+        <v-dialog v-model="testDialog" max-width="480">
+            <v-card title="Email di prova" subtitle="Verifica che il server di posta funzioni.">
+                <v-form @submit.prevent="sendTest">
+                    <v-card-text>
+                        <v-text-field
+                            v-model="testForm.to"
+                            label="Invia a"
+                            type="email"
+                            prepend-inner-icon="mdi-email-outline"
+                            hint="Usa una casella che puoi controllare subito"
+                            persistent-hint
+                            :error-messages="testForm.errors.to"
+                            autofocus
+                        />
+                    </v-card-text>
+                    <v-card-actions>
+                        <v-spacer />
+                        <v-btn variant="text" @click="testDialog = false">Annulla</v-btn>
+                        <v-btn type="submit" color="primary" variant="flat" prepend-icon="mdi-send-outline" :loading="testForm.processing">
+                            Invia
+                        </v-btn>
+                    </v-card-actions>
+                </v-form>
+            </v-card>
+        </v-dialog>
 
         <v-dialog v-model="termDialog" max-width="560">
             <v-card :title="editingTerm ? 'Modifica condizione' : 'Nuova condizione di pagamento'">

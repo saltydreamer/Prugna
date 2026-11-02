@@ -111,15 +111,17 @@ class SettingsController extends Controller
     }
 
     /**
-     * Sends a test email to the current user, synchronously, reporting the SMTP error if any.
+     * Sends a test email to the chosen address, synchronously, reporting the SMTP error if any.
      */
     public function testMail(Request $request): RedirectResponse
     {
         Gate::authorize(Permission::SettingsManage->value);
 
+        $data = $request->validate(['to' => ['required', 'email', 'max:255']], [], ['to' => 'destinatario']);
+
         try {
             Mail::purge();
-            Mail::to($request->user())->send(new TestMail);
+            Mail::to($data['to'])->send(new TestMail);
         } catch (Throwable $exception) {
             report($exception);
 
@@ -128,7 +130,7 @@ class SettingsController extends Controller
             return back();
         }
 
-        Inertia::flash('toast', ['type' => 'success', 'message' => __('Email di prova inviata a :email.', ['email' => $request->user()->email])]);
+        Inertia::flash('toast', ['type' => 'success', 'message' => __('Email di prova inviata a :email: controlla la casella (anche lo spam).', ['email' => $data['to']])]);
 
         return back();
     }
