@@ -5,6 +5,7 @@ import { useDisplay, useTheme } from 'vuetify';
 import { route } from 'ziggy-js';
 
 import ConfirmDialog from '@/components/ConfirmDialog.vue';
+import DocumentImportDialog from '@/components/DocumentImportDialog.vue';
 import NotificationBell from '@/components/NotificationBell.vue';
 import ToastQueue from '@/components/ToastQueue.vue';
 import UserAvatar from '@/components/UserAvatar.vue';
@@ -93,6 +94,13 @@ const navigation = computed(() => {
         {
             title: 'Acquisti',
             items: [
+                {
+                    title: 'Spese e scadenze',
+                    icon: 'mdi-receipt-text-outline',
+                    route: 'purchases.expenses.index',
+                    active: 'purchases.expenses.*',
+                    permission: 'expenses.view',
+                },
                 {
                     title: 'Ordini fornitore',
                     icon: 'mdi-cart-outline',
@@ -211,6 +219,9 @@ function setTheme(value) {
     }
 }
 
+const importDialog = ref(false);
+const canImport = computed(() => can('expenses.manage') || (can('ai.use') && (can('organizations.create') || can('suppliers.create'))));
+
 const themeIcon = computed(() => themeOptions.find((option) => option.value === selectedTheme.value)?.icon);
 
 function logout() {
@@ -273,6 +284,15 @@ function logout() {
                 </v-list>
             </v-menu>
 
+            <v-btn
+                v-if="canImport"
+                icon="mdi-file-upload-outline"
+                variant="text"
+                title="Carica documento"
+                aria-label="Carica documento"
+                @click="importDialog = true"
+            />
+
             <NotificationBell />
 
             <v-menu location="bottom end" min-width="240">
@@ -319,5 +339,6 @@ function logout() {
 
         <ToastQueue />
         <ConfirmDialog />
+        <DocumentImportDialog v-if="canImport" v-model="importDialog" />
     </v-app>
 </template>

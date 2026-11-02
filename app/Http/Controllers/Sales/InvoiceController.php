@@ -282,14 +282,14 @@ class InvoiceController extends Controller
         $data = $request->validate([
             'organization_id' => ['required', 'integer'],
             'exclude' => ['nullable', 'array'],
-            'exclude.*' => ['integer'],
+            'exclude.*' => ['string', 'max:20'],
         ]);
 
         $exclude = $data['exclude'] ?? [];
 
         return response()->json([
             'data' => $rebillCosts->pending((int) $data['organization_id'])
-                ->reject(fn ($line) => in_array($line->id, $exclude, true))
+                ->reject(fn ($line) => in_array(RebillCosts::key($line), $exclude, true))
                 ->map(fn ($line) => $rebillCosts->option($line))
                 ->values(),
         ]);

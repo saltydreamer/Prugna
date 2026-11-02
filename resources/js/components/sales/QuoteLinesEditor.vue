@@ -77,7 +77,14 @@ function move(index, offset) {
 
 function duplicate(index) {
     const copy = [...lines.value];
-    copy.splice(index + 1, 0, { ...lines.value[index], key: key(), id: undefined, order_line_id: null, purchase_order_line_id: null });
+    copy.splice(index + 1, 0, {
+        ...lines.value[index],
+        key: key(),
+        id: undefined,
+        order_line_id: null,
+        purchase_order_line_id: null,
+        expense_line_id: null,
+    });
     lines.value = copy;
 }
 
@@ -216,7 +223,7 @@ function error(index, field) {
                                 Riga d'ordine
                             </v-chip>
                             <v-chip
-                                v-if="line.purchase_order_line_id"
+                                v-if="line.purchase_order_line_id || line.expense_line_id"
                                 size="small"
                                 variant="tonal"
                                 color="secondary"

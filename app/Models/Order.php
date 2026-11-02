@@ -59,6 +59,16 @@ class Order extends Model
     }
 
     /**
+     * Expenses (supplier invoices, receipts) recorded for this order.
+     *
+     * @return HasMany<Expense, $this>
+     */
+    public function expenses(): HasMany
+    {
+        return $this->hasMany(Expense::class);
+    }
+
+    /**
      * Supplier orders placed for this order.
      *
      * @return HasMany<PurchaseOrder, $this>

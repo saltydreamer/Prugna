@@ -21,7 +21,7 @@ class Settings
     /**
      * Values stored encrypted in the database.
      */
-    private const ENCRYPTED = ['mail.password'];
+    private const ENCRYPTED = ['mail.password', 'ai.api_key'];
 
     /**
      * Defaults used until a value is saved.
@@ -46,6 +46,9 @@ class Settings
         'fiscal.stamp_duty_enabled' => true,
         'fiscal.stamp_duty_charge_customer' => true,
         'fiscal.invoice_notes' => null,
+        'ai.enabled' => false,
+        'ai.model' => null,
+        'ai.privacy' => 'no_training',
         'quotes.validity_days' => 30,
         'quotes.terms' => "Prezzi IVA esclusa.\nL'offerta è valida fino alla data indicata.",
         'quotes.email_subject' => 'Preventivo {numero} – {azienda}',

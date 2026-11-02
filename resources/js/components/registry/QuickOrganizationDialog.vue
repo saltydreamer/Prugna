@@ -17,6 +17,8 @@ const props = defineProps({
     initialName: { type: String, default: '' },
     /** 'customer' or 'supplier'. */
     role: { type: String, default: 'customer' },
+    /** Prefilled fields, e.g. the supplier read from a document ({ name, vat_number, location: {...} }). */
+    initial: { type: Object, default: null },
 });
 
 const emit = defineEmits(['created']);
@@ -46,7 +48,14 @@ watch(open, (value) => {
         return;
     }
 
-    form.defaults({ ...blank(), name: props.initialName ?? '' });
+    const initial = props.initial ?? {};
+    const filled = Object.fromEntries(Object.entries(initial).filter(([key, value]) => key !== 'location' && value !== null && value !== ''));
+    form.defaults({
+        ...blank(),
+        name: props.initialName ?? '',
+        ...filled,
+        location: { ...blank().location, ...Object.fromEntries(Object.entries(initial.location ?? {}).filter(([, value]) => value)) },
+    });
     form.reset();
     form.clearErrors();
 });

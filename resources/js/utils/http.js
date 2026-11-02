@@ -45,3 +45,27 @@ export const http = {
     put: (url, data = {}) => request('PUT', url, data),
     delete: (url, data = undefined) => request('DELETE', url, data),
 };
+
+/**
+ * Multipart upload (FormData) returning the JSON response.
+ */
+export async function upload(url, formData) {
+    const response = await fetch(url, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+            Accept: 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-XSRF-TOKEN': xsrfToken(),
+        },
+        body: formData,
+    });
+
+    const body = await response.json().catch(() => null);
+
+    if (!response.ok) {
+        throw new HttpError(response, body);
+    }
+
+    return body;
+}
