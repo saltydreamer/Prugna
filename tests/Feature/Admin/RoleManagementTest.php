@@ -8,6 +8,7 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia as Assert;
 use Spatie\Permission\Models\Role;
+use Spatie\Permission\PermissionRegistrar;
 use Tests\TestCase;
 
 class RoleManagementTest extends TestCase
@@ -98,5 +99,23 @@ class RoleManagementTest extends TestCase
         $this->actingAs(User::factory()->superAdmin()->create())
             ->get("/admin/roles/{$role->id}/edit")
             ->assertForbidden();
+    }
+
+    public function test_new_permissions_reach_existing_system_roles_but_manual_revocations_stick(): void
+    {
+        $admin = Role::findByName(RoleEnum::Admin->value);
+
+        // Simulate a permission added to the enum after the roles were created.
+        \Spatie\Permission\Models\Permission::findByName(Permission::OrganizationsCreate->value)->delete();
+        // ...and one that an administrator removed on purpose.
+        $admin->revokePermissionTo(Permission::UsersDelete->value);
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+
+        $this->artisan('permissions:sync')->assertSuccessful();
+
+        $admin->refresh();
+        $this->assertTrue($admin->hasPermissionTo(Permission::OrganizationsCreate->value));
+        $this->assertFalse($admin->hasPermissionTo(Permission::UsersDelete->value));
+        $this->assertFalse(Role::findByName(RoleEnum::User->value)->hasPermissionTo(Permission::OrganizationsCreate->value));
     }
 }

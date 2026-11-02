@@ -59,6 +59,25 @@ const navigation = computed(() => {
             ],
         },
         {
+            title: 'Anagrafiche',
+            items: [
+                {
+                    title: 'Organizzazioni',
+                    icon: 'mdi-domain',
+                    route: 'registry.organizations.index',
+                    active: 'registry.organizations.*',
+                    permission: 'organizations.view',
+                },
+                {
+                    title: 'Contatti',
+                    icon: 'mdi-card-account-phone-outline',
+                    route: 'registry.contacts.index',
+                    active: 'registry.contacts.*',
+                    permission: 'organizations.view',
+                },
+            ],
+        },
+        {
             title: 'Amministrazione',
             items: [
                 {

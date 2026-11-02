@@ -10,6 +10,9 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\Profile\AvatarController;
 use App\Http\Controllers\Profile\BrowserSessionController;
 use App\Http\Controllers\Profile\ProfileController;
+use App\Http\Controllers\Registry\ContactController;
+use App\Http\Controllers\Registry\LocationController;
+use App\Http\Controllers\Registry\OrganizationController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -41,6 +44,25 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::patch('{notification}/read', 'markAsRead')->name('read');
         Route::patch('{notification}/unread', 'markAsUnread')->name('unread');
         Route::delete('{notification}', 'destroy')->name('destroy');
+    });
+
+    Route::prefix('registry')->name('registry.')->group(function () {
+        Route::resource('organizations', OrganizationController::class)->except('show');
+        // Archived organizations stay viewable (read-only) and restorable.
+        Route::get('organizations/{organization}', [OrganizationController::class, 'show'])
+            ->name('organizations.show')
+            ->withTrashed();
+        Route::patch('organizations/{organization}/restore', [OrganizationController::class, 'restore'])
+            ->name('organizations.restore')
+            ->withTrashed();
+
+        // Scoped bindings: a location/contact resolves only under its own organization.
+        Route::scopeBindings()->group(function () {
+            Route::resource('organizations.locations', LocationController::class)->only(['store', 'update', 'destroy']);
+            Route::resource('organizations.contacts', ContactController::class)->only(['store', 'update', 'destroy']);
+        });
+
+        Route::get('contacts', [ContactController::class, 'index'])->name('contacts.index');
     });
 
     Route::prefix('admin')->name('admin.')->group(function () {

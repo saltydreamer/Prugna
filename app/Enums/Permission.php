@@ -22,6 +22,11 @@ enum Permission: string
 
     case NotificationsSend = 'notifications.send';
 
+    case OrganizationsView = 'organizations.view';
+    case OrganizationsCreate = 'organizations.create';
+    case OrganizationsUpdate = 'organizations.update';
+    case OrganizationsDelete = 'organizations.delete';
+
     public function label(): string
     {
         return match ($this) {
@@ -34,6 +39,10 @@ enum Permission: string
             self::RolesUpdate => 'Modificare i ruoli',
             self::RolesDelete => 'Eliminare ruoli',
             self::NotificationsSend => 'Inviare annunci agli utenti',
+            self::OrganizationsView => 'Consultare le anagrafiche',
+            self::OrganizationsCreate => 'Creare organizzazioni',
+            self::OrganizationsUpdate => 'Modificare organizzazioni, sedi e contatti',
+            self::OrganizationsDelete => 'Archiviare organizzazioni',
         };
     }
 
@@ -43,6 +52,7 @@ enum Permission: string
             self::UsersView, self::UsersCreate, self::UsersUpdate, self::UsersDelete => 'Utenti',
             self::RolesView, self::RolesCreate, self::RolesUpdate, self::RolesDelete => 'Ruoli e permessi',
             self::NotificationsSend => 'Notifiche',
+            self::OrganizationsView, self::OrganizationsCreate, self::OrganizationsUpdate, self::OrganizationsDelete => 'Anagrafiche',
         };
     }
 

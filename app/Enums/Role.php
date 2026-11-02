@@ -27,7 +27,9 @@ enum Role: string
     }
 
     /**
-     * Default permissions assigned when the role is first created.
+     * Default permissions of the role. They are granted when the role is created and,
+     * for permissions added later to App\Enums\Permission, when they are first synced.
+     * Permissions removed by hand from the admin panel are never granted back.
      *
      * @return list<Permission>
      */
@@ -36,7 +38,7 @@ enum Role: string
         return match ($this) {
             self::SuperAdmin => [],
             self::Admin => Permission::cases(),
-            self::User => [],
+            self::User => [Permission::OrganizationsView],
         };
     }
 

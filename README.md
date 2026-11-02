@@ -7,6 +7,7 @@ Scheletro applicativo **Laravel 13 + Inertia 3 + Vue 3 + Vuetify 4 + MariaDB** c
 - **Gestione permessi**: ruoli e permessi con Spatie Permission. I permessi sono definiti in un enum PHP e i ruoli si gestiscono dall'interfaccia, con i permessi raggruppati per area.
 - **Profilo utente**: dati personali, immagine del profilo, cambio password, 2FA, preferenze di notifica, sessioni attive (con disconnessione degli altri dispositivi), eliminazione account.
 - **Centro notifiche**: campanella con contatore e anteprima, pagina dedicata con filtri (tutte/da leggere/lette), segna come letta/non letta, eliminazione, invio di **annunci** da parte degli amministratori (a tutti, per ruolo o a utenti specifici), copia via email facoltativa.
+- **Anagrafiche**: organizzazioni (dati fiscali con verifica di partita IVA e codice fiscale, codice SDI, PEC), sedi e contatti con sede e referente principali, rubrica dei contatti con ricerca, archiviazione e ripristino.
 - Interfaccia in italiano, tema chiaro/scuro/di sistema, layout responsive, pagine d'errore, toast e dialoghi di conferma globali.
 
 ## Stack

@@ -19,6 +19,14 @@
 - Every in-app notification extends `App\Notifications\AppNotification` and implements `title()` / `message()` (optionally `icon()`, `color()`, `actionUrl()`, `actionLabel()`). It is stored in the database and also mailed when the user enabled `email_notifications`.
 - Notifications are queued (`ShouldQueue`): a worker must run (`composer dev` starts one).
 
+## Registry (Anagrafiche)
+
+- `Organization` (soft deletes = "archiviata", read-only until restored) has many `Location` (sedi) and `Contact` (contatti). Routes under `registry.*`; locations/contacts are nested and scoped (`scopeBindings`).
+- Exactly one primary location/contact per organization, enforced by `App\Models\Concerns\HasPrimaryFlag` (first record is primary, deleting the primary promotes another).
+- Italian fiscal data: `App\Rules\ItalianVatNumber` / `ItalianTaxCode` validate check digits; normalize with their `normalize()` before storing.
+- Permissions `organizations.*`; `OrganizationPolicy` also covers locations and contacts (update on the organization).
+- Nested API resources returned inside another resource must be `->resolve()`d, otherwise Inertia wraps them in `data`.
+
 ## Frontend
 
 - Pages: `resources/js/pages/**` (lowercase directory, e.g. `admin/users/Index`). Layout is chosen automatically in `resources/js/app.js` (`auth/*` → `AuthLayout`, else `AppLayout`).

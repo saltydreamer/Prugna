@@ -40,8 +40,13 @@ class SyncPermissions
         foreach (RoleEnum::cases() as $roleEnum) {
             $role = Role::firstOrCreate(['name' => $roleEnum->value, 'guard_name' => $guard]);
 
+            $defaults = array_map(fn (PermissionEnum $permission) => $permission->value, $roleEnum->defaultPermissions());
+
             if ($role->wasRecentlyCreated) {
-                $role->syncPermissions(array_map(fn (PermissionEnum $permission) => $permission->value, $roleEnum->defaultPermissions()));
+                $role->syncPermissions($defaults);
+            } elseif ($newDefaults = array_values(array_intersect($defaults, $created))) {
+                // New permissions reach the system roles that should have them by default.
+                $role->givePermissionTo($newDefaults);
             }
         }
 

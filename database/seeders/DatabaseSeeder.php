@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Enums\Role;
+use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 
@@ -38,6 +39,7 @@ class DatabaseSeeder extends Seeder
 
         if (app()->isLocal()) {
             User::factory(25)->withRole(Role::User)->create();
+            Organization::factory(20)->withDetails()->create();
         }
     }
 }
