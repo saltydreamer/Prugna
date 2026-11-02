@@ -67,6 +67,20 @@ const navigation = computed(() => {
                     active: 'sales.quotes.*',
                     permission: 'quotes.view',
                 },
+                {
+                    title: 'Ordini',
+                    icon: 'mdi-clipboard-text-outline',
+                    route: 'sales.orders.index',
+                    active: 'sales.orders.*',
+                    permission: 'orders.view',
+                },
+                {
+                    title: 'Fatture',
+                    icon: 'mdi-receipt-text-outline',
+                    route: 'sales.invoices.index',
+                    active: 'sales.invoices.*',
+                    permission: 'invoices.view',
+                },
             ],
         },
         {

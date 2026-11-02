@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\QuoteLineType;
+use App\Models\Concerns\IsDocumentLine;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -13,6 +14,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 ])]
 class QuoteLine extends Model
 {
+    use IsDocumentLine;
+
     /**
      * Get the attributes that should be cast.
      *
@@ -46,18 +49,5 @@ class QuoteLine extends Model
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
-    }
-
-    public function isItem(): bool
-    {
-        return $this->type === QuoteLineType::Item;
-    }
-
-    /**
-     * Whether the line counts in the totals.
-     */
-    public function isIncluded(): bool
-    {
-        return $this->isItem() && (! $this->is_optional || $this->is_selected);
     }
 }

@@ -11,13 +11,15 @@ const props = defineProps({
     company: { type: Object, required: true },
     mail: { type: Object, required: true },
     quotes: { type: Object, required: true },
+    fiscal: { type: Object, required: true },
+    fiscalOptions: { type: Object, required: true },
     paymentTerms: { type: Array, required: true },
     paymentMethods: { type: Array, required: true },
 });
 
 const { confirm } = useConfirm();
 
-const tabs = ['company', 'mail', 'quotes', 'payments'];
+const tabs = ['company', 'fiscal', 'mail', 'quotes', 'payments'];
 const current = ref(tabs.includes(props.tab) ? props.tab : 'company');
 
 watch(current, (value) => {
@@ -119,6 +121,29 @@ function sendTest() {
     testForm.post(route('settings.mail.test'), { ...options, onSuccess: () => (testDialog.value = false) });
 }
 
+// --- Fiscal ------------------------------------------------------------------------
+const fiscalForm = useForm({
+    regime: props.fiscal.regime ?? 'RF01',
+    withholding_enabled: !!props.fiscal.withholding_enabled,
+    withholding_type: props.fiscal.withholding_type ?? 'RT01',
+    withholding_rate: props.fiscal.withholding_rate ?? 20,
+    withholding_reason: props.fiscal.withholding_reason ?? 'A',
+    pension_enabled: !!props.fiscal.pension_enabled,
+    pension_type: props.fiscal.pension_type ?? 'TC22',
+    pension_rate: props.fiscal.pension_rate ?? 4,
+    pension_vat_rate_id: props.fiscal.pension_vat_rate_id ?? null,
+    pension_withholding: !!props.fiscal.pension_withholding,
+    stamp_duty_enabled: props.fiscal.stamp_duty_enabled ?? true,
+    stamp_duty_charge_customer: props.fiscal.stamp_duty_charge_customer ?? true,
+    invoice_notes: props.fiscal.invoice_notes ?? '',
+});
+
+const vatFreeRegime = computed(() => ['RF02', 'RF19'].includes(fiscalForm.regime));
+
+function saveFiscal() {
+    fiscalForm.put(route('settings.fiscal.update'), { ...options, onSuccess: () => fiscalForm.defaults() });
+}
+
 // --- Quotes ------------------------------------------------------------------------
 const quotesForm = useForm({
     validity_days: props.quotes.validity_days ?? 30,
@@ -195,6 +220,7 @@ function dueLabel(term) {
         <v-card class="mb-6">
             <v-tabs v-model="current" color="primary" show-arrows>
                 <v-tab value="company" prepend-icon="mdi-domain">Azienda</v-tab>
+                <v-tab value="fiscal" prepend-icon="mdi-scale-balance">Fiscale</v-tab>
                 <v-tab value="mail" prepend-icon="mdi-email-fast-outline">Email</v-tab>
                 <v-tab value="quotes" prepend-icon="mdi-file-document-edit-outline">Preventivi</v-tab>
                 <v-tab value="payments" prepend-icon="mdi-cash-clock">Pagamenti</v-tab>
@@ -315,6 +341,113 @@ function dueLabel(term) {
                         </v-card-actions>
                     </v-form>
                 </v-card>
+            </v-tabs-window-item>
+
+            <!-- Fiscal -->
+            <v-tabs-window-item value="fiscal">
+                <v-form @submit.prevent="saveFiscal">
+                    <v-card class="mb-6" title="Regime fiscale">
+                        <v-card-text>
+                            <v-select
+                                v-model="fiscalForm.regime"
+                                :items="fiscalOptions.regimes"
+                                label="Regime"
+                                :error-messages="fiscalForm.errors.regime"
+                                style="max-width: 420px"
+                            />
+                            <v-alert v-if="vatFreeRegime" type="info" variant="tonal" density="compact" class="mt-2">
+                                Le fatture vengono emesse senza IVA (natura N2.2) con la dicitura di legge; sopra 77,47 € si applica la marca da bollo
+                                da 2 €.
+                            </v-alert>
+                            <v-textarea
+                                v-model="fiscalForm.invoice_notes"
+                                label="Note fisse in fattura"
+                                :hint="
+                                    vatFreeRegime
+                                        ? 'Lascia vuoto per usare la dicitura standard del regime forfettario'
+                                        : 'Es. contributo CONAI assolto ove dovuto'
+                                "
+                                persistent-hint
+                                rows="2"
+                                auto-grow
+                                class="mt-4"
+                                :error-messages="fiscalForm.errors.invoice_notes"
+                            />
+                        </v-card-text>
+                    </v-card>
+
+                    <v-card class="mb-6" title="Ritenuta d'acconto" subtitle="Per i professionisti: trattenuta dal cliente sostituto d'imposta.">
+                        <v-card-text>
+                            <v-switch v-model="fiscalForm.withholding_enabled" label="Applica la ritenuta d'acconto" />
+                            <v-row v-if="fiscalForm.withholding_enabled" dense>
+                                <v-col cols="12" md="4">
+                                    <v-select v-model="fiscalForm.withholding_type" :items="fiscalOptions.withholdingTypes" label="Tipo" />
+                                </v-col>
+                                <v-col cols="12" md="3">
+                                    <v-text-field
+                                        v-model="fiscalForm.withholding_rate"
+                                        label="Aliquota"
+                                        type="number"
+                                        suffix="%"
+                                        :error-messages="fiscalForm.errors.withholding_rate"
+                                    />
+                                </v-col>
+                                <v-col cols="12" md="5">
+                                    <v-select v-model="fiscalForm.withholding_reason" :items="fiscalOptions.withholdingReasons" label="Causale" />
+                                </v-col>
+                            </v-row>
+                        </v-card-text>
+                    </v-card>
+
+                    <v-card class="mb-6" title="Cassa previdenziale" subtitle="Contributo integrativo o rivalsa INPS addebitati al cliente.">
+                        <v-card-text>
+                            <v-switch v-model="fiscalForm.pension_enabled" label="Applica il contributo cassa" />
+                            <v-row v-if="fiscalForm.pension_enabled" dense>
+                                <v-col cols="12" md="5">
+                                    <v-select v-model="fiscalForm.pension_type" :items="fiscalOptions.pensionFunds" label="Cassa" />
+                                </v-col>
+                                <v-col cols="12" md="2">
+                                    <v-text-field
+                                        v-model="fiscalForm.pension_rate"
+                                        label="Aliquota"
+                                        type="number"
+                                        suffix="%"
+                                        :error-messages="fiscalForm.errors.pension_rate"
+                                    />
+                                </v-col>
+                                <v-col cols="12" md="5">
+                                    <v-select
+                                        v-model="fiscalForm.pension_vat_rate_id"
+                                        :items="fiscalOptions.vatRates"
+                                        label="IVA sul contributo"
+                                        :error-messages="fiscalForm.errors.pension_vat_rate_id"
+                                    />
+                                </v-col>
+                                <v-col cols="12">
+                                    <v-checkbox v-model="fiscalForm.pension_withholding" label="Il contributo è soggetto a ritenuta" hide-details />
+                                </v-col>
+                            </v-row>
+                        </v-card-text>
+                    </v-card>
+
+                    <v-card class="mb-6" title="Marca da bollo" subtitle="Bollo virtuale da 2 € sulle fatture senza IVA sopra 77,47 €.">
+                        <v-card-text>
+                            <v-switch v-model="fiscalForm.stamp_duty_enabled" label="Applica il bollo in automatico quando dovuto" />
+                            <v-switch
+                                v-if="fiscalForm.stamp_duty_enabled"
+                                v-model="fiscalForm.stamp_duty_charge_customer"
+                                label="Addebita il bollo al cliente (riga in fattura)"
+                            />
+                        </v-card-text>
+                    </v-card>
+
+                    <div class="d-flex">
+                        <v-spacer />
+                        <v-btn type="submit" color="primary" variant="flat" :loading="fiscalForm.processing" :disabled="!fiscalForm.isDirty">
+                            Salva
+                        </v-btn>
+                    </div>
+                </v-form>
             </v-tabs-window-item>
 
             <!-- Mail -->

@@ -39,6 +39,13 @@ enum Permission: string
     case QuotesDelete = 'quotes.delete';
     case QuotesSupervise = 'quotes.supervise';
 
+    case OrdersView = 'orders.view';
+    case OrdersManage = 'orders.manage';
+
+    case InvoicesView = 'invoices.view';
+    case InvoicesManage = 'invoices.manage';
+    case InvoicesIssue = 'invoices.issue';
+
     case SettingsManage = 'settings.manage';
 
     public function label(): string
@@ -67,6 +74,11 @@ enum Permission: string
             self::QuotesUpdate => 'Modificare e inviare i propri preventivi',
             self::QuotesDelete => 'Eliminare le proprie bozze di preventivo',
             self::QuotesSupervise => 'Vedere e gestire i preventivi di tutti',
+            self::OrdersView => 'Consultare gli ordini clienti',
+            self::OrdersManage => 'Creare, modificare e chiudere gli ordini',
+            self::InvoicesView => 'Consultare le fatture',
+            self::InvoicesManage => 'Preparare e modificare le bozze di fattura',
+            self::InvoicesIssue => 'Emettere fatture e note di credito',
             self::SettingsManage => 'Gestire impostazioni (azienda, email, pagamenti)',
         };
     }
@@ -80,6 +92,8 @@ enum Permission: string
             self::OrganizationsView, self::OrganizationsCreate, self::OrganizationsUpdate, self::OrganizationsDelete => 'Anagrafiche',
             self::ProductsView, self::ProductsCreate, self::ProductsUpdate, self::ProductsDelete, self::CatalogSettings => 'Prodotti e servizi',
             self::QuotesView, self::QuotesCreate, self::QuotesUpdate, self::QuotesDelete, self::QuotesSupervise => 'Preventivi',
+            self::OrdersView, self::OrdersManage => 'Ordini',
+            self::InvoicesView, self::InvoicesManage, self::InvoicesIssue => 'Fatture',
             self::SettingsManage => 'Impostazioni',
         };
     }

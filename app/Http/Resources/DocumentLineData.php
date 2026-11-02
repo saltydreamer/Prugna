@@ -1,0 +1,49 @@
+<?php
+
+namespace App\Http\Resources;
+
+use App\Models\InvoiceLine;
+use App\Models\OrderLine;
+
+/**
+ * Serializes the lines of orders and invoices for the frontend.
+ */
+class DocumentLineData
+{
+    /**
+     * @return array<string, mixed>
+     */
+    public static function from(OrderLine|InvoiceLine $line): array
+    {
+        $data = [
+            'id' => $line->id,
+            'type' => $line->type->value,
+            'product_id' => $line->product_id,
+            'code' => $line->code,
+            'description' => $line->description,
+            'unit' => $line->unit,
+            'quantity' => (float) $line->quantity,
+            'unit_price' => (float) $line->unit_price,
+            'discount_percent' => (float) $line->discount_percent,
+            'vat_rate_id' => $line->vat_rate_id,
+            'vat_rate' => (float) $line->vat_rate,
+            'vat_nature' => $line->vat_nature,
+            'total' => (float) $line->total,
+        ];
+
+        if ($line instanceof OrderLine) {
+            return [
+                ...$data,
+                'quantity_invoiced' => (float) $line->quantity_invoiced,
+                'quantity_remaining' => $line->remainingQuantity(),
+            ];
+        }
+
+        return [
+            ...$data,
+            'order_line_id' => $line->order_line_id,
+            'system' => $line->system,
+            'deducts_invoice_id' => $line->deducts_invoice_id,
+        ];
+    }
+}

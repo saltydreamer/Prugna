@@ -19,6 +19,7 @@ const form = useForm({
     tax_code: '',
     sdi_code: '',
     payment_term_id: null,
+    split_payment: false,
     email: '',
     pec: '',
     phone: '',

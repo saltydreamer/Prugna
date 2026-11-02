@@ -3,6 +3,7 @@ import { computed, ref } from 'vue';
 import { router, useForm } from '@inertiajs/vue3';
 import { route } from 'ziggy-js';
 import PageHeader from '@/components/PageHeader.vue';
+import InvoiceDialog from '@/components/sales/InvoiceDialog.vue';
 import QuoteSendDialog from '@/components/sales/QuoteSendDialog.vue';
 import QuoteTotalsCard from '@/components/sales/QuoteTotalsCard.vue';
 import { useConfirm } from '@/composables/useConfirm';
@@ -15,6 +16,9 @@ const props = defineProps({
     quote: { type: Object, required: true },
     publicUrl: { type: String, required: true },
     organizationArchived: { type: Boolean, default: false },
+    /** Order created from the quote (null when none or not visible). */
+    order: { type: Object, default: null },
+    invoices: { type: Array, default: () => [] },
 });
 
 const { link } = useInertiaLink();
@@ -27,6 +31,16 @@ const canUpdate = computed(() => props.quote.can?.update);
 const sendDialog = ref(false);
 const decisionDialog = ref(false);
 const decisionForm = useForm({ accepted: true, note: '' });
+const invoiceDialog = ref(false);
+
+const isAccepted = computed(() => status.value === 'accepted');
+const canCreateOrder = computed(() => isAccepted.value && !props.order && can('orders.manage'));
+// Without an order the quote is invoiced directly; once an order exists, invoicing goes through it.
+const canInvoice = computed(() => isAccepted.value && !props.order && can('invoices.manage'));
+
+function createOrder() {
+    router.post(route('sales.quotes.order', props.quote.id));
+}
 
 const options = { preserveScroll: true };
 
@@ -101,6 +115,29 @@ async function destroy() {
             <template #actions>
                 <v-btn variant="text" prepend-icon="mdi-arrow-left" v-bind="link(route('sales.quotes.index'))">Preventivi</v-btn>
                 <v-btn variant="tonal" prepend-icon="mdi-file-pdf-box" :href="route('sales.quotes.pdf', quote.id)" target="_blank">PDF</v-btn>
+                <template v-if="isAccepted">
+                    <v-btn
+                        v-if="order"
+                        color="primary"
+                        variant="tonal"
+                        prepend-icon="mdi-clipboard-text-outline"
+                        v-bind="link(route('sales.orders.show', order.id))"
+                    >
+                        Ordine {{ order.number }}
+                    </v-btn>
+                    <v-btn v-if="canCreateOrder" color="primary" variant="tonal" prepend-icon="mdi-clipboard-plus-outline" @click="createOrder">
+                        Crea ordine
+                    </v-btn>
+                    <v-btn
+                        v-if="canInvoice"
+                        color="primary"
+                        variant="flat"
+                        prepend-icon="mdi-receipt-text-plus-outline"
+                        @click="invoiceDialog = true"
+                    >
+                        Fattura
+                    </v-btn>
+                </template>
                 <template v-if="canUpdate">
                     <v-btn
                         v-if="status === 'draft'"
@@ -268,6 +305,19 @@ async function destroy() {
             <v-col cols="12" lg="4">
                 <QuoteTotalsCard :totals="quote.totals" class="mb-6" />
 
+                <v-card v-if="invoices.length" title="Fatture" class="mb-6">
+                    <v-list density="compact">
+                        <v-list-item
+                            v-for="invoice in invoices"
+                            :key="invoice.id"
+                            :title="`${invoice.type_label} ${invoice.number}`"
+                            :subtitle="`${formatMoney(invoice.subtotal)} + IVA`"
+                            :prepend-icon="invoice.status === 'draft' ? 'mdi-file-document-edit-outline' : 'mdi-receipt-text-check-outline'"
+                            v-bind="link(route('sales.invoices.show', invoice.id))"
+                        />
+                    </v-list>
+                </v-card>
+
                 <v-card title="Cronologia">
                     <v-card-text>
                         <v-timeline density="compact" side="end" truncate-line="both">
@@ -283,6 +333,7 @@ async function destroy() {
         </v-row>
 
         <QuoteSendDialog v-model="sendDialog" :quote="quote" />
+        <InvoiceDialog v-if="canInvoice" v-model="invoiceDialog" source="quote" :document="quote" />
 
         <v-dialog v-model="decisionDialog" max-width="480">
             <v-card :title="decisionForm.accepted ? 'Registra accettazione' : 'Registra rifiuto'">

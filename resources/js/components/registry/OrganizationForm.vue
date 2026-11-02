@@ -38,15 +38,23 @@ defineProps({
             <v-col cols="12" md="4">
                 <v-text-field
                     v-model="form.sdi_code"
-                    label="Codice destinatario SDI"
-                    maxlength="7"
-                    hint="Per la fatturazione elettronica (7 caratteri)."
+                    :label="form.type === 'public_body' ? 'Codice univoco ufficio (PA)' : 'Codice destinatario SDI'"
+                    :maxlength="form.type === 'public_body' ? 6 : 7"
+                    :hint="form.type === 'public_body' ? 'Codice IPA dell\'ufficio, 6 caratteri.' : 'Per la fatturazione elettronica (7 caratteri).'"
                     :error-messages="form.errors.sdi_code"
                 />
             </v-col>
         </v-row>
 
         <v-row>
+            <v-col cols="12" md="4" order-md="2">
+                <v-switch
+                    v-model="form.split_payment"
+                    label="Split payment"
+                    hint="Scissione dei pagamenti (art. 17-ter): il cliente versa l'IVA allo Stato"
+                    persistent-hint
+                />
+            </v-col>
             <v-col cols="12" md="8">
                 <v-select
                     v-model="form.payment_term_id"

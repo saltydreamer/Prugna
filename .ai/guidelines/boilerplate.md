@@ -31,7 +31,7 @@
 
 ## Settings
 
-- `App\Support\Settings` (scoped singleton, cached): key/value settings edited in Impostazioni (`company.*`, `mail.*`, `quotes.*`). `mail.password` is stored encrypted and never sent to the frontend.
+- `App\Support\Settings` (scoped singleton, cached): key/value settings edited in Impostazioni (`company.*`, `mail.*`, `quotes.*`, `fiscal.*`). `mail.password` is stored encrypted and never sent to the frontend.
 - SMTP from the UI is applied by `App\Support\MailSettings` when the mail manager is resolved; saving restarts queue workers.
 - `PaymentTerm` (FatturaPA method MPxx, days, end of month); organizations have a default `payment_term_id`.
 
@@ -42,6 +42,15 @@
 - Visibility: owners see their own quotes; `quotes.supervise` sees everyone's (`Quote::visibleTo()`, `QuotePolicy`).
 - Customers answer on the public page `/q/{public_token}` (no login, rate limited); the owner gets `QuoteActivityNotification`.
 - PDF: `App\Support\QuotePdf` + `resources/views/pdf/quote.blade.php` (dompdf, DejaVu Sans with font subsetting).
+
+## Orders and invoices (Ordini e Fatture)
+
+- Shared document infrastructure: `DocumentTotals` (line rounding + VAT per rate), `SyncDocumentLines` (replace lines freezing VAT), `DocumentNumber::next()` (yearly numbers `ORD-2026-0001`, `FT-2026-0001`, `NC-2026-0001`, row lock + unique index), `CustomerSnapshot`, `IsDocumentLine`.
+- `Order` + `OrderLine` (`quantity_invoiced`): created from an accepted quote with `SaveOrder::fromQuote()` (one per quote) or by hand. Customer and lines are editable only while nothing is invoiced (`Order::isEditable()`); `refreshInvoicedQuantities()` recomputes from invoices (drafts included) minus issued credit notes. Permissions `orders.view` / `orders.manage`; PDF "Conferma d'ordine" via `OrderPdf`.
+- `Invoice` + `InvoiceLine` (types invoice TD01 / deposit TD02 / credit_note TD04, series FT/NC). Build drafts with `BuildInvoice` (from quote: full/deposit; from order: full/selection/deposit; credit note), save with `SaveInvoice` (freezes regime, withholding and pension fund from `fiscal.*`, keeps the "Rimborso imposta di bollo" system line in sync), issue with `IssueInvoice` (`problems()` lists what blocks issuing; numbering only at issue time, chronological order enforced). Issued invoices never change: correct them with a credit note.
+- Fiscal totals: `InvoiceCalculator` (pension fund on the taxable, withholding, split payment, virtual stamp duty > 77.47 €), mirrored in `resources/js/utils/invoiceTotals.js`. Deposits are deducted in the balance as negative system lines (`deducts_invoice_id`), only once issued.
+- FatturaPA XML: `App\Support\FatturaPa\FatturaPaXml` (FPR12/FPA12). Strings must be Basic Latin/Latin-1 (`text()` transliterates). `FatturaPaXmlTest` validates against the official XSD in `tests/Fixtures/fatturapa`.
+- Permissions `invoices.view`, `invoices.manage` (drafts), `invoices.issue` (issue, credit notes). PDF courtesy copy via `InvoicePdf` (`resources/views/pdf/invoice.blade.php`, all PDFs extend `pdf/layout.blade.php`).
 
 ## Frontend
 - Pages: `resources/js/pages/**` (lowercase directory, e.g. `admin/users/Index`). Layout is chosen automatically in `resources/js/app.js` (`auth/*` → `AuthLayout`, else `AppLayout`).

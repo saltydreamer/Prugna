@@ -11,6 +11,8 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Sales\QuoteRequest;
 use App\Http\Resources\QuoteResource;
 use App\Http\Resources\VatRateResource;
+use App\Models\Invoice;
+use App\Models\Order;
 use App\Models\Organization;
 use App\Models\PaymentTerm;
 use App\Models\Quote;
@@ -116,6 +118,18 @@ class QuoteController extends Controller
             'quote' => QuoteResource::make($quote)->resolve(),
             'publicUrl' => $quote->publicUrl(),
             'organizationArchived' => $quote->organization?->trashed() ?? false,
+            'order' => $request->user()->can('viewAny', Order::class)
+                ? Order::query()->where('quote_id', $quote->id)->first(['id', 'number'])?->only(['id', 'number'])
+                : null,
+            'invoices' => $request->user()->can('viewAny', Invoice::class)
+                ? Invoice::query()->where('quote_id', $quote->id)->orderBy('id')->get()->map(fn (Invoice $invoice) => [
+                    'id' => $invoice->id,
+                    'number' => $invoice->displayNumber(),
+                    'type_label' => $invoice->type->label(),
+                    'status' => $invoice->status->value,
+                    'subtotal' => (float) $invoice->subtotal,
+                ])
+                : [],
         ]);
     }
 
