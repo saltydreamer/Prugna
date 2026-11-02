@@ -3,11 +3,6 @@ name: Server check
 # Read-only inspection of the VPS (OS, resources, Docker, used ports).
 on:
   workflow_dispatch:
-  push:
-    branches: [infra/vps-setup]
-    paths:
-      - .github/workflows/server-check.yml
-      - deploy/scripts/server-check.sh
 
 permissions:
   contents: read
@@ -19,38 +14,17 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           persist-credentials: false
 
-      - name: Verify secrets
-        env:
-          VPS_HOST: ${{ secrets.VPS_HOST }}
-          VPS_USER: ${{ secrets.VPS_USER }}
-          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
-        run: |
-          missing=0
-          for name in VPS_HOST VPS_USER VPS_SSH_KEY; do
-            if [ -z "${!name}" ]; then echo "::error::Secret $name mancante"; missing=1; else echo "$name: presente"; fi
-          done
-          exit $missing
-
       - name: Configure SSH
-        env:
-          VPS_HOST: ${{ secrets.VPS_HOST }}
-          VPS_PORT: ${{ secrets.VPS_PORT }}
-          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
-        run: |
-          install -m 700 -d ~/.ssh
-          printf '%s\n' "$VPS_SSH_KEY" | tr -d '\r' > ~/.ssh/id_deploy
-          chmod 600 ~/.ssh/id_deploy
-          ssh-keygen -y -f ~/.ssh/id_deploy > /dev/null || { echo "::error::VPS_SSH_KEY non è una chiave privata valida"; exit 1; }
-          ssh-keyscan -T 15 -p "${VPS_PORT:-22}" "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
-          test -s ~/.ssh/known_hosts || { echo "::error::Il VPS non risponde su SSH (porta ${VPS_PORT:-22})"; exit 1; }
+        uses: ./.github/actions/ssh
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          port: ${{ secrets.VPS_PORT }}
+          user: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
 
       - name: Inspect server
-        env:
-          VPS_HOST: ${{ secrets.VPS_HOST }}
-          VPS_PORT: ${{ secrets.VPS_PORT }}
-          VPS_USER: ${{ secrets.VPS_USER }}
-        run: ssh -i ~/.ssh/id_deploy -p "${VPS_PORT:-22}" -o BatchMode=yes -o ConnectTimeout=15 "$VPS_USER@$VPS_HOST" 'bash -s' < deploy/scripts/server-check.sh
+        run: ssh vps 'bash -s' < deploy/scripts/server-check.sh

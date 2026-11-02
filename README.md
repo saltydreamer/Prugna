@@ -194,7 +194,11 @@ npm run format
 
 I test di feature (`tests/Feature`) coprono autenticazione, registrazione, gestione utenti e ruoli, centro notifiche, annunci e profilo. In CI vengono eseguiti su MariaDB.
 
-## Deploy (promemoria)
+## Deploy
+
+Il deploy automatico su VPS (Docker + GitHub Actions, HTTPS automatico) è descritto in [deploy/README.md](deploy/README.md).
+
+### Deploy manuale (promemoria)
 
 ```bash
 composer install --no-dev --optimize-autoloader

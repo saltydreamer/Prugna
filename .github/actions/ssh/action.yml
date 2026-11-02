@@ -1,0 +1,50 @@
+name: Configure SSH
+description: Writes the deploy key and the server host key so that `ssh vps` works.
+
+inputs:
+  host:
+    description: Server address
+    required: true
+  port:
+    description: SSH port
+    required: false
+    default: ''
+  user:
+    description: SSH user
+    required: true
+  key:
+    description: Private key
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Write SSH configuration
+      shell: bash
+      env:
+        VPS_HOST: ${{ inputs.host }}
+        VPS_PORT: ${{ inputs.port }}
+        VPS_USER: ${{ inputs.user }}
+        VPS_SSH_KEY: ${{ inputs.key }}
+      run: |
+        for name in VPS_HOST VPS_USER VPS_SSH_KEY; do
+          if [ -z "${!name}" ]; then echo "::error::Secret $name mancante"; exit 1; fi
+        done
+        port="${VPS_PORT:-22}"
+        install -m 700 -d ~/.ssh
+        printf '%s\n' "$VPS_SSH_KEY" | tr -d '\r' > ~/.ssh/id_deploy
+        chmod 600 ~/.ssh/id_deploy
+        ssh-keygen -y -f ~/.ssh/id_deploy > /dev/null || { echo "::error::VPS_SSH_KEY non è una chiave privata valida"; exit 1; }
+        ssh-keyscan -T 15 -p "$port" "$VPS_HOST" >> ~/.ssh/known_hosts 2> /dev/null
+        test -s ~/.ssh/known_hosts || { echo "::error::Il server non risponde su SSH (porta $port)"; exit 1; }
+        cat > ~/.ssh/config <<CONFIG
+        Host vps
+          HostName $VPS_HOST
+          Port $port
+          User $VPS_USER
+          IdentityFile ~/.ssh/id_deploy
+          BatchMode yes
+          ConnectTimeout 15
+          ServerAliveInterval 30
+        CONFIG
+        chmod 600 ~/.ssh/config

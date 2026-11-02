@@ -15,6 +15,12 @@ class DatabaseSeeder extends Seeder
     {
         $this->call(PermissionSeeder::class);
 
+        // Demo accounts with a known password must never exist in production:
+        // create the first account with `php artisan app:create-super-admin`.
+        if (app()->isProduction()) {
+            return;
+        }
+
         User::factory()->superAdmin()->create([
             'name' => 'Super Admin',
             'email' => 'superadmin@example.com',

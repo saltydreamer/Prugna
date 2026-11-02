@@ -8,10 +8,12 @@ import vuetify from './plugins/vuetify';
 import AppLayout from './layouts/AppLayout.vue';
 import AuthLayout from './layouts/AuthLayout.vue';
 
-const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
-
 createInertiaApp({
-    title: (title) => (title ? `${title} · ${appName}` : appName),
+    title: (title, page) => {
+        const appName = page?.props?.app?.name ?? 'Laravel';
+
+        return title ? `${title} · ${appName}` : appName;
+    },
     resolve: (name) => {
         const pages = import.meta.glob('./pages/**/*.vue');
         const page = pages[`./pages/${name}.vue`];

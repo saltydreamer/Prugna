@@ -1,0 +1,57 @@
+name: Provision server
+
+# One-time, idempotent server preparation (Docker, firewall, swap, "deploy" user,
+# production .env with random secrets, nightly backups). Connects as VPS_USER (root).
+on:
+  workflow_dispatch:
+  push:
+    branches: [infra/vps-setup]
+    paths:
+      - .github/workflows/provision.yml
+      - deploy/scripts/provision.sh
+
+permissions:
+  contents: read
+
+env:
+  APP_DOMAIN: ${{ vars.APP_DOMAIN || 'dev.reimg.it' }}
+
+jobs:
+  provision:
+    # Only one job at a time may change the server.
+    concurrency:
+      group: vps
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Configure SSH
+        uses: ./.github/actions/ssh
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          port: ${{ secrets.VPS_PORT }}
+          user: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+
+      - name: Provision
+        run: ssh vps "APP_DOMAIN='$APP_DOMAIN' bash -s" < deploy/scripts/provision.sh
+
+      - name: Check DNS
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+        run: |
+          server_ip="$(getent ahostsv4 "$VPS_HOST" | awk 'NR==1{print $1}')"
+          domain_ip="$(getent ahostsv4 "$APP_DOMAIN" | awk 'NR==1{print $1}')"
+          if [ -z "$domain_ip" ]; then
+            echo "::warning::$APP_DOMAIN non ha ancora un record DNS: crea un record A verso l'IP del VPS."
+          elif [ "$domain_ip" != "$server_ip" ]; then
+            echo "::warning::$APP_DOMAIN punta a un indirizzo diverso dal VPS: correggi il record A."
+          else
+            echo "DNS OK: $APP_DOMAIN punta al VPS."
+          fi
