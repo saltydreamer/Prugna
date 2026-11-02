@@ -84,6 +84,18 @@ const navigation = computed(() => {
             ],
         },
         {
+            title: 'Acquisti',
+            items: [
+                {
+                    title: 'Ordini fornitore',
+                    icon: 'mdi-cart-outline',
+                    route: 'purchases.orders.index',
+                    active: 'purchases.orders.*',
+                    permission: 'purchases.view',
+                },
+            ],
+        },
+        {
             title: 'Anagrafiche',
             items: [
                 {

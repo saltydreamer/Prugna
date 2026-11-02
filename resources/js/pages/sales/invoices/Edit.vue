@@ -5,6 +5,7 @@ import { route } from 'ziggy-js';
 import PageHeader from '@/components/PageHeader.vue';
 import InvoiceTotalsCard from '@/components/sales/InvoiceTotalsCard.vue';
 import QuoteLinesEditor from '@/components/sales/QuoteLinesEditor.vue';
+import RebillCostsDialog from '@/components/sales/RebillCostsDialog.vue';
 import ContactDialog from '@/components/registry/ContactDialog.vue';
 import QuickOrganizationDialog from '@/components/registry/QuickOrganizationDialog.vue';
 import { useInertiaLink } from '@/composables/useInertiaLink';
@@ -143,6 +144,28 @@ function customerCreated(organization) {
 function contactCreated(contact) {
     contacts.value = [...contacts.value, contact];
     form.contact_id = contact.value;
+}
+
+// --- Supplier costs charged back --------------------------------------------------------
+const costsDialog = ref(false);
+const rebilledIds = computed(() => form.lines.map((line) => line.purchase_order_line_id).filter(Boolean));
+
+function addCosts(costs) {
+    const lines = costs.map((cost) => ({
+        key: `cost-${cost.purchase_order_line_id}`,
+        type: 'item',
+        product_id: cost.product_id,
+        code: cost.code,
+        description: cost.description,
+        unit: cost.unit,
+        quantity: cost.quantity,
+        unit_price: cost.unit_price,
+        discount_percent: 0,
+        vat_rate_id: isFlatRate.value ? defaultVatRateId.value : cost.vat_rate_id,
+        purchase_order_line_id: cost.purchase_order_line_id,
+    }));
+
+    form.lines = [...form.lines, ...lines];
 }
 
 function submit() {
@@ -284,6 +307,17 @@ const backUrl = computed(() => (isNew.value ? route('sales.invoices.index') : ro
                     </v-card>
 
                     <v-card class="mb-6" title="Righe">
+                        <template v-if="can('purchases.view') && form.type !== 'credit_note'" #append>
+                            <v-btn
+                                variant="tonal"
+                                color="secondary"
+                                prepend-icon="mdi-cart-arrow-right"
+                                :disabled="!form.organization_id"
+                                @click="costsDialog = true"
+                            >
+                                Costi da ribaltare
+                            </v-btn>
+                        </template>
                         <v-card-text>
                             <v-alert v-if="isFlatRate" type="info" variant="tonal" density="compact" class="mb-4">
                                 Regime forfettario: usa l'aliquota «Non soggetto (forfettario)». Il bollo da 2 € si aggiunge da solo sopra 77,47 €.
@@ -393,6 +427,8 @@ const backUrl = computed(() => (isNew.value ? route('sales.invoices.index') : ro
                 </v-col>
             </v-row>
         </v-form>
+
+        <RebillCostsDialog v-model="costsDialog" :organization-id="form.organization_id" :exclude="rebilledIds" @add="addCosts" />
 
         <ContactDialog
             v-if="form.organization_id"

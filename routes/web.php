@@ -14,6 +14,8 @@ use App\Http\Controllers\Profile\AvatarController;
 use App\Http\Controllers\Profile\BrowserSessionController;
 use App\Http\Controllers\Profile\ProfileController;
 use App\Http\Controllers\PublicArea\PublicQuoteController;
+use App\Http\Controllers\Purchases\PurchaseOrderController;
+use App\Http\Controllers\Purchases\PurchaseOrderDocumentController;
 use App\Http\Controllers\Registry\ContactController;
 use App\Http\Controllers\Registry\LocationController;
 use App\Http\Controllers\Registry\OrganizationController;
@@ -131,6 +133,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('orders/{order}/pdf', [OrderDocumentController::class, 'pdf'])->name('orders.pdf');
         Route::post('orders/{order}/invoice', [InvoiceController::class, 'storeFromOrder'])->name('orders.invoice');
 
+        Route::get('invoices/lookup/costs', [InvoiceController::class, 'costs'])->name('invoices.lookup.costs');
         Route::resource('invoices', InvoiceController::class);
         Route::controller(InvoiceController::class)->prefix('invoices/{invoice}')->name('invoices.')->group(function () {
             Route::post('issue', 'issue')->name('issue');
@@ -139,6 +142,16 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::controller(InvoiceDocumentController::class)->prefix('invoices/{invoice}')->name('invoices.')->group(function () {
             Route::get('pdf', 'pdf')->name('pdf');
             Route::get('xml', 'xml')->name('xml');
+        });
+    });
+
+    Route::prefix('purchases')->name('purchases.')->group(function () {
+        Route::resource('orders', PurchaseOrderController::class)->parameters(['orders' => 'purchase_order']);
+        Route::patch('orders/{purchase_order}/status', [PurchaseOrderController::class, 'updateStatus'])->name('orders.status');
+        Route::controller(PurchaseOrderDocumentController::class)->prefix('orders/{purchase_order}')->name('orders.')->group(function () {
+            Route::get('pdf', 'pdf')->name('pdf');
+            Route::get('compose', 'compose')->name('compose');
+            Route::post('send', 'send')->middleware('throttle:10,1')->name('send');
         });
     });
 

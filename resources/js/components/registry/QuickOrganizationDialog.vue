@@ -15,6 +15,8 @@ const props = defineProps({
     paymentTerms: { type: Array, default: () => [] },
     /** Prefilled name, e.g. what was typed in the customer search. */
     initialName: { type: String, default: '' },
+    /** 'customer' or 'supplier'. */
+    role: { type: String, default: 'customer' },
 });
 
 const emit = defineEmits(['created']);
@@ -29,6 +31,8 @@ const blank = () => ({
     email: '',
     phone: '',
     payment_term_id: null,
+    is_customer: props.role === 'customer',
+    is_supplier: props.role === 'supplier',
     location: { address: '', postal_code: '', city: '', province: '', country: 'IT' },
     contact: { first_name: '', last_name: '', job_title: '', email: '', phone: '' },
 });
@@ -71,7 +75,10 @@ function submit() {
 
 <template>
     <v-dialog v-model="open" max-width="760" scrollable>
-        <v-card title="Nuovo cliente" subtitle="Viene aggiunto alle anagrafiche e selezionato nel documento.">
+        <v-card
+            :title="role === 'supplier' ? 'Nuovo fornitore' : 'Nuovo cliente'"
+            subtitle="Viene aggiunto alle anagrafiche e selezionato nel documento."
+        >
             <v-divider />
             <v-card-text>
                 <v-form id="quick-organization-form" @submit.prevent="submit">

@@ -7,6 +7,7 @@ use App\Http\Requests\Concerns\ValidatesDocumentLines;
 use App\Models\Invoice;
 use App\Models\InvoiceLine;
 use App\Models\OrderLine;
+use App\Models\PurchaseOrderLine;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -61,6 +62,7 @@ class InvoiceRequest extends FormRequest
             'apply_pension' => ['boolean'],
             ...$this->lineRules(),
             'lines.*.order_line_id' => ['nullable', 'integer'],
+            'lines.*.purchase_order_line_id' => ['nullable', 'integer', 'distinct'],
             'lines.*.system' => ['nullable', Rule::in([InvoiceLine::SYSTEM_DEPOSIT_DEDUCTION])],
             'lines.*.deducts_invoice_id' => ['nullable', 'integer', Rule::exists('invoices', 'id')->where('type', InvoiceType::Deposit->value)],
         ];
@@ -74,6 +76,7 @@ class InvoiceRequest extends FormRequest
         return [
             fn (Validator $validator) => $this->requireItemLine($validator),
             fn (Validator $validator) => $this->checkOrderQuantities($validator),
+            fn (Validator $validator) => $this->checkRebilledCosts($validator),
         ];
     }
 
@@ -110,6 +113,38 @@ class InvoiceRequest extends FormRequest
 
             if ((float) ($line['quantity'] ?? 0) > $available) {
                 $validator->errors()->add("lines.{$index}.quantity", __("Sull'ordine restano da fatturare :quantity unità.", ['quantity' => rtrim(rtrim(number_format($available, 3, ',', ''), '0'), ',')]));
+            }
+        }
+    }
+
+    /**
+     * Charged back costs must belong to this customer and not be in another invoice already.
+     */
+    private function checkRebilledCosts(Validator $validator): void
+    {
+        $lines = collect($this->input('lines', []))->filter(fn ($line) => filled($line['purchase_order_line_id'] ?? null));
+
+        if ($lines->isEmpty()) {
+            return;
+        }
+
+        $invoice = $this->route('invoice');
+        $costs = PurchaseOrderLine::query()
+            ->with(['purchaseOrder', 'rebilledBy'])
+            ->whereIn('id', $lines->pluck('purchase_order_line_id'))
+            ->get()
+            ->keyBy('id');
+
+        foreach ($lines as $index => $line) {
+            $cost = $costs->get($line['purchase_order_line_id']);
+            $elsewhere = $cost?->rebilledBy->contains(fn (InvoiceLine $other) => ! $invoice instanceof Invoice || $other->invoice_id !== $invoice->id);
+
+            if (! $cost || ! $cost->rebill || (int) $cost->purchaseOrder->customer_id !== (int) $this->input('organization_id')) {
+                $validator->errors()->add("lines.{$index}.description", __('Il costo da ribaltare non appartiene a questo cliente.'));
+            } elseif (! $cost->purchaseOrder->status->isCommitted()) {
+                $validator->errors()->add("lines.{$index}.description", __("L'ordine fornitore :number non è stato inviato o è annullato.", ['number' => $cost->purchaseOrder->number]));
+            } elseif ($elsewhere) {
+                $validator->errors()->add("lines.{$index}.description", __('Questo costo è già stato ribaltato in un\'altra fattura.'));
             }
         }
     }

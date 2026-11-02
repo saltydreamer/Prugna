@@ -59,6 +59,16 @@ class Order extends Model
     }
 
     /**
+     * Supplier orders placed for this order.
+     *
+     * @return HasMany<PurchaseOrder, $this>
+     */
+    public function purchaseOrders(): HasMany
+    {
+        return $this->hasMany(PurchaseOrder::class);
+    }
+
+    /**
      * @return BelongsTo<Quote, $this>
      */
     public function quote(): BelongsTo

@@ -19,6 +19,8 @@ const props = defineProps({
     remaining: { type: Number, default: null },
     /** Issued deposits waiting to be deducted. */
     openDeposits: { type: Number, default: 0 },
+    /** Supplier costs of the order to charge back: { count, amount }. */
+    pendingCosts: { type: Object, default: null },
 });
 
 const form = useForm({
@@ -28,6 +30,7 @@ const form = useForm({
     percent: 30,
     amount: null,
     deduct_deposits: true,
+    include_costs: true,
 });
 
 const items = computed(() =>
@@ -41,7 +44,12 @@ const modes = computed(() => [
         value: 'full',
         icon: 'mdi-receipt-text-check-outline',
         title: props.source === 'order' ? 'Tutto il residuo' : 'Fattura unica',
-        subtitle: props.source === 'order' ? `Fattura ${formatMoney(taxable.value)} + IVA ancora da fatturare` : 'Tutte le righe del preventivo',
+        subtitle:
+            props.source !== 'order'
+                ? 'Tutte le righe del preventivo'
+                : taxable.value > 0
+                  ? `Fattura ${formatMoney(taxable.value)} + IVA ancora da fatturare`
+                  : 'Righe già fatturate: solo i costi da ribaltare',
     },
     ...(props.source === 'order'
         ? [{ value: 'selection', icon: 'mdi-format-list-checks', title: 'Fattura parziale', subtitle: 'Scegli righe e quantità' }]
@@ -76,6 +84,7 @@ function submit() {
         percent: data.mode === 'deposit' && data.deposit_by === 'percent' ? data.percent : undefined,
         amount: data.mode === 'deposit' && data.deposit_by === 'amount' ? data.amount : undefined,
         deduct_deposits: data.deduct_deposits,
+        include_costs: Boolean(props.pendingCosts?.count) && data.include_costs,
     })).post(url, { onSuccess: () => (open.value = false) });
 }
 </script>
@@ -170,6 +179,13 @@ function submit() {
                     :label="`Detrai gli acconti già fatturati (${openDeposits})`"
                     hide-details
                     class="mt-2"
+                />
+
+                <v-checkbox
+                    v-if="pendingCosts?.count && form.mode !== 'deposit'"
+                    v-model="form.include_costs"
+                    :label="`Aggiungi i costi da ribaltare (${pendingCosts.count} righe · ${formatMoney(pendingCosts.amount)} + IVA)`"
+                    hide-details
                 />
 
                 <v-alert v-if="form.errors.selection" type="error" variant="tonal" class="mt-4">{{ form.errors.selection }}</v-alert>

@@ -20,7 +20,13 @@ const loading = ref(false);
 const query = reactive({
     search: props.filters.search,
     type: props.filters.type,
+    role: props.filters.role,
 });
+
+const roles = [
+    { value: 'customer', title: 'Clienti' },
+    { value: 'supplier', title: 'Fornitori' },
+];
 
 const headers = [
     { title: 'Organizzazione', key: 'name', sortable: true },
@@ -77,7 +83,7 @@ watch(
     },
 );
 watch(
-    () => query.type,
+    () => [query.type, query.role],
     () => load({ page: 1 }),
 );
 
@@ -121,7 +127,10 @@ function open(event, { item }) {
                             @click:clear="query.search = ''"
                         />
                     </v-col>
-                    <v-col cols="12" md="4">
+                    <v-col cols="6" md="2">
+                        <v-select v-model="query.role" :items="roles" label="Ruolo" clearable hide-details />
+                    </v-col>
+                    <v-col cols="6" md="2">
                         <v-select v-model="query.type" :items="types" label="Tipo" clearable hide-details />
                     </v-col>
                 </v-row>
@@ -150,7 +159,10 @@ function open(event, { item }) {
                 </template>
 
                 <template #[`item.type`]="{ item }">
-                    <v-chip variant="tonal">{{ item.type_label }}</v-chip>
+                    <div class="d-flex flex-wrap ga-1 py-1">
+                        <v-chip variant="tonal">{{ item.type_label }}</v-chip>
+                        <v-chip v-if="item.is_supplier" variant="tonal" color="secondary" prepend-icon="mdi-truck-outline">Fornitore</v-chip>
+                    </div>
                 </template>
 
                 <template #[`item.primary_location`]="{ item }">

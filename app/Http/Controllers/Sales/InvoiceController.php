@@ -6,9 +6,11 @@ use App\Actions\Invoices\BuildInvoice;
 use App\Actions\Invoices\InvoiceCalculator;
 use App\Actions\Invoices\IssueInvoice;
 use App\Actions\Invoices\SaveInvoice;
+use App\Actions\Purchases\RebillCosts;
 use App\Enums\InvoiceStatus;
 use App\Enums\InvoiceType;
 use App\Enums\OrderStatus;
+use App\Enums\Permission;
 use App\Enums\QuoteStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Sales\InvoiceRequest;
@@ -21,6 +23,7 @@ use App\Models\Quote;
 use App\Models\VatRate;
 use App\Support\Fiscal\FiscalCodes;
 use App\Support\Settings;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -163,6 +166,7 @@ class InvoiceController extends Controller
             'percent' => ['exclude_unless:mode,deposit', 'nullable', 'required_without:amount', 'numeric', 'gt:0', 'max:100'],
             'amount' => ['exclude_unless:mode,deposit', 'nullable', 'numeric', 'gt:0'],
             'deduct_deposits' => ['boolean'],
+            'include_costs' => ['boolean'],
         ], [], ['percent' => 'percentuale', 'amount' => 'importo', 'selection' => 'righe da fatturare']);
 
         $invoice = DB::transaction(fn () => $saveInvoice->handle(new Invoice, [
@@ -173,6 +177,7 @@ class InvoiceController extends Controller
                 $this->percent($data),
                 $this->amount($data),
                 $request->boolean('deduct_deposits', true),
+                $request->boolean('include_costs') && $request->user()->can(Permission::PurchasesView->value),
             ),
             'owner_id' => $request->user()->id,
             'notes' => $this->settings->get('fiscal.invoice_notes'),
@@ -265,6 +270,29 @@ class InvoiceController extends Controller
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Bozza di nota di credito creata: modifica le righe se lo storno è parziale.')]);
 
         return to_route('sales.invoices.edit', $note);
+    }
+
+    /**
+     * Supplier costs waiting to be charged back to a customer (invoice editor dialog).
+     */
+    public function costs(Request $request, RebillCosts $rebillCosts): JsonResponse
+    {
+        $this->authorize('create', Invoice::class);
+
+        $data = $request->validate([
+            'organization_id' => ['required', 'integer'],
+            'exclude' => ['nullable', 'array'],
+            'exclude.*' => ['integer'],
+        ]);
+
+        $exclude = $data['exclude'] ?? [];
+
+        return response()->json([
+            'data' => $rebillCosts->pending((int) $data['organization_id'])
+                ->reject(fn ($line) => in_array($line->id, $exclude, true))
+                ->map(fn ($line) => $rebillCosts->option($line))
+                ->values(),
+        ]);
     }
 
     private function created(Invoice $invoice): RedirectResponse

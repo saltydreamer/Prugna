@@ -46,6 +46,9 @@ enum Permission: string
     case InvoicesManage = 'invoices.manage';
     case InvoicesIssue = 'invoices.issue';
 
+    case PurchasesView = 'purchases.view';
+    case PurchasesManage = 'purchases.manage';
+
     case SettingsManage = 'settings.manage';
 
     public function label(): string
@@ -79,6 +82,8 @@ enum Permission: string
             self::InvoicesView => 'Consultare le fatture',
             self::InvoicesManage => 'Preparare e modificare le bozze di fattura',
             self::InvoicesIssue => 'Emettere fatture e note di credito',
+            self::PurchasesView => 'Consultare gli ordini ai fornitori e i costi',
+            self::PurchasesManage => 'Creare, inviare e gestire gli ordini ai fornitori',
             self::SettingsManage => 'Gestire impostazioni (azienda, email, pagamenti)',
         };
     }
@@ -94,6 +99,7 @@ enum Permission: string
             self::QuotesView, self::QuotesCreate, self::QuotesUpdate, self::QuotesDelete, self::QuotesSupervise => 'Preventivi',
             self::OrdersView, self::OrdersManage => 'Ordini',
             self::InvoicesView, self::InvoicesManage, self::InvoicesIssue => 'Fatture',
+            self::PurchasesView, self::PurchasesManage => 'Acquisti',
             self::SettingsManage => 'Impostazioni',
         };
     }

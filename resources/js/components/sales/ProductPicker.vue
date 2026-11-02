@@ -9,6 +9,8 @@ import { formatMoney } from '@/utils/format';
  */
 const props = defineProps({
     organizationId: { type: Number, default: null },
+    /** Supplier orders: products at their purchase cost. */
+    atCost: { type: Boolean, default: false },
 });
 
 const emit = defineEmits(['pick']);
@@ -28,8 +30,12 @@ async function load() {
     try {
         const query = new URLSearchParams({ search: search.value ?? '' });
 
-        if (props.organizationId) {
+        if (props.organizationId && !props.atCost) {
             query.set('organization_id', props.organizationId);
+        }
+
+        if (props.atCost) {
+            query.set('at_cost', '1');
         }
 
         const { data } = await http.get(`${route('sales.quotes.lookup.products')}?${query}`);
@@ -85,9 +91,11 @@ function pick(product) {
                     <v-icon :icon="item.type === 'service' ? 'mdi-account-wrench-outline' : 'mdi-package-variant-closed'" />
                 </template>
                 <v-list-item-subtitle>
-                    {{ item.code }} · {{ formatMoney(item.price) }} / {{ item.unit }}
+                    {{ item.code }} · {{ atCost ? 'costo ' : '' }}{{ formatMoney(item.price) }} / {{ item.unit }}
                     <template v-if="item.billing_period_per">{{ item.billing_period_per }}</template>
-                    <v-chip v-if="item.price_source !== 'list'" size="x-small" color="success" variant="tonal" class="ml-1">prezzo cliente</v-chip>
+                    <v-chip v-if="!['list', 'cost'].includes(item.price_source)" size="x-small" color="success" variant="tonal" class="ml-1">
+                        prezzo cliente
+                    </v-chip>
                 </v-list-item-subtitle>
             </v-list-item>
         </template>

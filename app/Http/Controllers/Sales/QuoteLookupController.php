@@ -48,7 +48,10 @@ class QuoteLookupController extends Controller
         $request->validate([
             'search' => ['nullable', 'string', 'max:100'],
             'organization_id' => ['nullable', 'integer'],
+            'at_cost' => ['boolean'],
         ]);
+
+        $atCost = $request->boolean('at_cost');
 
         $organization = $request->integer('organization_id') ? Organization::find($request->integer('organization_id')) : null;
 
@@ -59,8 +62,11 @@ class QuoteLookupController extends Controller
             ->orderBy('name')
             ->limit(30)
             ->get()
-            ->map(function (Product $product) use ($organization, $resolvePrice) {
-                $price = $resolvePrice->handle($product, $organization);
+            ->map(function (Product $product) use ($organization, $resolvePrice, $atCost) {
+                // Supplier orders are priced at the purchase cost.
+                $price = $atCost
+                    ? ['price' => (float) ($product->cost ?? 0), 'list_price' => (float) ($product->cost ?? 0), 'source' => 'cost']
+                    : $resolvePrice->handle($product, $organization);
 
                 return [
                     'id' => $product->id,
@@ -87,7 +93,8 @@ class QuoteLookupController extends Controller
         abort_unless(
             $user->can('create', Quote::class)
             || $user->can(Permission::OrdersManage->value)
-            || $user->can(Permission::InvoicesManage->value),
+            || $user->can(Permission::InvoicesManage->value)
+            || $user->can(Permission::PurchasesManage->value),
             403,
         );
     }

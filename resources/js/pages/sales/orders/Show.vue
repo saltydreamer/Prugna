@@ -15,6 +15,8 @@ const props = defineProps({
     order: { type: Object, required: true },
     billing: { type: Object, required: true },
     openDeposits: { type: Number, default: 0 },
+    /** Supplier orders, costs and margin (null without "purchases.view"). */
+    purchasing: { type: Object, default: null },
     statuses: { type: Array, required: true },
     organizationArchived: { type: Boolean, default: false },
 });
@@ -24,7 +26,12 @@ const { confirm } = useConfirm();
 const { can } = usePermissions();
 
 const invoiceDialog = ref(false);
-const canInvoice = computed(() => can('invoices.manage') && props.order.status !== 'cancelled' && props.billing.remaining > 0);
+const pendingCosts = computed(() =>
+    props.purchasing?.rebill_pending_count ? { count: props.purchasing.rebill_pending_count, amount: props.purchasing.rebill_pending_amount } : null,
+);
+const canInvoice = computed(
+    () => can('invoices.manage') && props.order.status !== 'cancelled' && (props.billing.remaining > 0 || Boolean(pendingCosts.value)),
+);
 
 function setStatus(status) {
     router.patch(route('sales.orders.status', props.order.id), { status }, { preserveScroll: true });
@@ -187,10 +194,57 @@ async function destroy() {
                     </v-card-actions>
                 </v-card>
 
+                <v-card v-if="purchasing" class="mb-6" title="Acquisti e margine">
+                    <v-card-text>
+                        <div class="d-flex justify-space-between text-body-2">
+                            <span>Costi d'acquisto</span>
+                            <span>{{ formatMoney(purchasing.costs) }}</span>
+                        </div>
+                        <div v-if="purchasing.rebill_pending_count" class="d-flex justify-space-between text-body-2">
+                            <span>Da ribaltare al cliente</span>
+                            <span>{{ formatMoney(purchasing.rebill_pending_amount) }}</span>
+                        </div>
+                        <div class="d-flex justify-space-between font-weight-bold" :class="purchasing.margin < 0 ? 'text-error' : 'text-success'">
+                            <span>Margine stimato</span>
+                            <span>{{ formatMoney(purchasing.margin) }}</span>
+                        </div>
+                        <div class="text-caption text-medium-emphasis mt-1">
+                            Ricavi dell'ordine più i ricarichi, meno i costi non ribaltati. IVA esclusa.
+                        </div>
+                    </v-card-text>
+                    <v-list v-if="purchasing.purchase_orders.length" density="compact" class="pt-0">
+                        <v-list-item
+                            v-for="purchaseOrder in purchasing.purchase_orders"
+                            :key="purchaseOrder.id"
+                            :title="`${purchaseOrder.number} · ${purchaseOrder.supplier}`"
+                            :subtitle="`${purchaseOrder.status_label} · ${formatMoney(purchaseOrder.subtotal)} + IVA`"
+                            prepend-icon="mdi-cart-outline"
+                            v-bind="link(route('purchases.orders.show', purchaseOrder.id))"
+                        />
+                    </v-list>
+                    <v-card-actions v-if="can('purchases.manage') && order.status !== 'cancelled'">
+                        <v-btn
+                            block
+                            variant="tonal"
+                            prepend-icon="mdi-cart-plus"
+                            v-bind="link(route('purchases.orders.create', { order: order.id }))"
+                        >
+                            Ordina al fornitore
+                        </v-btn>
+                    </v-card-actions>
+                </v-card>
+
                 <QuoteTotalsCard :totals="order.totals" />
             </v-col>
         </v-row>
 
-        <InvoiceDialog v-model="invoiceDialog" source="order" :document="order" :remaining="billing.remaining" :open-deposits="openDeposits" />
+        <InvoiceDialog
+            v-model="invoiceDialog"
+            source="order"
+            :document="order"
+            :remaining="billing.remaining"
+            :open-deposits="openDeposits"
+            :pending-costs="pendingCosts"
+        />
     </div>
 </template>

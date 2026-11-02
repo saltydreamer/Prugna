@@ -17,6 +17,8 @@ const fields = ['name', 'type', 'vat_number', 'tax_code', 'sdi_code', 'payment_t
 const form = useForm({
     ...Object.fromEntries(fields.map((field) => [field, props.organization[field] ?? ''])),
     split_payment: props.organization.split_payment ?? false,
+    is_customer: props.organization.is_customer ?? true,
+    is_supplier: props.organization.is_supplier ?? false,
 });
 
 function submit() {

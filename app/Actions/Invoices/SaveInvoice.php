@@ -74,7 +74,7 @@ class SaveInvoice
                 $this->syncLines->handle($invoice->lines(), array_values(array_filter(
                     $lines,
                     fn (array $line) => ($line['system'] ?? null) !== InvoiceLine::SYSTEM_STAMP_DUTY,
-                )), ['order_line_id', 'system', 'deducts_invoice_id']);
+                )), ['order_line_id', 'purchase_order_line_id', 'system', 'deducts_invoice_id']);
             }
 
             $this->syncStampDuty($invoice);

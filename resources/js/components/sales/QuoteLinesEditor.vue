@@ -18,6 +18,9 @@ const props = defineProps({
     defaultVatRateId: { type: Number, default: null },
     /** Quotes only: lines the customer may choose to include. */
     allowOptional: { type: Boolean, default: true },
+    /** Supplier orders: prices are costs, lines can be charged back to the customer with a markup. */
+    atCost: { type: Boolean, default: false },
+    rebillable: { type: Boolean, default: false },
 });
 
 let uid = 0;
@@ -27,7 +30,11 @@ const vatItems = computed(() => props.vatRates.map((rate) => ({ value: rate.id, 
 const unitItems = computed(() => props.units.map((unit) => unit.value));
 
 function add(line) {
-    lines.value = [...lines.value, { key: key(), is_optional: false, is_selected: true, ...line }];
+    lines.value = [...lines.value, { key: key(), is_optional: false, is_selected: true, rebill: false, markup_percent: 0, ...line }];
+}
+
+function rebillAmount(line) {
+    return lineTotal(line) * (1 + Number(line.markup_percent || 0) / 100);
 }
 
 function addItem(product = null) {
@@ -70,7 +77,7 @@ function move(index, offset) {
 
 function duplicate(index) {
     const copy = [...lines.value];
-    copy.splice(index + 1, 0, { ...lines.value[index], key: key(), id: undefined, order_line_id: null });
+    copy.splice(index + 1, 0, { ...lines.value[index], key: key(), id: undefined, order_line_id: null, purchase_order_line_id: null });
     lines.value = copy;
 }
 
@@ -169,7 +176,7 @@ function error(index, field) {
                             <v-col cols="4" sm="3">
                                 <v-text-field
                                     v-model.number="line.unit_price"
-                                    label="Prezzo"
+                                    :label="atCost ? 'Costo' : 'Prezzo'"
                                     type="number"
                                     step="0.01"
                                     prefix="€"
@@ -208,6 +215,34 @@ function error(index, field) {
                             <v-chip v-if="line.order_line_id" size="small" variant="tonal" color="info" prepend-icon="mdi-clipboard-text-outline">
                                 Riga d'ordine
                             </v-chip>
+                            <v-chip
+                                v-if="line.purchase_order_line_id"
+                                size="small"
+                                variant="tonal"
+                                color="secondary"
+                                prepend-icon="mdi-cart-arrow-right"
+                            >
+                                Costo ribaltato
+                            </v-chip>
+                            <template v-if="rebillable">
+                                <v-checkbox v-model="line.rebill" label="Da ribaltare al cliente" density="compact" hide-details />
+                                <v-text-field
+                                    v-if="line.rebill"
+                                    v-model.number="line.markup_percent"
+                                    label="Ricarico"
+                                    type="number"
+                                    min="0"
+                                    step="1"
+                                    suffix="%"
+                                    density="compact"
+                                    hide-details="auto"
+                                    :error-messages="error(index, 'markup_percent')"
+                                    style="max-width: 120px"
+                                />
+                                <span v-if="line.rebill" class="text-caption text-medium-emphasis">
+                                    al cliente {{ formatMoney(rebillAmount(line)) }}
+                                </span>
+                            </template>
                             <v-checkbox
                                 v-if="allowOptional"
                                 :model-value="line.is_optional"
@@ -250,7 +285,7 @@ function error(index, field) {
 
         <v-row dense class="mt-4" align="center">
             <v-col cols="12" md="6">
-                <ProductPicker :organization-id="organizationId" @pick="addItem" />
+                <ProductPicker :organization-id="organizationId" :at-cost="atCost" @pick="addItem" />
             </v-col>
             <v-col cols="12" md="6" class="d-flex flex-wrap ga-2">
                 <v-btn variant="tonal" prepend-icon="mdi-plus" @click="addItem()">Riga libera</v-btn>
