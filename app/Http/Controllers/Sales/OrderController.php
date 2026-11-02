@@ -80,7 +80,7 @@ class OrderController extends Controller
     {
         $this->authorize('create', Order::class);
 
-        $organization = $request->integer('organization') ? Organization::query()->find($request->integer('organization')) : null;
+        $organization = $request->integer('organization') ? Organization::query()->customers()->find($request->integer('organization')) : null;
 
         return Inertia::render('sales/orders/Edit', [
             'order' => null,

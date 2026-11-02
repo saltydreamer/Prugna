@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Registry;
 
 use App\Enums\LocationType;
+use App\Enums\OrganizationRole;
 use App\Enums\OrganizationType;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Registry\OrganizationRequest;
@@ -12,6 +13,7 @@ use App\Http\Resources\OrganizationResource;
 use App\Models\Organization;
 use App\Models\PaymentTerm;
 use App\Models\Product;
+use App\Models\PurchaseOrder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
@@ -24,14 +26,17 @@ class OrganizationController extends Controller
 {
     private const SORTABLE = ['name', 'created_at', 'updated_at'];
 
-    public function index(Request $request): Response
+    /**
+     * Customers or suppliers list: the role comes from the route (registry.customers / registry.suppliers).
+     */
+    public function index(Request $request, string $role): Response
     {
-        $this->authorize('viewAny', Organization::class);
+        $role = OrganizationRole::from($role);
+        $this->authorize('viewAny', [Organization::class, $role]);
 
         $filters = $request->validate([
             'search' => ['nullable', 'string', 'max:100'],
             'type' => ['nullable', Rule::enum(OrganizationType::class)],
-            'role' => ['nullable', Rule::in(['customer', 'supplier'])],
             'status' => ['nullable', Rule::in(['active', 'archived'])],
             'sort_by' => ['nullable', Rule::in(self::SORTABLE)],
             'sort_dir' => ['nullable', Rule::in(['asc', 'desc'])],
@@ -39,12 +44,12 @@ class OrganizationController extends Controller
         ]);
 
         $organizations = Organization::query()
+            ->where('role', $role->value)
             ->with(['primaryLocation', 'primaryContact'])
             ->withCount(['locations', 'contacts'])
             ->when(($filters['status'] ?? 'active') === 'archived', fn ($query) => $query->onlyTrashed())
             ->search($filters['search'] ?? null)
             ->when($filters['type'] ?? null, fn ($query, string $type) => $query->where('type', $type))
-            ->when($filters['role'] ?? null, fn ($query, string $role) => $query->where("is_{$role}", true))
             ->orderBy($filters['sort_by'] ?? 'name', $filters['sort_dir'] ?? 'asc')
             ->orderBy('id')
             ->paginate($filters['per_page'] ?? 25)
@@ -55,22 +60,24 @@ class OrganizationController extends Controller
             'filters' => [
                 'search' => $filters['search'] ?? '',
                 'type' => $filters['type'] ?? null,
-                'role' => $filters['role'] ?? null,
                 'status' => $filters['status'] ?? 'active',
                 'sort_by' => $filters['sort_by'] ?? 'name',
                 'sort_dir' => $filters['sort_dir'] ?? 'asc',
                 'per_page' => (int) ($filters['per_page'] ?? 25),
             ],
             'types' => OrganizationType::options(),
-            'archivedCount' => Organization::onlyTrashed()->count(),
+            'role' => $this->roleData($role),
+            'archivedCount' => Organization::onlyTrashed()->where('role', $role->value)->count(),
         ]);
     }
 
-    public function create(): Response
+    public function create(string $role): Response
     {
-        $this->authorize('create', Organization::class);
+        $role = OrganizationRole::from($role);
+        $this->authorize('create', [Organization::class, $role]);
 
         return Inertia::render('registry/organizations/Create', [
+            'role' => $this->roleData($role),
             'types' => OrganizationType::options(),
             'paymentTerms' => $this->paymentTermOptions(),
         ]);
@@ -82,7 +89,7 @@ class OrganizationController extends Controller
         $organization->created_by = $request->user()->id;
         $organization->save();
 
-        Inertia::flash('toast', ['type' => 'success', 'message' => __('Organizzazione creata. Aggiungi ora sedi e contatti.')]);
+        Inertia::flash('toast', ['type' => 'success', 'message' => __(':role creato. Aggiungi ora sedi e contatti.', ['role' => $organization->role->label()])]);
 
         return to_route('registry.organizations.show', $organization);
     }
@@ -142,11 +149,25 @@ class OrganizationController extends Controller
             'contacts' => fn ($query) => $query->with('location')->orderByDesc('is_primary')->orderBy('last_name')->orderBy('first_name'),
         ]);
 
-        $canSeePrices = $request->user()->can('viewAny', Product::class);
+        $isSupplier = $organization->isSupplier();
+        $canSeePrices = ! $isSupplier && $request->user()->can('viewAny', Product::class);
 
         return Inertia::render('registry/organizations/Show', [
             'organization' => OrganizationResource::make($organization)->resolve(),
+            'role' => $this->roleData($organization->role),
             'locationTypes' => LocationType::options(),
+            'purchaseOrders' => $isSupplier && $request->user()->can('viewAny', PurchaseOrder::class)
+                ? PurchaseOrder::query()->where('supplier_id', $organization->id)->latest('id')->limit(10)->get()
+                    ->map(fn (PurchaseOrder $purchaseOrder) => [
+                        'id' => $purchaseOrder->id,
+                        'number' => $purchaseOrder->number,
+                        'title' => $purchaseOrder->title,
+                        'order_date' => $purchaseOrder->order_date->toDateString(),
+                        'status_label' => $purchaseOrder->status->label(),
+                        'status_color' => $purchaseOrder->status->color(),
+                        'subtotal' => (float) $purchaseOrder->subtotal,
+                    ])
+                : null,
             'customerPrices' => $canSeePrices
                 ? CustomerPriceResource::collection($organization->customerPrices()->with('product')->get()->sortBy('product.name')->values())->resolve()
                 : null,
@@ -169,6 +190,9 @@ class OrganizationController extends Controller
 
         return Inertia::render('registry/organizations/Edit', [
             'organization' => OrganizationResource::make($organization)->resolve(),
+            // The role can change only while no document refers to the organization.
+            'canChangeRole' => ! $organization->hasDocuments(),
+            'role' => $this->roleData($organization->role),
             'types' => OrganizationType::options(),
             'paymentTerms' => $this->paymentTermOptions($organization->payment_term_id),
         ]);
@@ -178,7 +202,7 @@ class OrganizationController extends Controller
     {
         $organization->update($request->validated());
 
-        Inertia::flash('toast', ['type' => 'success', 'message' => __('Organizzazione aggiornata.')]);
+        Inertia::flash('toast', ['type' => 'success', 'message' => __(':name aggiornato.', ['name' => $organization->name])]);
 
         return to_route('registry.organizations.show', $organization);
     }
@@ -194,7 +218,7 @@ class OrganizationController extends Controller
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __(':name archiviata.', ['name' => $organization->name])]);
 
-        return to_route('registry.organizations.index');
+        return to_route($organization->role->routePrefix().'.index');
     }
 
     public function restore(Organization $organization): RedirectResponse
@@ -206,6 +230,20 @@ class OrganizationController extends Controller
         Inertia::flash('toast', ['type' => 'success', 'message' => __(':name ripristinata.', ['name' => $organization->name])]);
 
         return to_route('registry.organizations.show', $organization);
+    }
+
+    /**
+     * @return array{value: string, label: string, plural: string, index_route: string, create_route: string}
+     */
+    private function roleData(OrganizationRole $role): array
+    {
+        return [
+            'value' => $role->value,
+            'label' => $role->label(),
+            'plural' => $role->pluralLabel(),
+            'index_route' => $role->routePrefix().'.index',
+            'create_route' => $role->routePrefix().'.create',
+        ];
     }
 
     /**

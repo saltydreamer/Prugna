@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\OrganizationRole;
 use App\Enums\OrganizationType;
 use App\Models\Contact;
 use App\Models\Location;
@@ -23,6 +24,7 @@ class OrganizationFactory extends Factory
         return [
             'name' => fake()->unique()->company(),
             'type' => OrganizationType::Company,
+            'role' => OrganizationRole::Customer,
             'vat_number' => self::partitaIva(),
             'tax_code' => null,
             'sdi_code' => strtoupper(fake()->bothify('???????')),
@@ -32,6 +34,11 @@ class OrganizationFactory extends Factory
             'website' => fake()->optional()->url(),
             'notes' => null,
         ];
+    }
+
+    public function supplier(): static
+    {
+        return $this->state(fn () => ['role' => OrganizationRole::Supplier]);
     }
 
     /**

@@ -17,7 +17,7 @@ const props = defineProps({
     /** null when creating. */
     purchaseOrder: { type: Object, default: null },
     defaults: { type: Object, default: null },
-    /** Suppliers first ({ value, title, subtitle, is_supplier }). */
+    /** Suppliers ({ value, title, subtitle }). */
     organizations: { type: Array, required: true },
     customers: { type: Array, required: true },
     orders: { type: Array, default: () => [] },
@@ -50,13 +50,6 @@ const form = useForm({
     internal_notes: source.internal_notes ?? '',
     lines: (source.lines ?? []).map((line, index) => ({ rebill: false, markup_percent: 0, ...line, key: `line-${line.id ?? index}` })),
 });
-
-const supplierItems = computed(() =>
-    props.organizations.map((organization) => ({
-        ...organization,
-        subtitle: [organization.is_supplier ? 'Fornitore' : null, organization.subtitle].filter(Boolean).join(' · ') || undefined,
-    })),
-);
 
 const defaultVatRateId = computed(() => props.vatRates.find((rate) => rate.is_default)?.id ?? props.vatRates[0]?.id ?? null);
 const ratesById = computed(() => Object.fromEntries(props.vatRates.map((rate) => [rate.id, rate])));
@@ -183,14 +176,14 @@ const backUrl = computed(() => (isNew.value ? route('purchases.orders.index') : 
                                     <v-autocomplete
                                         v-model="form.supplier_id"
                                         v-model:search="supplierSearch"
-                                        :items="supplierItems"
+                                        :items="organizations"
                                         item-props
                                         label="Fornitore"
                                         :disabled="!linesEditable"
                                         :error-messages="form.errors.supplier_id"
                                         :autofocus="isNew && !form.supplier_id"
                                     >
-                                        <template v-if="can('organizations.create') && linesEditable" #append>
+                                        <template v-if="can('suppliers.create') && linesEditable" #append>
                                             <v-btn
                                                 icon="mdi-truck-plus-outline"
                                                 variant="tonal"
@@ -201,13 +194,13 @@ const backUrl = computed(() => (isNew.value ? route('purchases.orders.index') : 
                                         </template>
                                         <template #no-data>
                                             <v-list-item
-                                                v-if="can('organizations.create') && supplierSearch"
+                                                v-if="can('suppliers.create') && supplierSearch"
                                                 prepend-icon="mdi-plus"
                                                 :title="`Crea «${supplierSearch}»`"
                                                 subtitle="Nuovo fornitore nelle anagrafiche"
                                                 @click="openQuickSupplier(supplierSearch)"
                                             />
-                                            <v-list-item v-else title="Nessuna organizzazione trovata" />
+                                            <v-list-item v-else title="Nessun fornitore trovato" />
                                         </template>
                                     </v-autocomplete>
                                 </v-col>
@@ -222,7 +215,7 @@ const backUrl = computed(() => (isNew.value ? route('purchases.orders.index') : 
                                         :disabled="!form.supplier_id"
                                         :error-messages="form.errors.contact_id"
                                     >
-                                        <template v-if="can('organizations.update') && form.supplier_id" #append>
+                                        <template v-if="can('suppliers.update') && form.supplier_id" #append>
                                             <v-btn
                                                 icon="mdi-account-plus-outline"
                                                 variant="tonal"

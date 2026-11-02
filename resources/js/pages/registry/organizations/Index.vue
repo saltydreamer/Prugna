@@ -10,6 +10,8 @@ const props = defineProps({
     organizations: { type: Object, required: true },
     filters: { type: Object, required: true },
     types: { type: Array, required: true },
+    /** { value, label, plural, index_route, create_route } */
+    role: { type: Object, required: true },
     archivedCount: { type: Number, default: 0 },
 });
 
@@ -20,16 +22,10 @@ const loading = ref(false);
 const query = reactive({
     search: props.filters.search,
     type: props.filters.type,
-    role: props.filters.role,
 });
 
-const roles = [
-    { value: 'customer', title: 'Clienti' },
-    { value: 'supplier', title: 'Fornitori' },
-];
-
 const headers = [
-    { title: 'Organizzazione', key: 'name', sortable: true },
+    { title: 'Ragione sociale', key: 'name', sortable: true },
     { title: 'Tipo', key: 'type', sortable: false },
     { title: 'Sede principale', key: 'primary_location', sortable: false },
     { title: 'Referente', key: 'primary_contact', sortable: false },
@@ -39,7 +35,7 @@ const headers = [
 
 function load(params = {}) {
     router.get(
-        route('registry.organizations.index'),
+        route(props.role.index_route),
         {
             ...query,
             status: props.filters.status,
@@ -83,7 +79,7 @@ watch(
     },
 );
 watch(
-    () => [query.type, query.role],
+    () => query.type,
     () => load({ page: 1 }),
 );
 
@@ -94,22 +90,23 @@ function open(event, { item }) {
 
 <template>
     <div>
-        <PageHeader
-            title="Organizzazioni"
-            :subtitle="`${organizations.meta.total} ${filters.status === 'archived' ? 'archiviate' : 'in anagrafica'}`"
-        >
-            <template v-if="can('organizations.create')" #actions>
-                <v-btn color="primary" prepend-icon="mdi-domain-plus" v-bind="link(route('registry.organizations.create'))">
-                    Nuova organizzazione
+        <PageHeader :title="role.plural" :subtitle="`${organizations.meta.total} ${filters.status === 'archived' ? 'archiviati' : 'in anagrafica'}`">
+            <template v-if="can(role.value === 'supplier' ? 'suppliers.create' : 'organizations.create')" #actions>
+                <v-btn
+                    color="primary"
+                    :prepend-icon="role.value === 'supplier' ? 'mdi-truck-plus-outline' : 'mdi-domain-plus'"
+                    v-bind="link(route(role.create_route))"
+                >
+                    Nuovo {{ role.label.toLowerCase() }}
                 </v-btn>
             </template>
         </PageHeader>
 
         <v-card>
             <v-tabs :model-value="filters.status" color="primary" @update:model-value="(status) => load({ status, page: 1 })">
-                <v-tab value="active">Attive</v-tab>
+                <v-tab value="active">Attivi</v-tab>
                 <v-tab value="archived">
-                    Archiviate
+                    Archiviati
                     <v-badge v-if="archivedCount" :content="archivedCount" color="grey" inline />
                 </v-tab>
             </v-tabs>
@@ -127,10 +124,7 @@ function open(event, { item }) {
                             @click:clear="query.search = ''"
                         />
                     </v-col>
-                    <v-col cols="6" md="2">
-                        <v-select v-model="query.role" :items="roles" label="Ruolo" clearable hide-details />
-                    </v-col>
-                    <v-col cols="6" md="2">
+                    <v-col cols="12" md="4">
                         <v-select v-model="query.type" :items="types" label="Tipo" clearable hide-details />
                     </v-col>
                 </v-row>
@@ -159,10 +153,7 @@ function open(event, { item }) {
                 </template>
 
                 <template #[`item.type`]="{ item }">
-                    <div class="d-flex flex-wrap ga-1 py-1">
-                        <v-chip variant="tonal">{{ item.type_label }}</v-chip>
-                        <v-chip v-if="item.is_supplier" variant="tonal" color="secondary" prepend-icon="mdi-truck-outline">Fornitore</v-chip>
-                    </div>
+                    <v-chip variant="tonal">{{ item.type_label }}</v-chip>
                 </template>
 
                 <template #[`item.primary_location`]="{ item }">
@@ -208,10 +199,10 @@ function open(event, { item }) {
                         icon="mdi-domain"
                         :title="
                             filters.search || filters.type
-                                ? 'Nessuna organizzazione trovata'
+                                ? `Nessun ${role.label.toLowerCase()} trovato`
                                 : filters.status === 'archived'
-                                  ? 'Nessuna organizzazione archiviata'
-                                  : 'Nessuna organizzazione'
+                                  ? `Nessun ${role.label.toLowerCase()} archiviato`
+                                  : `Nessun ${role.label.toLowerCase()} in anagrafica`
                         "
                         :text="filters.search || filters.type ? 'Prova a modificare i filtri.' : ''"
                         size="56"

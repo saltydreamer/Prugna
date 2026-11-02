@@ -9,10 +9,14 @@ import LocationDialog from '@/components/registry/LocationDialog.vue';
 import { useConfirm } from '@/composables/useConfirm';
 import { useInertiaLink } from '@/composables/useInertiaLink';
 import { usePermissions } from '@/composables/usePermissions';
-import { formatDate, formatDateTime } from '@/utils/format';
+import { formatDate, formatDateTime, formatMoney } from '@/utils/format';
 
 const props = defineProps({
     organization: { type: Object, required: true },
+    /** { value, label, plural, index_route, create_route } */
+    role: { type: Object, required: true },
+    /** Suppliers: latest supplier orders (null without "purchases.view"). */
+    purchaseOrders: { type: Array, default: null },
     locationTypes: { type: Array, required: true },
     /** null when the user can't see the catalog. */
     customerPrices: { type: Array, default: null },
@@ -31,7 +35,7 @@ const typeIcons = {
     other: 'mdi-shape-outline',
 };
 
-const tabs = ['overview', 'locations', 'contacts', 'prices'];
+const tabs = ['overview', 'locations', 'contacts', 'prices', 'purchases'];
 const initialTab = new URLSearchParams(window.location.search).get('tab');
 const tab = ref(tabs.includes(initialTab) ? initialTab : 'overview');
 
@@ -163,22 +167,29 @@ function restore() {
 
 <template>
     <div>
-        <PageHeader :title="organization.name" :subtitle="organization.vat_number ? `P.IVA ${organization.vat_number}` : organization.type_label">
+        <PageHeader
+            :title="organization.name"
+            :subtitle="[role.label, organization.vat_number ? `P.IVA ${organization.vat_number}` : organization.type_label].join(' · ')"
+        >
             <template #actions>
-                <v-btn
-                    variant="text"
-                    prepend-icon="mdi-arrow-left"
-                    v-bind="link(route('registry.organizations.index', archived ? { status: 'archived' } : {}))"
-                >
-                    Organizzazioni
+                <v-btn variant="text" prepend-icon="mdi-arrow-left" v-bind="link(route(role.index_route, archived ? { status: 'archived' } : {}))">
+                    {{ role.plural }}
                 </v-btn>
                 <v-btn
-                    v-if="can('quotes.create') && !archived"
+                    v-if="role.value === 'customer' && can('quotes.create') && !archived"
                     variant="tonal"
                     prepend-icon="mdi-file-document-plus-outline"
                     v-bind="link(route('sales.quotes.create', { organization: organization.id }))"
                 >
                     Nuovo preventivo
+                </v-btn>
+                <v-btn
+                    v-if="role.value === 'supplier' && can('purchases.manage') && !archived"
+                    variant="tonal"
+                    prepend-icon="mdi-cart-plus"
+                    v-bind="link(route('purchases.orders.create', { supplier: organization.id }))"
+                >
+                    Nuovo ordine fornitore
                 </v-btn>
                 <v-btn
                     v-if="canEdit"
@@ -217,6 +228,7 @@ function restore() {
                     Prezzi concordati
                     <v-badge v-if="customerPrices.length" :content="customerPrices.length" color="secondary" inline />
                 </v-tab>
+                <v-tab v-if="purchaseOrders !== null" value="purchases" prepend-icon="mdi-cart-outline">Ordini fornitore</v-tab>
             </v-tabs>
         </v-card>
 
@@ -465,6 +477,27 @@ function restore() {
                     options-prop="productOptions"
                     :can-edit="can('products.update') && !archived"
                 />
+            </v-tabs-window-item>
+
+            <!-- Supplier orders -->
+            <v-tabs-window-item v-if="purchaseOrders !== null" value="purchases">
+                <v-card>
+                    <v-list v-if="purchaseOrders.length">
+                        <v-list-item
+                            v-for="purchaseOrder in purchaseOrders"
+                            :key="purchaseOrder.id"
+                            :title="[purchaseOrder.number, purchaseOrder.title].filter(Boolean).join(' · ')"
+                            :subtitle="`${formatDate(purchaseOrder.order_date)} · ${formatMoney(purchaseOrder.subtotal)} + IVA`"
+                            prepend-icon="mdi-cart-outline"
+                            v-bind="link(route('purchases.orders.show', purchaseOrder.id))"
+                        >
+                            <template #append>
+                                <v-chip :color="purchaseOrder.status_color" size="small" variant="tonal">{{ purchaseOrder.status_label }}</v-chip>
+                            </template>
+                        </v-list-item>
+                    </v-list>
+                    <v-empty-state v-else icon="mdi-cart-outline" title="Nessun ordine a questo fornitore" size="48" />
+                </v-card>
             </v-tabs-window-item>
         </v-tabs-window>
 

@@ -101,7 +101,7 @@ class InvoiceController extends Controller
     {
         $this->authorize('create', Invoice::class);
 
-        $organization = $request->integer('organization') ? Organization::query()->find($request->integer('organization')) : null;
+        $organization = $request->integer('organization') ? Organization::query()->customers()->find($request->integer('organization')) : null;
 
         return Inertia::render('sales/invoices/Edit', [
             'invoice' => null,

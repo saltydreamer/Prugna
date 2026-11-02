@@ -16,11 +16,12 @@ const loading = ref(false);
 const query = reactive({
     search: props.filters.search,
     primary: props.filters.primary,
+    role: props.filters.role ?? null,
 });
 
 const headers = [
     { title: 'Nome', key: 'last_name', sortable: true },
-    { title: 'Organizzazione', key: 'organization', sortable: false },
+    { title: 'Azienda', key: 'organization', sortable: false },
     { title: 'Ruolo', key: 'job_title', sortable: false },
     { title: 'Email', key: 'email', sortable: false },
     { title: 'Telefono', key: 'phone', sortable: false },
@@ -33,6 +34,7 @@ function load(params = {}) {
         {
             search: query.search,
             primary: query.primary ? 1 : undefined,
+            role: query.role ?? undefined,
             sort_by: props.filters.sort_by,
             sort_dir: props.filters.sort_dir,
             per_page: props.filters.per_page,
@@ -73,7 +75,7 @@ watch(
     },
 );
 watch(
-    () => query.primary,
+    () => [query.primary, query.role],
     () => load({ page: 1 }),
 );
 </script>
@@ -85,17 +87,29 @@ watch(
         <v-card>
             <v-card-text>
                 <v-row dense align="center">
-                    <v-col cols="12" md="8">
+                    <v-col cols="12" md="6">
                         <v-text-field
                             v-model="query.search"
-                            label="Cerca per nome, email, telefono o organizzazione"
+                            label="Cerca per nome, email, telefono o azienda"
                             prepend-inner-icon="mdi-magnify"
                             clearable
                             hide-details
                             @click:clear="query.search = ''"
                         />
                     </v-col>
-                    <v-col cols="12" md="4">
+                    <v-col cols="6" md="3">
+                        <v-select
+                            v-model="query.role"
+                            :items="[
+                                { value: 'customer', title: 'Clienti' },
+                                { value: 'supplier', title: 'Fornitori' },
+                            ]"
+                            label="Di"
+                            clearable
+                            hide-details
+                        />
+                    </v-col>
+                    <v-col cols="6" md="3">
                         <v-switch v-model="query.primary" label="Solo referenti principali" hide-details />
                     </v-col>
                 </v-row>
@@ -124,6 +138,7 @@ watch(
                     <a v-bind="link(route('registry.organizations.show', { organization: item.organization.id, tab: 'contacts' }))">
                         {{ item.organization.name }}
                     </a>
+                    <div class="text-caption text-medium-emphasis">{{ item.organization.role === 'supplier' ? 'Fornitore' : 'Cliente' }}</div>
                 </template>
                 <template #[`item.job_title`]="{ item }">{{ item.job_title || '—' }}</template>
                 <template #[`item.email`]="{ item }">

@@ -31,8 +31,7 @@ const blank = () => ({
     email: '',
     phone: '',
     payment_term_id: null,
-    is_customer: props.role === 'customer',
-    is_supplier: props.role === 'supplier',
+    role: props.role,
     location: { address: '', postal_code: '', city: '', province: '', country: 'IT' },
     contact: { first_name: '', last_name: '', job_title: '', email: '', phone: '' },
 });

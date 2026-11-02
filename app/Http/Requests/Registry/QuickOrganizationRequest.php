@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Registry;
 
+use App\Enums\OrganizationRole;
 use App\Models\Organization;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Support\Str;
@@ -17,7 +18,7 @@ class QuickOrganizationRequest extends OrganizationRequest
      */
     public function authorize(): bool
     {
-        return $this->user()->can('create', Organization::class);
+        return $this->user()->can('create', [Organization::class, OrganizationRole::tryFrom((string) $this->input('role')) ?? OrganizationRole::Customer]);
     }
 
     protected function prepareForValidation(): void

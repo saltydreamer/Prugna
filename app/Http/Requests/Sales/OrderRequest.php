@@ -60,7 +60,7 @@ class OrderRequest extends FormRequest
         }
 
         return [
-            'organization_id' => ['required', 'integer', Rule::exists('organizations', 'id')->whereNull('deleted_at')],
+            'organization_id' => ['required', 'integer', Rule::exists('organizations', 'id')->whereNull('deleted_at')->where('role', 'customer')],
             ...$header,
             ...$this->lineRules(),
         ];

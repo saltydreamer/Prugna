@@ -36,10 +36,6 @@ class SavePurchaseOrder
             $purchaseOrder->supplier = CustomerSnapshot::from($supplier);
             $purchaseOrder->payment_terms = $purchaseOrder->payment_term_id ? PaymentTerm::find($purchaseOrder->payment_term_id)?->name : null;
 
-            if (! $supplier->is_supplier) {
-                $supplier->forceFill(['is_supplier' => true])->save();
-            }
-
             if (! $purchaseOrder->exists) {
                 $purchaseOrder->status = PurchaseOrderStatus::Draft;
                 $purchaseOrder->forceFill(DocumentNumber::next(PurchaseOrder::class, self::PREFIX, $purchaseOrder->order_date->year));

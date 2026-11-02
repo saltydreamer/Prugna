@@ -28,6 +28,7 @@ use App\Http\Controllers\Sales\QuoteDocumentController;
 use App\Http\Controllers\Sales\QuoteLookupController;
 use App\Http\Controllers\Settings\PaymentTermController;
 use App\Http\Controllers\Settings\SettingsController;
+use Illuminate\Routing\RedirectController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -70,8 +71,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
     });
 
     Route::prefix('registry')->name('registry.')->group(function () {
+        // Customers and suppliers are separate registries sharing the organization pages.
+        Route::get('customers', [OrganizationController::class, 'index'])->defaults('role', 'customer')->name('customers.index');
+        Route::get('customers/create', [OrganizationController::class, 'create'])->defaults('role', 'customer')->name('customers.create');
+        Route::get('suppliers', [OrganizationController::class, 'index'])->defaults('role', 'supplier')->name('suppliers.index');
+        Route::get('suppliers/create', [OrganizationController::class, 'create'])->defaults('role', 'supplier')->name('suppliers.create');
+        Route::get('organizations', RedirectController::class)->defaults('destination', '/registry/customers')->defaults('status', 302);
+
         Route::post('organizations/quick', [OrganizationController::class, 'quickStore'])->name('organizations.quick-store');
-        Route::resource('organizations', OrganizationController::class)->except('show');
+        Route::resource('organizations', OrganizationController::class)->except(['index', 'create', 'show']);
         // Archived organizations stay viewable (read-only) and restorable.
         Route::get('organizations/{organization}', [OrganizationController::class, 'show'])
             ->name('organizations.show')

@@ -111,6 +111,7 @@ class ProductController extends Controller
             'customerPrices' => CustomerPriceResource::collection($customerPrices)->resolve(),
             // Loaded only when the "agreed price" dialog is opened.
             'organizationOptions' => Inertia::optional(fn () => Organization::query()
+                ->customers()
                 ->orderBy('name')
                 ->get(['id', 'name', 'vat_number'])
                 ->map(fn (Organization $organization) => [

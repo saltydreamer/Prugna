@@ -20,10 +20,6 @@ defineProps({
             <v-col cols="12" md="4">
                 <v-select v-model="form.type" :items="types" label="Tipo" :error-messages="form.errors.type" />
             </v-col>
-            <v-col cols="12" class="d-flex flex-wrap ga-6 pt-0">
-                <v-checkbox v-model="form.is_customer" label="Cliente" hide-details density="compact" />
-                <v-checkbox v-model="form.is_supplier" label="Fornitore" hide-details density="compact" />
-            </v-col>
         </v-row>
 
         <div class="text-subtitle-1 font-weight-medium mt-2 mb-3">Dati fiscali</div>

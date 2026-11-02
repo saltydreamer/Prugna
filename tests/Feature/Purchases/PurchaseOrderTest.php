@@ -32,9 +32,9 @@ class PurchaseOrderTest extends TestCase
         $this->admin = User::factory()->admin()->create();
     }
 
-    public function test_a_supplier_order_is_numbered_and_marks_the_supplier(): void
+    public function test_a_supplier_order_is_numbered_with_costs_and_rebill_prices(): void
     {
-        $supplier = Organization::factory()->create(['is_supplier' => false]);
+        $supplier = Organization::factory()->supplier()->create();
         $customer = Organization::factory()->create();
         $rate = VatRate::default();
 
@@ -54,13 +54,12 @@ class PurchaseOrderTest extends TestCase
         $this->assertSame('OF-'.today()->year.'-0001', $purchaseOrder->number);
         $this->assertSame(PurchaseOrderStatus::Draft, $purchaseOrder->status);
         $this->assertSame('315.00', $purchaseOrder->subtotal);
-        $this->assertTrue($supplier->fresh()->is_supplier);
         $this->assertSame(360.0, $purchaseOrder->lines()->first()->rebillUnitPrice());
     }
 
     public function test_costs_without_a_customer_are_never_rebilled(): void
     {
-        $supplier = Organization::factory()->create();
+        $supplier = Organization::factory()->supplier()->create();
 
         $this->actingAs($this->admin)->post('/purchases/orders', [
             'supplier_id' => $supplier->id,
@@ -92,7 +91,7 @@ class PurchaseOrderTest extends TestCase
         $order = Order::factory()->create();
 
         $this->actingAs($this->admin)->post('/purchases/orders', [
-            'supplier_id' => Organization::factory()->create()->id,
+            'supplier_id' => Organization::factory()->supplier()->create()->id,
             'customer_id' => Organization::factory()->create()->id,
             'order_id' => $order->id,
             'order_date' => today()->toDateString(),

@@ -39,11 +39,11 @@ class OrganizationTest extends TestCase
     public function test_users_need_the_view_permission(): void
     {
         $this->actingAs(User::factory()->create())
-            ->get('/registry/organizations')
+            ->get('/registry/customers')
             ->assertForbidden();
 
         $this->actingAs(User::factory()->withRole(Role::User)->create())
-            ->get('/registry/organizations')
+            ->get('/registry/customers')
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page->component('registry/organizations/Index'));
     }
@@ -57,16 +57,16 @@ class OrganizationTest extends TestCase
 
         $user = User::factory()->admin()->create();
 
-        $this->actingAs($user)->get('/registry/organizations?search=milano')
+        $this->actingAs($user)->get('/registry/customers?search=milano')
             ->assertInertia(fn (Assert $page) => $page->has('organizations.data', 1)->where('organizations.data.0.name', 'Alfa Spa'));
 
-        $this->actingAs($user)->get('/registry/organizations?search=00743110157')
+        $this->actingAs($user)->get('/registry/customers?search=00743110157')
             ->assertInertia(fn (Assert $page) => $page->has('organizations.data', 1)->where('organizations.data.0.name', 'Beta Srl'));
 
-        $this->actingAs($user)->get('/registry/organizations')
+        $this->actingAs($user)->get('/registry/customers')
             ->assertInertia(fn (Assert $page) => $page->has('organizations.data', 2)->where('archivedCount', 1));
 
-        $this->actingAs($user)->get('/registry/organizations?status=archived')
+        $this->actingAs($user)->get('/registry/customers?status=archived')
             ->assertInertia(fn (Assert $page) => $page->has('organizations.data', 1)->where('organizations.data.0.name', 'Gamma Snc'));
     }
 
@@ -75,7 +75,7 @@ class OrganizationTest extends TestCase
         $user = User::factory()->admin()->create();
         $organization = Organization::factory()->create();
 
-        $this->actingAs($user)->get('/registry/organizations/create')
+        $this->actingAs($user)->get('/registry/customers/create')
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page->component('registry/organizations/Create')->has('types', count(OrganizationType::cases())));
 
@@ -163,7 +163,7 @@ class OrganizationTest extends TestCase
         $user = User::factory()->admin()->create();
         $organization = Organization::factory()->withDetails(1, 1)->create();
 
-        $this->actingAs($user)->delete("/registry/organizations/{$organization->id}")->assertRedirect('/registry/organizations');
+        $this->actingAs($user)->delete("/registry/organizations/{$organization->id}")->assertRedirect('/registry/customers');
         $this->assertSoftDeleted($organization);
 
         // Still visible, but read-only.
