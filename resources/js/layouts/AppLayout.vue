@@ -59,6 +59,18 @@ const navigation = computed(() => {
             ],
         },
         {
+            title: 'Vendite',
+            items: [
+                {
+                    title: 'Preventivi',
+                    icon: 'mdi-file-document-edit-outline',
+                    route: 'sales.quotes.index',
+                    active: 'sales.quotes.*',
+                    permission: 'quotes.view',
+                },
+            ],
+        },
+        {
             title: 'Anagrafiche',
             items: [
                 {

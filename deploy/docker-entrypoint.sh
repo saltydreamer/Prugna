@@ -6,6 +6,9 @@ if [ "${1#-}" != "$1" ]; then
     set -- frankenphp run "$@"
 fi
 
+# The storage volume may predate newer directories (e.g. dompdf's font cache).
+mkdir -p storage/app/public storage/fonts storage/framework/cache/data storage/framework/sessions storage/framework/views storage/logs 2>/dev/null || true
+
 # Cache configuration for the current environment variables.
 case "${CONTAINER_ROLE:-}" in
     web)

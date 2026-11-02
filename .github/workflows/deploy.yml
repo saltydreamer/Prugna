@@ -143,6 +143,17 @@ jobs:
             test "$state" = running
           done
           docker compose exec -T app php artisan about --only=environment,drivers
+          # PDF generation (dompdf, fonts, € and accented characters) inside the production image.
+          docker compose exec -T app php <<'PHP' | tee /tmp/pdf.txt
+          <?php
+          require 'vendor/autoload.php';
+          $app = require 'bootstrap/app.php';
+          $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+          $pdf = Barryvdh\DomPDF\Facade\Pdf::loadHTML('<p>Preventivo € 1.234,56 – àèìòù</p>')->output();
+          echo strlen($pdf) > 1000 ? "PDF OK\n" : "PDF FAIL\n";
+          PHP
+          grep -q "PDF OK" /tmp/pdf.txt
+          docker compose exec -T app php artisan schedule:list
 
       - name: Logs on failure
         if: failure()

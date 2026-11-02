@@ -13,9 +13,15 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\Profile\AvatarController;
 use App\Http\Controllers\Profile\BrowserSessionController;
 use App\Http\Controllers\Profile\ProfileController;
+use App\Http\Controllers\PublicArea\PublicQuoteController;
 use App\Http\Controllers\Registry\ContactController;
 use App\Http\Controllers\Registry\LocationController;
 use App\Http\Controllers\Registry\OrganizationController;
+use App\Http\Controllers\Sales\QuoteController;
+use App\Http\Controllers\Sales\QuoteDocumentController;
+use App\Http\Controllers\Sales\QuoteLookupController;
+use App\Http\Controllers\Settings\PaymentTermController;
+use App\Http\Controllers\Settings\SettingsController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -25,6 +31,14 @@ use Illuminate\Support\Facades\Route;
 */
 
 Route::redirect('/', '/dashboard');
+
+// Quote shared with the customer: no login, the unguessable token is the key.
+Route::prefix('q/{token}')->name('quotes.public.')->middleware('throttle:public-quote')->controller(PublicQuoteController::class)->group(function () {
+    Route::get('/', 'show')->name('show');
+    Route::get('pdf', 'pdf')->name('pdf');
+    Route::post('accept', 'accept')->middleware('throttle:public-quote-answer')->name('accept');
+    Route::post('reject', 'reject')->middleware('throttle:public-quote-answer')->name('reject');
+});
 
 Route::middleware('auth')->group(function () {
     Route::prefix('profile')->name('profile.')->group(function () {
@@ -85,6 +99,38 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::put('vat-rates/{vatRate}', 'updateVatRate')->name('vat-rates.update');
             Route::delete('vat-rates/{vatRate}', 'destroyVatRate')->name('vat-rates.destroy');
         });
+    });
+
+    Route::prefix('sales')->name('sales.')->group(function () {
+        Route::get('quotes/lookup/organizations/{organization}', [QuoteLookupController::class, 'organization'])->name('quotes.lookup.organization');
+        Route::get('quotes/lookup/products', [QuoteLookupController::class, 'products'])->name('quotes.lookup.products');
+
+        Route::resource('quotes', QuoteController::class);
+        Route::controller(QuoteController::class)->prefix('quotes/{quote}')->name('quotes.')->group(function () {
+            Route::post('duplicate', 'duplicate')->name('duplicate');
+            Route::post('reopen', 'reopen')->name('reopen');
+            Route::post('mark-sent', 'markSent')->name('mark-sent');
+            Route::post('decide', 'decide')->name('decide');
+        });
+        Route::controller(QuoteDocumentController::class)->prefix('quotes/{quote}')->name('quotes.')->group(function () {
+            Route::get('pdf', 'pdf')->name('pdf');
+            Route::get('compose', 'compose')->name('compose');
+            Route::post('send', 'send')->middleware('throttle:10,1')->name('send');
+        });
+    });
+
+    Route::prefix('settings')->name('settings.')->group(function () {
+        Route::controller(SettingsController::class)->group(function () {
+            Route::get('/', 'index')->name('index');
+            Route::put('company', 'updateCompany')->name('company.update');
+            Route::post('company/logo', 'updateLogo')->name('company.logo.update');
+            Route::delete('company/logo', 'destroyLogo')->name('company.logo.destroy');
+            Route::put('mail', 'updateMail')->name('mail.update');
+            Route::post('mail/test', 'testMail')->middleware('throttle:5,1')->name('mail.test');
+            Route::put('quotes', 'updateQuotes')->name('quotes.update');
+        });
+
+        Route::resource('payment-terms', PaymentTermController::class)->only(['store', 'update', 'destroy']);
     });
 
     Route::prefix('admin')->name('admin.')->group(function () {

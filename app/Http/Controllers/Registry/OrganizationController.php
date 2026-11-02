@@ -9,6 +9,7 @@ use App\Http\Requests\Registry\OrganizationRequest;
 use App\Http\Resources\CustomerPriceResource;
 use App\Http\Resources\OrganizationResource;
 use App\Models\Organization;
+use App\Models\PaymentTerm;
 use App\Models\Product;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -65,6 +66,7 @@ class OrganizationController extends Controller
 
         return Inertia::render('registry/organizations/Create', [
             'types' => OrganizationType::options(),
+            'paymentTerms' => $this->paymentTermOptions(),
         ]);
     }
 
@@ -85,6 +87,7 @@ class OrganizationController extends Controller
 
         $organization->load([
             'creator',
+            'paymentTerm',
             'locations' => fn ($query) => $query->withCount('contacts')->orderByDesc('is_primary')->orderBy('name'),
             'contacts' => fn ($query) => $query->with('location')->orderByDesc('is_primary')->orderBy('last_name')->orderBy('first_name'),
         ]);
@@ -117,6 +120,7 @@ class OrganizationController extends Controller
         return Inertia::render('registry/organizations/Edit', [
             'organization' => OrganizationResource::make($organization)->resolve(),
             'types' => OrganizationType::options(),
+            'paymentTerms' => $this->paymentTermOptions($organization->payment_term_id),
         ]);
     }
 
@@ -152,5 +156,20 @@ class OrganizationController extends Controller
         Inertia::flash('toast', ['type' => 'success', 'message' => __(':name ripristinata.', ['name' => $organization->name])]);
 
         return to_route('registry.organizations.show', $organization);
+    }
+
+    /**
+     * Active payment terms, plus the current one if it has been deactivated.
+     *
+     * @return list<array{value: int, title: string}>
+     */
+    private function paymentTermOptions(?int $currentId = null): array
+    {
+        return PaymentTerm::query()
+            ->where(fn ($query) => $query->where('is_active', true)->when($currentId, fn ($query) => $query->orWhere('id', $currentId)))
+            ->ordered()
+            ->get()
+            ->map(fn (PaymentTerm $term) => ['value' => $term->id, 'title' => $term->name])
+            ->all();
     }
 }

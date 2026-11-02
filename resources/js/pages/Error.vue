@@ -20,6 +20,11 @@ const content = computed(
                 title: 'Pagina non trovata',
                 text: 'La pagina che cerchi non esiste o è stata spostata.',
             },
+            409: {
+                icon: 'mdi-swap-horizontal',
+                title: 'Operazione non più possibile',
+                text: 'Lo stato del documento è cambiato nel frattempo. Ricarica la pagina.',
+            },
             429: { icon: 'mdi-timer-sand', title: 'Troppe richieste', text: 'Hai effettuato troppe richieste. Riprova tra qualche istante.' },
             500: { icon: 'mdi-alert-octagon-outline', title: 'Errore del server', text: 'Si è verificato un errore imprevisto. Riprova più tardi.' },
             503: { icon: 'mdi-wrench-outline', title: 'Manutenzione in corso', text: 'Il servizio tornerà disponibile a breve.' },

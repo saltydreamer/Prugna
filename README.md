@@ -9,6 +9,8 @@ Scheletro applicativo **Laravel 13 + Inertia 3 + Vue 3 + Vuetify 4 + MariaDB** c
 - **Centro notifiche**: campanella con contatore e anteprima, pagina dedicata con filtri (tutte/da leggere/lette), segna come letta/non letta, eliminazione, invio di **annunci** da parte degli amministratori (a tutti, per ruolo o a utenti specifici), copia via email facoltativa.
 - **Anagrafiche**: organizzazioni (dati fiscali con verifica di partita IVA e codice fiscale, codice SDI, PEC), sedi e contatti con sede e referente principali, rubrica dei contatti con ricerca, archiviazione e ripristino.
 - **Prodotti e servizi**: listino con codici automatici, categorie, unità di misura, costo e margine, aliquote IVA ed esenzioni con natura per la fattura elettronica, servizi a canone (mensile, trimestrale, semestrale, annuale), prezzi e sconti concordati per cliente con scadenza.
+- **Preventivi**: numerazione continua, righe dal listino con prezzi concordati applicati in automatico, sconto per riga, sezioni, testi e voci facoltative, PDF, invio via email con link per accettare o rifiutare online (il cliente sceglie le voci facoltative), notifiche al responsabile, promemoria e scadenza automatici, visibilità per responsabile.
+- **Impostazioni**: dati e logo dell'azienda, server SMTP con email di prova, testi dei preventivi, condizioni di pagamento (con predefinita per cliente).
 - Interfaccia in italiano, tema chiaro/scuro/di sistema, layout responsive, pagine d'errore, toast e dialoghi di conferma globali.
 
 ## Stack

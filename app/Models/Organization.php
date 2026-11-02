@@ -13,7 +13,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-#[Fillable(['name', 'type', 'vat_number', 'tax_code', 'sdi_code', 'email', 'pec', 'phone', 'website', 'notes'])]
+#[Fillable(['name', 'type', 'vat_number', 'tax_code', 'sdi_code', 'payment_term_id', 'email', 'pec', 'phone', 'website', 'notes'])]
 class Organization extends Model
 {
     /** @use HasFactory<OrganizationFactory> */
@@ -61,6 +61,16 @@ class Organization extends Model
     public function primaryContact(): HasOne
     {
         return $this->hasOne(Contact::class)->where('is_primary', true);
+    }
+
+    /**
+     * Payment term proposed in this customer's documents.
+     *
+     * @return BelongsTo<PaymentTerm, $this>
+     */
+    public function paymentTerm(): BelongsTo
+    {
+        return $this->belongsTo(PaymentTerm::class);
     }
 
     /**

@@ -45,7 +45,7 @@ return Application::configure(basePath: dirname(__DIR__))
                 return $response;
             }
 
-            if ($request->expectsJson() || ! in_array($status, [403, 404, 419, 429, 500, 503], true)) {
+            if ($request->expectsJson() || ! in_array($status, [403, 404, 409, 419, 429, 500, 503], true)) {
                 return $response;
             }
 

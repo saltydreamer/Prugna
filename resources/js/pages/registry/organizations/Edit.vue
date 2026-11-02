@@ -8,11 +8,12 @@ import { useInertiaLink } from '@/composables/useInertiaLink';
 const props = defineProps({
     organization: { type: Object, required: true },
     types: { type: Array, required: true },
+    paymentTerms: { type: Array, default: () => [] },
 });
 
 const { link } = useInertiaLink();
 
-const fields = ['name', 'type', 'vat_number', 'tax_code', 'sdi_code', 'email', 'pec', 'phone', 'website', 'notes'];
+const fields = ['name', 'type', 'vat_number', 'tax_code', 'sdi_code', 'payment_term_id', 'email', 'pec', 'phone', 'website', 'notes'];
 const form = useForm(Object.fromEntries(fields.map((field) => [field, props.organization[field] ?? ''])));
 
 function submit() {
@@ -33,7 +34,7 @@ function submit() {
         <v-card>
             <v-form @submit.prevent="submit">
                 <v-card-text>
-                    <OrganizationForm v-model:form="form" :types="types" />
+                    <OrganizationForm v-model:form="form" :types="types" :payment-terms="paymentTerms" />
                 </v-card-text>
                 <v-card-actions class="px-4 pb-4">
                     <v-spacer />

@@ -1,0 +1,134 @@
+<?php
+
+namespace App\Support;
+
+use App\Models\Setting;
+use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Crypt;
+use Throwable;
+
+/**
+ * Key/value settings editable from the UI, cached forever and flushed on save.
+ *
+ *   app(Settings::class)->get('company.name');
+ *   app(Settings::class)->set(['company.name' => 'Acme']);
+ */
+class Settings
+{
+    private const CACHE_KEY = 'app.settings';
+
+    /**
+     * Values stored encrypted in the database.
+     */
+    private const ENCRYPTED = ['mail.password'];
+
+    /**
+     * Defaults used until a value is saved.
+     *
+     * @var array<string, mixed>
+     */
+    public const DEFAULTS = [
+        'company.country' => 'IT',
+        'mail.enabled' => false,
+        'mail.port' => 587,
+        'mail.encryption' => 'tls',
+        'quotes.validity_days' => 30,
+        'quotes.terms' => "Prezzi IVA esclusa.\nL'offerta è valida fino alla data indicata.",
+        'quotes.email_subject' => 'Preventivo {numero} – {azienda}',
+        'quotes.email_body' => "Gentile {cliente},\n\nin allegato trova il nostro preventivo {numero}.\nPuò consultarlo e accettarlo online a questo link:\n{link}\n\nRestiamo a disposizione per qualsiasi chiarimento.\n\nCordiali saluti,\n{mittente}\n{azienda}",
+    ];
+
+    /**
+     * @var array<string, mixed>|null
+     */
+    private ?array $values = null;
+
+    public function get(string $key, mixed $default = null): mixed
+    {
+        return $this->all()[$key] ?? $default ?? self::DEFAULTS[$key] ?? null;
+    }
+
+    /**
+     * All the settings of a group, e.g. "company" → ['name' => ..., 'city' => ...].
+     *
+     * @return array<string, mixed>
+     */
+    public function group(string $group): array
+    {
+        $values = [];
+
+        foreach ([...self::DEFAULTS, ...$this->all()] as $key => $value) {
+            if (str_starts_with($key, "{$group}.")) {
+                $values[substr($key, strlen($group) + 1)] = $value;
+            }
+        }
+
+        return $values;
+    }
+
+    /**
+     * @param  array<string, mixed>  $values
+     */
+    public function set(array $values): void
+    {
+        foreach ($values as $key => $value) {
+            if (in_array($key, self::ENCRYPTED, true) && $value !== null && $value !== '') {
+                $value = Crypt::encryptString((string) $value);
+            }
+
+            Setting::query()->updateOrCreate(['key' => $key], ['value' => json_encode($value)]);
+        }
+
+        $this->flush();
+    }
+
+    public function flush(): void
+    {
+        $this->values = null;
+        Cache::forget(self::CACHE_KEY);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function all(): array
+    {
+        if ($this->values !== null) {
+            return $this->values;
+        }
+
+        try {
+            $stored = Cache::rememberForever(self::CACHE_KEY, fn () => Setting::query()->pluck('value', 'key')->all());
+        } catch (Throwable) {
+            // No database yet (e.g. during the Docker build): fall back to defaults.
+            return [];
+        }
+
+        $values = [];
+
+        foreach ($stored as $key => $json) {
+            $value = json_decode((string) $json, true);
+
+            if (in_array($key, self::ENCRYPTED, true) && is_string($value) && $value !== '') {
+                try {
+                    $value = Crypt::decryptString($value);
+                } catch (Throwable) {
+                    $value = null;
+                }
+            }
+
+            $values[$key] = $value;
+        }
+
+        return $this->values = $values;
+    }
+
+    /**
+     * True when a value has been saved for the key (e.g. the SMTP password).
+     */
+    public function has(string $key): bool
+    {
+        return Arr::exists($this->all(), $key) && $this->all()[$key] !== null && $this->all()[$key] !== '';
+    }
+}

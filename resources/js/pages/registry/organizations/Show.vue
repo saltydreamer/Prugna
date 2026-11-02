@@ -50,6 +50,7 @@ const fiscal = computed(() => [
     { label: 'Partita IVA', value: props.organization.vat_number },
     { label: 'Codice fiscale', value: props.organization.tax_code },
     { label: 'Codice SDI', value: props.organization.sdi_code },
+    { label: 'Condizione di pagamento', value: props.organization.payment_term?.name },
 ]);
 
 const contactsInfo = computed(() => [
@@ -170,6 +171,14 @@ function restore() {
                     v-bind="link(route('registry.organizations.index', archived ? { status: 'archived' } : {}))"
                 >
                     Organizzazioni
+                </v-btn>
+                <v-btn
+                    v-if="can('quotes.create') && !archived"
+                    variant="tonal"
+                    prepend-icon="mdi-file-document-plus-outline"
+                    v-bind="link(route('sales.quotes.create', { organization: organization.id }))"
+                >
+                    Nuovo preventivo
                 </v-btn>
                 <v-btn
                     v-if="canEdit"

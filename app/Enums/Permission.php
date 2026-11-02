@@ -33,6 +33,14 @@ enum Permission: string
     case ProductsDelete = 'products.delete';
     case CatalogSettings = 'catalog.settings';
 
+    case QuotesView = 'quotes.view';
+    case QuotesCreate = 'quotes.create';
+    case QuotesUpdate = 'quotes.update';
+    case QuotesDelete = 'quotes.delete';
+    case QuotesSupervise = 'quotes.supervise';
+
+    case SettingsManage = 'settings.manage';
+
     public function label(): string
     {
         return match ($this) {
@@ -54,6 +62,12 @@ enum Permission: string
             self::ProductsUpdate => 'Modificare prodotti, servizi e prezzi per cliente',
             self::ProductsDelete => 'Eliminare prodotti e servizi',
             self::CatalogSettings => 'Gestire categorie e aliquote IVA',
+            self::QuotesView => 'Consultare i propri preventivi',
+            self::QuotesCreate => 'Creare preventivi',
+            self::QuotesUpdate => 'Modificare e inviare i propri preventivi',
+            self::QuotesDelete => 'Eliminare le proprie bozze di preventivo',
+            self::QuotesSupervise => 'Vedere e gestire i preventivi di tutti',
+            self::SettingsManage => 'Gestire impostazioni (azienda, email, pagamenti)',
         };
     }
 
@@ -65,6 +79,8 @@ enum Permission: string
             self::NotificationsSend => 'Notifiche',
             self::OrganizationsView, self::OrganizationsCreate, self::OrganizationsUpdate, self::OrganizationsDelete => 'Anagrafiche',
             self::ProductsView, self::ProductsCreate, self::ProductsUpdate, self::ProductsDelete, self::CatalogSettings => 'Prodotti e servizi',
+            self::QuotesView, self::QuotesCreate, self::QuotesUpdate, self::QuotesDelete, self::QuotesSupervise => 'Preventivi',
+            self::SettingsManage => 'Impostazioni',
         };
     }
 

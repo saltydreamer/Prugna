@@ -5,10 +5,15 @@ namespace App\Providers;
 use App\Enums\Permission;
 use App\Models\User;
 use App\Policies\RolePolicy;
+use App\Support\MailSettings;
+use App\Support\Settings;
 use Carbon\CarbonImmutable;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
 use Spatie\Permission\Models\Role;
@@ -20,7 +25,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        // Scoped: reset between queued jobs, so workers see settings saved meanwhile.
+        $this->app->scoped(Settings::class);
+        $this->app->scoped(MailSettings::class);
     }
 
     /**
@@ -30,6 +37,19 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->configureAuthorization();
         $this->configureDefaults();
+
+        $this->app->afterResolving('mail.manager', fn () => $this->app->make(MailSettings::class)->apply());
+
+        $this->configureRateLimiting();
+    }
+
+    /**
+     * Public quote pages (no login): separate counters for browsing and for answering.
+     */
+    protected function configureRateLimiting(): void
+    {
+        RateLimiter::for('public-quote', fn (Request $request) => Limit::perMinute(60)->by('public-quote:'.$request->ip()));
+        RateLimiter::for('public-quote-answer', fn (Request $request) => Limit::perMinute(10)->by('public-quote-answer:'.$request->ip()));
     }
 
     /**

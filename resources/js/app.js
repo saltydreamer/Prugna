@@ -7,6 +7,7 @@ import { ZiggyVue } from 'ziggy-js';
 import vuetify from './plugins/vuetify';
 import AppLayout from './layouts/AppLayout.vue';
 import AuthLayout from './layouts/AuthLayout.vue';
+import PublicLayout from './layouts/PublicLayout.vue';
 
 createInertiaApp({
     title: (title, page) => {
@@ -29,6 +30,11 @@ createInertiaApp({
     layout: (name, page) => {
         if (name.startsWith('auth/')) {
             return AuthLayout;
+        }
+
+        // Pages shared with customers (no login).
+        if (name.startsWith('public/')) {
+            return PublicLayout;
         }
 
         if (name === 'Error' && !page.props.auth?.user) {

@@ -7,6 +7,7 @@ const form = defineModel('form', { type: Object, required: true });
 
 defineProps({
     types: { type: Array, required: true },
+    paymentTerms: { type: Array, default: () => [] },
 });
 </script>
 
@@ -41,6 +42,20 @@ defineProps({
                     maxlength="7"
                     hint="Per la fatturazione elettronica (7 caratteri)."
                     :error-messages="form.errors.sdi_code"
+                />
+            </v-col>
+        </v-row>
+
+        <v-row>
+            <v-col cols="12" md="8">
+                <v-select
+                    v-model="form.payment_term_id"
+                    :items="paymentTerms"
+                    label="Condizione di pagamento predefinita"
+                    hint="Proposta in automatico nei preventivi e nei documenti del cliente"
+                    persistent-hint
+                    clearable
+                    :error-messages="form.errors.payment_term_id"
                 />
             </v-col>
         </v-row>

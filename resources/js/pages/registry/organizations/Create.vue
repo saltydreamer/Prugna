@@ -7,6 +7,7 @@ import { useInertiaLink } from '@/composables/useInertiaLink';
 
 defineProps({
     types: { type: Array, required: true },
+    paymentTerms: { type: Array, default: () => [] },
 });
 
 const { link } = useInertiaLink();
@@ -17,6 +18,7 @@ const form = useForm({
     vat_number: '',
     tax_code: '',
     sdi_code: '',
+    payment_term_id: null,
     email: '',
     pec: '',
     phone: '',
@@ -40,7 +42,7 @@ function submit() {
         <v-card>
             <v-form @submit.prevent="submit">
                 <v-card-text>
-                    <OrganizationForm v-model:form="form" :types="types" />
+                    <OrganizationForm v-model:form="form" :types="types" :payment-terms="paymentTerms" />
                 </v-card-text>
                 <v-card-actions class="px-4 pb-4">
                     <v-spacer />
