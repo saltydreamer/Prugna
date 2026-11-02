@@ -55,7 +55,6 @@ const navigation = computed(() => {
             items: [
                 { title: 'Dashboard', icon: 'mdi-view-dashboard-outline', route: 'dashboard', active: 'dashboard' },
                 { title: 'Notifiche', icon: 'mdi-bell-outline', route: 'notifications.index', active: 'notifications.*', badge: unreadCount.value },
-                { title: 'Profilo', icon: 'mdi-account-circle-outline', route: 'profile.show', active: 'profile.*' },
             ],
         },
         {
@@ -132,6 +131,13 @@ const navigation = computed(() => {
                     active: 'admin.announcements.*',
                     permission: 'notifications.send',
                 },
+                {
+                    title: 'Impostazioni',
+                    icon: 'mdi-cog-outline',
+                    route: 'settings.index',
+                    active: 'settings.*',
+                    permission: 'settings.manage',
+                },
             ],
         },
     ];
@@ -186,7 +192,7 @@ function logout() {
 
             <v-divider />
 
-            <v-list nav density="comfortable" color="primary">
+            <v-list nav density="compact" color="primary">
                 <template v-for="(section, index) in navigation" :key="index">
                     <v-list-subheader v-if="section.title && !rail">{{ section.title }}</v-list-subheader>
                     <v-divider v-else-if="section.title" class="my-2" />
@@ -252,6 +258,12 @@ function logout() {
                             v-bind="link(route('profile.show', { tab: 'security' }))"
                         />
                         <v-list-item prepend-icon="mdi-bell-outline" title="Notifiche" v-bind="link(route('notifications.index'))" />
+                        <v-list-item
+                            v-if="can('settings.manage')"
+                            prepend-icon="mdi-cog-outline"
+                            title="Impostazioni"
+                            v-bind="link(route('settings.index'))"
+                        />
                         <v-divider class="my-1" />
                         <v-list-item prepend-icon="mdi-logout" title="Esci" base-color="error" @click="logout" />
                     </v-list>
