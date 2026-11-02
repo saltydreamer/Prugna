@@ -118,6 +118,8 @@ jobs:
           INERTIA_SSR_ENABLED=false
           ENV
           sed -i 's/^ *//' /tmp/stack/.env
+          # The workflow-level APP_DOMAIN would override the test .env (plain HTTP on :80).
+          unset APP_DOMAIN
           bash /tmp/stack/deploy.sh
 
       - name: Check HTTP endpoints
@@ -133,6 +135,7 @@ jobs:
       - name: Check background services
         working-directory: /tmp/stack
         run: |
+          unset APP_DOMAIN
           docker compose ps
           for service in app worker scheduler mariadb; do
             state="$(docker compose ps --format '{{.State}}' "$service")"
@@ -144,7 +147,9 @@ jobs:
       - name: Logs on failure
         if: failure()
         working-directory: /tmp/stack
-        run: docker compose logs --tail=200
+        run: |
+          unset APP_DOMAIN
+          docker compose logs --tail=200
 
   deploy:
     name: Deploy to VPS
