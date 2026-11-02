@@ -25,6 +25,8 @@ const empty = {
     notes: '',
 };
 
+const emit = defineEmits(['created']);
+
 const form = useForm({ ...empty });
 const isNew = computed(() => !props.contact);
 const locationItems = computed(() => props.locations.map((location) => ({ value: location.id, title: `${location.name} · ${location.city}` })));
@@ -44,7 +46,18 @@ watch(open, (value) => {
 });
 
 function submit() {
-    const options = { preserveScroll: true, onSuccess: () => (open.value = false) };
+    // preserveState keeps the page that opened the dialog intact (e.g. a quote being edited).
+    const options = {
+        preserveScroll: true,
+        preserveState: true,
+        onSuccess: (page) => {
+            if (isNew.value && page.flash?.createdContact) {
+                emit('created', page.flash.createdContact);
+            }
+
+            open.value = false;
+        },
+    };
 
     if (isNew.value) {
         form.post(route('registry.organizations.contacts.store', props.organizationId), options);

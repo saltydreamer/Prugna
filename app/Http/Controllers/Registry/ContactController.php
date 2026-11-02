@@ -55,9 +55,13 @@ class ContactController extends Controller
 
     public function store(ContactRequest $request, Organization $organization): RedirectResponse
     {
-        $organization->contacts()->create($request->validated());
+        $contact = $organization->contacts()->create($request->validated());
 
-        Inertia::flash('toast', ['type' => 'success', 'message' => __('Contatto aggiunto.')]);
+        // createdContact lets the page that opened the dialog select the new contact.
+        Inertia::flash([
+            'toast' => ['type' => 'success', 'message' => __('Contatto aggiunto.')],
+            'createdContact' => ['value' => $contact->id, 'title' => $contact->full_name, 'subtitle' => $contact->email],
+        ]);
 
         return back();
     }

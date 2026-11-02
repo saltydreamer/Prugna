@@ -6,6 +6,7 @@ use App\Enums\QuoteStatus;
 use App\Enums\Role;
 use App\Models\Contact;
 use App\Models\CustomerPrice;
+use App\Models\Location;
 use App\Models\Organization;
 use App\Models\PaymentTerm;
 use App\Models\Product;
@@ -204,11 +205,14 @@ class QuoteTest extends TestCase
         $term = PaymentTerm::first();
         $organization = Organization::factory()->create(['payment_term_id' => $term->id]);
         $contact = Contact::factory()->for($organization)->create();
+        $location = Location::factory()->for($organization)->create(['city' => 'Bologna']);
 
         $this->actingAs($this->salesperson())
             ->getJson("/sales/quotes/lookup/organizations/{$organization->id}")
             ->assertOk()
             ->assertJsonPath('payment_term_id', $term->id)
-            ->assertJsonPath('contacts.0.value', $contact->id);
+            ->assertJsonPath('contacts.0.value', $contact->id)
+            ->assertJsonPath('locations.0.id', $location->id)
+            ->assertJsonPath('locations.0.city', 'Bologna');
     }
 }

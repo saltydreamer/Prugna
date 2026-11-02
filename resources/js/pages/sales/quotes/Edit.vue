@@ -5,6 +5,7 @@ import { route } from 'ziggy-js';
 import PageHeader from '@/components/PageHeader.vue';
 import QuoteLinesEditor from '@/components/sales/QuoteLinesEditor.vue';
 import QuoteTotalsCard from '@/components/sales/QuoteTotalsCard.vue';
+import ContactDialog from '@/components/registry/ContactDialog.vue';
 import QuickOrganizationDialog from '@/components/registry/QuickOrganizationDialog.vue';
 import { useInertiaLink } from '@/composables/useInertiaLink';
 import { usePermissions } from '@/composables/usePermissions';
@@ -56,12 +57,14 @@ const totals = computed(() =>
     ),
 );
 
-// --- Customer: contacts and default payment term ---------------------------------
+// --- Customer: contacts, locations and default payment term ------------------------
 const contacts = ref([]);
+const customerLocations = ref([]);
 const loadingCustomer = ref(false);
 
 async function loadCustomer(organizationId, { applyDefaults }) {
     contacts.value = [];
+    customerLocations.value = [];
 
     if (!organizationId) {
         return;
@@ -72,6 +75,7 @@ async function loadCustomer(organizationId, { applyDefaults }) {
     try {
         const data = await http.get(route('sales.quotes.lookup.organization', organizationId));
         contacts.value = data.contacts;
+        customerLocations.value = data.locations;
 
         if (applyDefaults) {
             form.contact_id = data.contacts.find((contact) => contact.is_primary)?.value ?? null;
@@ -106,6 +110,14 @@ function customerCreated(organization) {
     // The page props have been reloaded with the new customer: select it.
     form.organization_id = organization.value;
     customerSearch.value = '';
+}
+
+// --- New contact for the selected customer ------------------------------------------
+const contactDialog = ref(false);
+
+function contactCreated(contact) {
+    contacts.value = [...contacts.value, contact];
+    form.contact_id = contact.value;
 }
 
 function submit() {
@@ -181,9 +193,28 @@ const backUrl = computed(() => (isNew.value ? route('sales.quotes.index') : rout
                                         clearable
                                         :loading="loadingCustomer"
                                         :disabled="!form.organization_id"
-                                        no-data-text="Nessun contatto"
                                         :error-messages="form.errors.contact_id"
-                                    />
+                                    >
+                                        <template v-if="can('organizations.update') && form.organization_id" #append>
+                                            <v-btn
+                                                icon="mdi-account-plus-outline"
+                                                variant="tonal"
+                                                color="primary"
+                                                title="Nuovo contatto"
+                                                @click="contactDialog = true"
+                                            />
+                                        </template>
+                                        <template #no-data>
+                                            <v-list-item
+                                                v-if="can('organizations.update')"
+                                                prepend-icon="mdi-plus"
+                                                title="Aggiungi un contatto"
+                                                subtitle="Il cliente non ha ancora contatti"
+                                                @click="contactDialog = true"
+                                            />
+                                            <v-list-item v-else title="Nessun contatto" />
+                                        </template>
+                                    </v-select>
                                 </v-col>
                                 <v-col cols="12">
                                     <v-text-field
@@ -293,6 +324,14 @@ const backUrl = computed(() => (isNew.value ? route('sales.quotes.index') : rout
                 </v-col>
             </v-row>
         </v-form>
+
+        <ContactDialog
+            v-if="form.organization_id"
+            v-model="contactDialog"
+            :organization-id="form.organization_id"
+            :locations="customerLocations"
+            @created="contactCreated"
+        />
 
         <QuickOrganizationDialog
             v-model="quickCustomer"

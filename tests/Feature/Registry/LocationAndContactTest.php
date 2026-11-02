@@ -117,6 +117,12 @@ class LocationAndContactTest extends TestCase
 
         $contact = $organization->contacts()->firstOrFail();
         $this->assertTrue($contact->is_primary);
+
+        // The new contact is returned so that the page can select it (e.g. in the quote editor).
+        $this->actingAs($user)->get("/registry/organizations/{$organization->id}")
+            ->assertInertia(fn (Assert $page) => $page->hasFlash('createdContact', [
+                'value' => $contact->id, 'title' => 'Mario Rossi', 'subtitle' => 'mario.rossi@example.com',
+            ]));
         $this->assertTrue($contact->location->is($location));
 
         $this->actingAs($user)->put("/registry/organizations/{$organization->id}/contacts/{$contact->id}", [

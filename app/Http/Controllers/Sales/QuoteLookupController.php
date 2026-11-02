@@ -16,7 +16,7 @@ use Illuminate\Http\Request;
 class QuoteLookupController extends Controller
 {
     /**
-     * Contacts and default payment term of a customer.
+     * Contacts, locations and default payment term of a customer.
      */
     public function organization(Organization $organization): JsonResponse
     {
@@ -31,6 +31,7 @@ class QuoteLookupController extends Controller
                     'subtitle' => $contact->email,
                     'is_primary' => $contact->is_primary,
                 ]),
+            'locations' => $organization->locations()->orderByDesc('is_primary')->orderBy('name')->get(['id', 'name', 'city']),
         ]);
     }
 
