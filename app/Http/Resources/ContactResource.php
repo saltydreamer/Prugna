@@ -32,7 +32,7 @@ class ContactResource extends JsonResource
             'is_primary' => $this->is_primary,
             'notes' => $this->notes,
             'location' => $this->whenLoaded('location', fn () => $this->location?->only(['id', 'name', 'city'])),
-            'organization' => $this->whenLoaded('organization', fn () => $this->organization?->only(['id', 'name'])),
+            'organization' => $this->whenLoaded('organization', fn () => $this->organization?->only(['id', 'name', 'role'])),
         ];
     }
 }

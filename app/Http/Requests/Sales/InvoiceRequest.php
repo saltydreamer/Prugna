@@ -44,7 +44,7 @@ class InvoiceRequest extends FormRequest
                 ? ['exclude']
                 : ['required', Rule::in([InvoiceType::Invoice->value, InvoiceType::Deposit->value])],
             // An archived customer stays valid on the drafts already addressed to it (e.g. credit notes).
-            'organization_id' => ['required', 'integer', Rule::exists('organizations', 'id')->where(
+            'organization_id' => ['required', 'integer', Rule::exists('organizations', 'id')->where('role', 'customer')->where(
                 fn ($query) => $query->whereNull('deleted_at')->when($currentOrganization, fn ($query, int $id) => $query->orWhere('id', $id)),
             )],
             'contact_id' => ['nullable', 'integer', Rule::exists('contacts', 'id')->where('organization_id', $this->input('organization_id'))],

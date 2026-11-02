@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Registry;
 
+use App\Enums\OrganizationRole;
 use App\Enums\OrganizationType;
 use App\Models\Organization;
 use App\Rules\ItalianTaxCode;
@@ -20,9 +21,15 @@ class OrganizationRequest extends FormRequest
     {
         $organization = $this->route('organization');
 
-        return $organization instanceof Organization
-            ? $this->user()->can('update', $organization)
-            : $this->user()->can('create', Organization::class);
+        $role = OrganizationRole::tryFrom((string) $this->input('role')) ?? OrganizationRole::Customer;
+
+        if (! $organization instanceof Organization) {
+            return $this->user()->can('create', [Organization::class, $role]);
+        }
+
+        // Moving to the other registry needs the right to create there.
+        return $this->user()->can('update', $organization)
+            && ($role === $organization->role || ! $this->has('role') || $this->user()->can('create', [Organization::class, $role]));
     }
 
     /**
@@ -31,6 +38,10 @@ class OrganizationRequest extends FormRequest
     protected function prepareForValidation(): void
     {
         $website = trim((string) $this->input('website'));
+
+        if (! $this->route('organization') instanceof Organization && ! $this->filled('role')) {
+            $this->merge(['role' => OrganizationRole::Customer->value]);
+        }
 
         $this->merge([
             'vat_number' => $this->filled('vat_number') ? ItalianVatNumber::normalize($this->input('vat_number')) : null,
@@ -50,6 +61,10 @@ class OrganizationRequest extends FormRequest
         $organization = $this->route('organization');
 
         return [
+            // Customer or supplier, never both. Fixed once documents refer to the organization.
+            'role' => $organization instanceof Organization && $organization->hasDocuments()
+                ? ['exclude']
+                : [$organization instanceof Organization ? 'sometimes' : 'required', Rule::enum(OrganizationRole::class)],
             'name' => ['required', 'string', 'max:255'],
             'type' => ['required', Rule::enum(OrganizationType::class)],
             'vat_number' => [
@@ -60,8 +75,6 @@ class OrganizationRequest extends FormRequest
             // 7 characters for businesses, 6 for the Public Administration ("codice univoco ufficio").
             'sdi_code' => ['nullable', $this->input('type') === OrganizationType::PublicBody->value ? 'regex:/^[A-Z0-9]{6}$/' : 'regex:/^[A-Z0-9]{7}$/'],
             'split_payment' => ['boolean'],
-            'is_customer' => ['boolean'],
-            'is_supplier' => ['boolean'],
             'payment_term_id' => ['nullable', 'integer', Rule::exists('payment_terms', 'id')],
             'email' => ['nullable', 'email', 'max:255'],
             'pec' => ['nullable', 'email', 'max:255'],

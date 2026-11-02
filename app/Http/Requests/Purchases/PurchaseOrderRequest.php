@@ -73,8 +73,8 @@ class PurchaseOrderRequest extends FormRequest
         }
 
         return [
-            'supplier_id' => ['required', 'integer', Rule::exists('organizations', 'id')->whereNull('deleted_at')],
-            'customer_id' => ['nullable', 'integer', 'different:supplier_id', Rule::exists('organizations', 'id')],
+            'supplier_id' => ['required', 'integer', Rule::exists('organizations', 'id')->whereNull('deleted_at')->where('role', 'supplier')],
+            'customer_id' => ['nullable', 'integer', Rule::exists('organizations', 'id')->where('role', 'customer')],
             'order_id' => ['nullable', 'integer', Rule::exists('orders', 'id')],
             ...$header,
             ...$this->lineRules(),

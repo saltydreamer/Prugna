@@ -82,7 +82,7 @@ class QuoteController extends Controller
         $this->authorize('create', Quote::class);
 
         $organization = $request->integer('organization')
-            ? Organization::query()->find($request->integer('organization'))
+            ? Organization::query()->customers()->find($request->integer('organization'))
             : null;
 
         return Inertia::render('sales/quotes/Edit', [
@@ -236,6 +236,7 @@ class QuoteController extends Controller
     {
         return [
             'organizations' => Organization::query()
+                ->customers()
                 ->when($quote, fn ($query) => $query->withTrashed()->where(fn ($query) => $query->whereNull('deleted_at')->orWhere('id', $quote->organization_id)))
                 ->orderBy('name')
                 ->get(['id', 'name', 'vat_number'])

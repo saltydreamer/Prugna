@@ -18,7 +18,8 @@
 - `Organization` (soft deletes = "archiviata", read-only until restored) has many `Location` (sedi) and `Contact` (contatti). Routes under `registry.*`; locations/contacts are nested and scoped (`scopeBindings`).
 - Exactly one primary location/contact per organization, enforced by `App\Models\Concerns\HasPrimaryFlag` (first record is primary, deleting the primary promotes another).
 - Italian fiscal data: `App\Rules\ItalianVatNumber` / `ItalianTaxCode` validate check digits; normalize with their `normalize()` before storing.
-- Permissions `organizations.*`; `OrganizationPolicy` also covers locations and contacts (update on the organization).
+- Customers and suppliers are separate registries: `Organization::role` (`OrganizationRole` customer|supplier, never both; changeable only while no document refers to it, `hasDocuments()`). Lists/create pages at `registry.customers.*` and `registry.suppliers.*` (same `OrganizationController`, role from the route default); show/edit/nested routes stay `registry.organizations.*`. Pickers use `organizationOptions(OrganizationRole)`; sales documents validate `role = customer`, supplier orders `role = supplier`.
+- Permissions `organizations.*` (customers) and `suppliers.*` (suppliers), chosen by `OrganizationRole::permission()`; `OrganizationPolicy` also covers locations and contacts (update on the organization).
 - Nested API resources returned inside another resource must be `->resolve()`d, otherwise Inertia wraps them in `data`.
 
 ## Catalog (Prodotti e servizi)
@@ -54,7 +55,6 @@
 
 ## Purchases (Acquisti) and rebilled costs
 
-- Organizations have roles `is_customer` / `is_supplier` (a supplier order marks its supplier automatically).
 - `PurchaseOrder` + `PurchaseOrderLine` (numbering `OF-2026-0001`, statuses draft/sent/confirmed/received/cancelled), saved with `SavePurchaseOrder`. Optional `order_id` (customer order; forces `customer_id` to its customer) and `customer_id` (who the costs are charged to). Lines are at cost; `rebill` + `markup_percent` mark costs to charge back (ignored without a customer). Permissions `purchases.view` / `purchases.manage`. PDF via `PurchaseOrderPdf` (never shows customer or markup); email via the generic `App\Mail\DocumentMail` + `DocumentSendDialog.vue`.
 - Rebilling: `App\Actions\Purchases\RebillCosts` lists pending costs (`PurchaseOrderLine::toRebill()`: rebill lines of sent/confirmed/received orders without an invoice line, credit notes excluded) and builds the invoice line (`purchase_order_line_id`, net cost + markup, same VAT). Offered in the invoice editor (`RebillCostsDialog`, endpoint `sales.invoices.lookup.costs`) and when invoicing an order (`include_costs`). `InvoiceRequest` checks customer, committed status and single use; credit notes drop the link. Supplier orders with charged-back lines are frozen (`PurchaseOrder::isEditable()`).
 - Order page shows costs and estimated margin (revenue + markups − costs not charged back).

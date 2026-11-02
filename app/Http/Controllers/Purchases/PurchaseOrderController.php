@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Purchases;
 
 use App\Actions\Purchases\SavePurchaseOrder;
+use App\Enums\OrganizationRole;
 use App\Enums\PurchaseOrderStatus;
 use App\Enums\QuoteLineType;
 use App\Http\Controllers\Controller;
@@ -84,7 +85,7 @@ class PurchaseOrderController extends Controller
         $this->authorize('create', PurchaseOrder::class);
 
         $order = $request->integer('order') ? Order::query()->with('lines.product')->find($request->integer('order')) : null;
-        $supplier = $request->integer('supplier') ? Organization::query()->find($request->integer('supplier')) : null;
+        $supplier = $request->integer('supplier') ? Organization::query()->suppliers()->find($request->integer('supplier')) : null;
 
         return Inertia::render('purchases/orders/Edit', [
             'purchaseOrder' => null,
@@ -198,18 +199,10 @@ class PurchaseOrderController extends Controller
      */
     private function purchaseEditorOptions(?PurchaseOrder $purchaseOrder = null): array
     {
-        $options = $this->editorOptions($purchaseOrder?->supplier_id);
-        $suppliers = Organization::query()->where('is_supplier', true)->pluck('id')->flip();
-
         return [
-            ...$options,
-            // Suppliers first, then every other organization.
-            'organizations' => collect($options['organizations'])
-                ->map(fn (array $option) => [...$option, 'is_supplier' => $suppliers->has($option['value'])])
-                ->sortBy(fn (array $option) => ($option['is_supplier'] ? '0' : '1').mb_strtolower($option['title']))
-                ->values()
-                ->all(),
-            'customers' => collect($options['organizations'])->values()->all(),
+            ...$this->editorOptions(),
+            'organizations' => $this->organizationOptions(OrganizationRole::Supplier, $purchaseOrder?->supplier_id),
+            'customers' => $this->organizationOptions(OrganizationRole::Customer, $purchaseOrder?->customer_id),
             'orders' => Order::query()
                 ->whereIn('status', ['open', 'in_progress'])
                 ->when($purchaseOrder?->order_id, fn ($query, int $id) => $query->orWhere('id', $id))

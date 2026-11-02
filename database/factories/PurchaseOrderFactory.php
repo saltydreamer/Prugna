@@ -30,7 +30,7 @@ class PurchaseOrderFactory extends Factory
             'sequence' => fn () => (int) PurchaseOrder::where('year', today()->year)->max('sequence') + 1,
             'number' => fn (array $attributes) => sprintf('%s-%d-%04d', SavePurchaseOrder::PREFIX, $attributes['year'], $attributes['sequence']),
             'status' => PurchaseOrderStatus::Draft,
-            'supplier_id' => Organization::factory()->state(['is_supplier' => true]),
+            'supplier_id' => Organization::factory()->supplier(),
             'owner_id' => User::factory(),
             'supplier' => [],
             'title' => 'Materiale di installazione',

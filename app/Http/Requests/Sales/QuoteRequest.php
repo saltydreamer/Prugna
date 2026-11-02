@@ -48,7 +48,7 @@ class QuoteRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'organization_id' => ['required', 'integer', Rule::exists('organizations', 'id')->whereNull('deleted_at')],
+            'organization_id' => ['required', 'integer', Rule::exists('organizations', 'id')->whereNull('deleted_at')->where('role', 'customer')],
             'contact_id' => ['nullable', 'integer', Rule::exists('contacts', 'id')->where('organization_id', $this->input('organization_id'))],
             'owner_id' => ['required', 'integer', Rule::exists('users', 'id')],
             'title' => ['nullable', 'string', 'max:255'],

@@ -43,6 +43,13 @@ function toggleDrawer() {
 usePoll(60_000, { only: ['inbox'] }, { keepAlive: false });
 
 /**
+ * Customer or supplier, on the organization pages (to highlight the right registry).
+ */
+function organizationPageRole() {
+    return route().current('registry.organizations.*') ? (page.props.organization?.role ?? page.props.role?.value) : null;
+}
+
+/**
  * Navigation: add entries here. `permission` hides the item when the user lacks it,
  * `active` is a Ziggy route pattern used to highlight the current section.
  */
@@ -99,18 +106,25 @@ const navigation = computed(() => {
             title: 'Anagrafiche',
             items: [
                 {
-                    title: 'Organizzazioni',
+                    title: 'Clienti',
                     icon: 'mdi-domain',
-                    route: 'registry.organizations.index',
-                    active: 'registry.organizations.*',
+                    route: 'registry.customers.index',
+                    active: () => route().current('registry.customers.*') || organizationPageRole() === 'customer',
                     permission: 'organizations.view',
+                },
+                {
+                    title: 'Fornitori',
+                    icon: 'mdi-truck-outline',
+                    route: 'registry.suppliers.index',
+                    active: () => route().current('registry.suppliers.*') || organizationPageRole() === 'supplier',
+                    permission: 'suppliers.view',
                 },
                 {
                     title: 'Contatti',
                     icon: 'mdi-card-account-phone-outline',
                     route: 'registry.contacts.index',
                     active: 'registry.contacts.*',
-                    permission: 'organizations.view',
+                    permission: ['organizations.view', 'suppliers.view'],
                 },
             ],
         },
@@ -172,8 +186,8 @@ const navigation = computed(() => {
         .map((section) => ({
             ...section,
             items: section.items
-                .filter((item) => !item.permission || can(item.permission))
-                .map((item) => ({ ...item, isActive: route().current(item.active) })),
+                .filter((item) => !item.permission || [item.permission].flat().some((permission) => can(permission)))
+                .map((item) => ({ ...item, isActive: typeof item.active === 'function' ? item.active() : route().current(item.active) })),
         }))
         .filter((section) => section.items.length > 0);
 });

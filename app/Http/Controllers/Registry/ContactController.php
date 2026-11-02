@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Registry;
 
+use App\Enums\OrganizationRole;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Registry\ContactRequest;
 use App\Http\Resources\ContactResource;
@@ -25,13 +26,21 @@ class ContactController extends Controller
         $filters = $request->validate([
             'search' => ['nullable', 'string', 'max:100'],
             'primary' => ['nullable', 'boolean'],
+            'role' => ['nullable', Rule::enum(OrganizationRole::class)],
             'sort_by' => ['nullable', Rule::in(['last_name', 'created_at'])],
             'sort_dir' => ['nullable', Rule::in(['asc', 'desc'])],
             'per_page' => ['nullable', 'integer', Rule::in([10, 25, 50, 100])],
         ]);
 
+        // Only the registries the user can see.
+        $roles = collect(OrganizationRole::cases())
+            ->filter(fn (OrganizationRole $role) => $request->user()->can($role->permission('view')->value))
+            ->when($filters['role'] ?? null, fn ($roles, string $role) => $roles->filter(fn (OrganizationRole $item) => $item->value === $role))
+            ->map->value
+            ->values();
+
         $contacts = Contact::query()
-            ->whereHas('organization')
+            ->whereHas('organization', fn ($query) => $query->whereIn('role', $roles))
             ->with(['organization', 'location'])
             ->search($filters['search'] ?? null)
             ->when($request->boolean('primary'), fn ($query) => $query->where('is_primary', true))
@@ -46,6 +55,7 @@ class ContactController extends Controller
             'filters' => [
                 'search' => $filters['search'] ?? '',
                 'primary' => $request->boolean('primary'),
+                'role' => $filters['role'] ?? null,
                 'sort_by' => $filters['sort_by'] ?? 'last_name',
                 'sort_dir' => $filters['sort_dir'] ?? 'asc',
                 'per_page' => (int) ($filters['per_page'] ?? 25),

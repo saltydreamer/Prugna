@@ -43,7 +43,7 @@ class CustomerPriceRequest extends FormRequest
         return [
             'organization_id' => [
                 Rule::requiredIf($customerPrice === null), 'integer',
-                Rule::exists('organizations', 'id')->whereNull('deleted_at'),
+                Rule::exists('organizations', 'id')->whereNull('deleted_at')->where('role', 'customer'),
                 Rule::unique('customer_prices', 'organization_id')
                     ->where('product_id', $customerPrice?->product_id ?? $this->input('product_id'))
                     ->ignore($customerPrice?->id),

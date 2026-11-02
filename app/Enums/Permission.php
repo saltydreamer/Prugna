@@ -27,6 +27,11 @@ enum Permission: string
     case OrganizationsUpdate = 'organizations.update';
     case OrganizationsDelete = 'organizations.delete';
 
+    case SuppliersView = 'suppliers.view';
+    case SuppliersCreate = 'suppliers.create';
+    case SuppliersUpdate = 'suppliers.update';
+    case SuppliersDelete = 'suppliers.delete';
+
     case ProductsView = 'products.view';
     case ProductsCreate = 'products.create';
     case ProductsUpdate = 'products.update';
@@ -63,10 +68,14 @@ enum Permission: string
             self::RolesUpdate => 'Modificare i ruoli',
             self::RolesDelete => 'Eliminare ruoli',
             self::NotificationsSend => 'Inviare annunci agli utenti',
-            self::OrganizationsView => 'Consultare le anagrafiche',
-            self::OrganizationsCreate => 'Creare organizzazioni',
-            self::OrganizationsUpdate => 'Modificare organizzazioni, sedi e contatti',
-            self::OrganizationsDelete => 'Archiviare organizzazioni',
+            self::OrganizationsView => 'Consultare i clienti',
+            self::OrganizationsCreate => 'Creare clienti',
+            self::OrganizationsUpdate => 'Modificare clienti, sedi e contatti',
+            self::OrganizationsDelete => 'Archiviare clienti',
+            self::SuppliersView => 'Consultare i fornitori',
+            self::SuppliersCreate => 'Creare fornitori',
+            self::SuppliersUpdate => 'Modificare fornitori, sedi e contatti',
+            self::SuppliersDelete => 'Archiviare fornitori',
             self::ProductsView => 'Consultare prodotti, servizi e listini',
             self::ProductsCreate => 'Creare prodotti e servizi',
             self::ProductsUpdate => 'Modificare prodotti, servizi e prezzi per cliente',
@@ -94,7 +103,8 @@ enum Permission: string
             self::UsersView, self::UsersCreate, self::UsersUpdate, self::UsersDelete => 'Utenti',
             self::RolesView, self::RolesCreate, self::RolesUpdate, self::RolesDelete => 'Ruoli e permessi',
             self::NotificationsSend => 'Notifiche',
-            self::OrganizationsView, self::OrganizationsCreate, self::OrganizationsUpdate, self::OrganizationsDelete => 'Anagrafiche',
+            self::OrganizationsView, self::OrganizationsCreate, self::OrganizationsUpdate, self::OrganizationsDelete => 'Clienti',
+            self::SuppliersView, self::SuppliersCreate, self::SuppliersUpdate, self::SuppliersDelete => 'Fornitori',
             self::ProductsView, self::ProductsCreate, self::ProductsUpdate, self::ProductsDelete, self::CatalogSettings => 'Prodotti e servizi',
             self::QuotesView, self::QuotesCreate, self::QuotesUpdate, self::QuotesDelete, self::QuotesSupervise => 'Preventivi',
             self::OrdersView, self::OrdersManage => 'Ordini',
