@@ -14,7 +14,10 @@ const props = defineProps({
 const { link } = useInertiaLink();
 
 const fields = ['name', 'type', 'vat_number', 'tax_code', 'sdi_code', 'payment_term_id', 'email', 'pec', 'phone', 'website', 'notes'];
-const form = useForm(Object.fromEntries(fields.map((field) => [field, props.organization[field] ?? ''])));
+const form = useForm({
+    ...Object.fromEntries(fields.map((field) => [field, props.organization[field] ?? ''])),
+    split_payment: props.organization.split_payment ?? false,
+});
 
 function submit() {
     form.put(route('registry.organizations.update', props.organization.id));

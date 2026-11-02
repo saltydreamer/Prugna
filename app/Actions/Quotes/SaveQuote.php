@@ -7,6 +7,7 @@ use App\Models\Organization;
 use App\Models\PaymentTerm;
 use App\Models\Quote;
 use App\Models\VatRate;
+use App\Support\CustomerSnapshot;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -27,7 +28,7 @@ class SaveQuote
 
         return DB::transaction(function () use ($quote, $data, $lines): Quote {
             $quote->fill($data);
-            $quote->customer = $this->customerSnapshot(Organization::withTrashed()->findOrFail($quote->organization_id));
+            $quote->customer = CustomerSnapshot::from(Organization::withTrashed()->findOrFail($quote->organization_id));
             $quote->payment_terms = $quote->payment_term_id ? PaymentTerm::find($quote->payment_term_id)?->name : null;
 
             if (! $quote->exists) {
@@ -127,25 +128,5 @@ class SaveQuote
 
         $quote->sequence = $sequence;
         $quote->number = self::NUMBER_PREFIX.str_pad((string) $sequence, 5, '0', STR_PAD_LEFT);
-    }
-
-    /**
-     * @return array<string, string|null>
-     */
-    private function customerSnapshot(Organization $organization): array
-    {
-        $location = $organization->locations()->where('is_primary', true)->first();
-
-        return [
-            'name' => $organization->name,
-            'vat_number' => $organization->vat_number,
-            'tax_code' => $organization->tax_code,
-            'sdi_code' => $organization->sdi_code,
-            'pec' => $organization->pec,
-            'email' => $organization->email,
-            'address' => $location?->address,
-            'city_line' => $location ? trim(implode(' ', array_filter([$location->postal_code, $location->city, $location->province ? "({$location->province})" : null]))) : null,
-            'country' => $location?->country,
-        ];
     }
 }

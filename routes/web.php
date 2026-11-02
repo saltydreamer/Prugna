@@ -17,6 +17,10 @@ use App\Http\Controllers\PublicArea\PublicQuoteController;
 use App\Http\Controllers\Registry\ContactController;
 use App\Http\Controllers\Registry\LocationController;
 use App\Http\Controllers\Registry\OrganizationController;
+use App\Http\Controllers\Sales\InvoiceController;
+use App\Http\Controllers\Sales\InvoiceDocumentController;
+use App\Http\Controllers\Sales\OrderController;
+use App\Http\Controllers\Sales\OrderDocumentController;
 use App\Http\Controllers\Sales\QuoteController;
 use App\Http\Controllers\Sales\QuoteDocumentController;
 use App\Http\Controllers\Sales\QuoteLookupController;
@@ -118,6 +122,24 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::get('compose', 'compose')->name('compose');
             Route::post('send', 'send')->middleware('throttle:10,1')->name('send');
         });
+
+        Route::post('quotes/{quote}/order', [OrderController::class, 'storeFromQuote'])->name('quotes.order');
+        Route::post('quotes/{quote}/invoice', [InvoiceController::class, 'storeFromQuote'])->name('quotes.invoice');
+
+        Route::resource('orders', OrderController::class);
+        Route::patch('orders/{order}/status', [OrderController::class, 'updateStatus'])->name('orders.status');
+        Route::get('orders/{order}/pdf', [OrderDocumentController::class, 'pdf'])->name('orders.pdf');
+        Route::post('orders/{order}/invoice', [InvoiceController::class, 'storeFromOrder'])->name('orders.invoice');
+
+        Route::resource('invoices', InvoiceController::class);
+        Route::controller(InvoiceController::class)->prefix('invoices/{invoice}')->name('invoices.')->group(function () {
+            Route::post('issue', 'issue')->name('issue');
+            Route::post('credit-note', 'creditNote')->name('credit-note');
+        });
+        Route::controller(InvoiceDocumentController::class)->prefix('invoices/{invoice}')->name('invoices.')->group(function () {
+            Route::get('pdf', 'pdf')->name('pdf');
+            Route::get('xml', 'xml')->name('xml');
+        });
     });
 
     Route::prefix('settings')->name('settings.')->group(function () {
@@ -129,6 +151,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::put('mail', 'updateMail')->name('mail.update');
             Route::post('mail/test', 'testMail')->middleware('throttle:5,1')->name('mail.test');
             Route::put('quotes', 'updateQuotes')->name('quotes.update');
+            Route::put('fiscal', 'updateFiscal')->name('fiscal.update');
         });
 
         Route::resource('payment-terms', PaymentTermController::class)->only(['store', 'update', 'destroy']);

@@ -26,6 +26,7 @@ class OrganizationResource extends JsonResource
             'vat_number' => $this->vat_number,
             'tax_code' => $this->tax_code,
             'sdi_code' => $this->sdi_code,
+            'split_payment' => $this->split_payment,
             'payment_term_id' => $this->payment_term_id,
             'payment_term' => $this->whenLoaded('paymentTerm', fn () => $this->paymentTerm?->only(['id', 'name'])),
             'email' => $this->email,

@@ -13,7 +13,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-#[Fillable(['name', 'type', 'vat_number', 'tax_code', 'sdi_code', 'payment_term_id', 'email', 'pec', 'phone', 'website', 'notes'])]
+#[Fillable(['name', 'type', 'vat_number', 'tax_code', 'sdi_code', 'split_payment', 'payment_term_id', 'email', 'pec', 'phone', 'website', 'notes'])]
 class Organization extends Model
 {
     /** @use HasFactory<OrganizationFactory> */
@@ -28,6 +28,7 @@ class Organization extends Model
     {
         return [
             'type' => OrganizationType::class,
+            'split_payment' => 'boolean',
         ];
     }
 

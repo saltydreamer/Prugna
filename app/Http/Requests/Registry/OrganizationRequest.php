@@ -57,7 +57,9 @@ class OrganizationRequest extends FormRequest
                 Rule::unique('organizations', 'vat_number')->ignore($organization?->id),
             ],
             'tax_code' => ['nullable', 'string', 'max:32', new ItalianTaxCode],
-            'sdi_code' => ['nullable', 'regex:/^[A-Z0-9]{7}$/'],
+            // 7 characters for businesses, 6 for the Public Administration ("codice univoco ufficio").
+            'sdi_code' => ['nullable', $this->input('type') === OrganizationType::PublicBody->value ? 'regex:/^[A-Z0-9]{6}$/' : 'regex:/^[A-Z0-9]{7}$/'],
+            'split_payment' => ['boolean'],
             'payment_term_id' => ['nullable', 'integer', Rule::exists('payment_terms', 'id')],
             'email' => ['nullable', 'email', 'max:255'],
             'pec' => ['nullable', 'email', 'max:255'],
@@ -74,7 +76,9 @@ class OrganizationRequest extends FormRequest
     {
         return [
             'vat_number.unique' => __("Esiste già un'organizzazione con questa partita IVA (controlla anche tra le archiviate)."),
-            'sdi_code.regex' => __('Il codice destinatario SDI è composto da 7 caratteri alfanumerici.'),
+            'sdi_code.regex' => $this->input('type') === OrganizationType::PublicBody->value
+                ? __('Il codice univoco ufficio della PA è composto da 6 caratteri.')
+                : __('Il codice destinatario SDI è composto da 7 caratteri alfanumerici.'),
             'phone.regex' => __('Il numero di telefono non è valido.'),
         ];
     }

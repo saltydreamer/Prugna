@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Sales;
 
 use App\Actions\Catalog\ResolvePrice;
+use App\Actions\Invoices\SaveInvoice;
+use App\Enums\Permission;
 use App\Http\Controllers\Controller;
 use App\Models\Organization;
 use App\Models\Product;
@@ -11,19 +13,20 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 /**
- * JSON endpoints used by the quote editor.
+ * JSON endpoints used by the document editors (quotes, orders, invoices).
  */
 class QuoteLookupController extends Controller
 {
     /**
      * Contacts, locations and default payment term of a customer.
      */
-    public function organization(Organization $organization): JsonResponse
+    public function organization(Organization $organization, SaveInvoice $saveInvoice): JsonResponse
     {
-        $this->authorize('create', Quote::class);
+        $this->authorizeEditor();
 
         return response()->json([
             'payment_term_id' => $organization->payment_term_id,
+            'invoice_defaults' => $saveInvoice->defaultsFor($organization),
             'contacts' => $organization->contacts()->orderByDesc('is_primary')->orderBy('last_name')->get()
                 ->map(fn ($contact) => [
                     'value' => $contact->id,
@@ -40,7 +43,7 @@ class QuoteLookupController extends Controller
      */
     public function products(Request $request, ResolvePrice $resolvePrice): JsonResponse
     {
-        $this->authorize('create', Quote::class);
+        $this->authorizeEditor();
 
         $request->validate([
             'search' => ['nullable', 'string', 'max:100'],
@@ -75,5 +78,17 @@ class QuoteLookupController extends Controller
             });
 
         return response()->json(['data' => $products]);
+    }
+
+    private function authorizeEditor(): void
+    {
+        $user = request()->user();
+
+        abort_unless(
+            $user->can('create', Quote::class)
+            || $user->can(Permission::OrdersManage->value)
+            || $user->can(Permission::InvoicesManage->value),
+            403,
+        );
     }
 }
