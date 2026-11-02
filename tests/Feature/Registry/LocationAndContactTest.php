@@ -146,21 +146,22 @@ class LocationAndContactTest extends TestCase
 
     public function test_the_address_book_searches_by_full_name_and_organization(): void
     {
-        $acme = Organization::factory()->create(['name' => 'Acme']);
-        Contact::factory()->for($acme)->create(['first_name' => 'Mario', 'last_name' => 'Rossi']);
-        Contact::factory()->for($acme)->create(['first_name' => 'Maria', 'last_name' => 'Verdi']);
-        Contact::factory()->create(['first_name' => 'Luca', 'last_name' => 'Rossi']);
+        // Explicit names and emails: random Italian demo data must not match the searches.
+        $acme = Organization::factory()->create(['name' => 'Zyxwv Industrie']);
+        Contact::factory()->for($acme)->create(['first_name' => 'Ottavio', 'last_name' => 'Quintavalle', 'email' => 'c1@example.test']);
+        Contact::factory()->for($acme)->create(['first_name' => 'Ottavia', 'last_name' => 'Pozzolini', 'email' => 'c2@example.test']);
+        Contact::factory()->for(Organization::factory()->create(['name' => 'Altra Ditta']))->create(['first_name' => 'Zeno', 'last_name' => 'Quintavalle', 'email' => 'c3@example.test']);
 
         $user = User::factory()->withRole(Role::User)->create();
 
-        $this->actingAs($user)->get('/registry/contacts?search=mario+rossi')
+        $this->actingAs($user)->get('/registry/contacts?search=ottavio+quintavalle')
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('registry/contacts/Index')
                 ->has('contacts.data', 1)
-                ->where('contacts.data.0.organization.name', 'Acme'));
+                ->where('contacts.data.0.organization.name', 'Zyxwv Industrie'));
 
-        $this->actingAs($user)->get('/registry/contacts?search=acme')
+        $this->actingAs($user)->get('/registry/contacts?search=zyxwv')
             ->assertInertia(fn (Assert $page) => $page->has('contacts.data', 2));
 
         $this->actingAs($user)->get('/registry/contacts?primary=1')

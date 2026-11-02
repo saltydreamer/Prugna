@@ -26,23 +26,23 @@ class UserManagementTest extends TestCase
     public function test_admins_can_list_search_and_filter_users(): void
     {
         $admin = User::factory()->admin()->create();
-        User::factory()->create(['name' => 'Giulia Bianchi']);
-        User::factory()->inactive()->create(['name' => 'Luca Verdi']);
+        User::factory()->create(['name' => 'Zebedeo Quintavalle', 'email' => 'zq@example.test']);
+        User::factory()->inactive()->create(['name' => 'Ermenegildo Pozzolini']);
 
         $this->actingAs($admin)
-            ->get('/admin/users?search=Giulia')
+            ->get('/admin/users?search=Quintavalle')
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('admin/users/Index')
                 ->has('users.data', 1)
-                ->where('users.data.0.name', 'Giulia Bianchi')
+                ->where('users.data.0.name', 'Zebedeo Quintavalle')
                 ->has('users.meta.total'));
 
         $this->actingAs($admin)
             ->get('/admin/users?status=inactive')
             ->assertInertia(fn (Assert $page) => $page
                 ->has('users.data', 1)
-                ->where('users.data.0.name', 'Luca Verdi'));
+                ->where('users.data.0.name', 'Ermenegildo Pozzolini'));
     }
 
     public function test_invalid_sort_columns_are_rejected(): void
