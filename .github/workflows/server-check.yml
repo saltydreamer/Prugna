@@ -28,3 +28,13 @@ jobs:
 
       - name: Inspect server
         run: ssh vps 'bash -s' < deploy/scripts/server-check.sh
+
+      - name: Check public site
+        env:
+          APP_DOMAIN: ${{ vars.APP_DOMAIN || 'dev.reimg.it' }}
+        run: |
+          echo "DNS (A): $(getent ahostsv4 "$APP_DOMAIN" | awk '{print $1}' | sort -u | tr '\n' ' ')"
+          echo "DNS (AAAA): $(getent ahostsv6 "$APP_DOMAIN" | awk '{print $1}' | sort -u | tr '\n' ' ')"
+          curl -sS -o /dev/null -w 'http://  → %{http_code} %{redirect_url}\n' "http://$APP_DOMAIN/" || true
+          curl -sS -o /dev/null -w 'https:// → %{http_code} %{redirect_url}\n' "https://$APP_DOMAIN/" || true
+          curl -sS -o /dev/null -w 'https:///login → %{http_code}\n' "https://$APP_DOMAIN/login" || true

@@ -40,3 +40,16 @@ echo "(fine elenco)"
 
 section "Firewall"
 if command -v ufw >/dev/null 2>&1; then ufw status 2>/dev/null || sudo -n ufw status 2>/dev/null || echo "ufw: stato non leggibile"; else echo "ufw: non installato"; fi
+
+section "Applicazione (/srv/boilerplate)"
+if [ -f /srv/boilerplate/compose.yaml ]; then
+    cd /srv/boilerplate
+    docker compose ps --format 'table {{.Service}}\t{{.Status}}\t{{.Ports}}' 2>&1
+    printf '\n--- ultimi log del container app ---\n'
+    docker compose logs --tail=40 --no-color app 2>&1 | cut -c1-300
+    printf '\n--- richiesta locale https://%s/up ---\n' "$(grep -E '^APP_DOMAIN=' .env | cut -d= -f2-)"
+    domain="$(grep -E '^APP_DOMAIN=' .env | cut -d= -f2-)"
+    curl -sS -o /dev/null -w 'HTTP %{http_code}\n' --resolve "$domain:443:127.0.0.1" "https://$domain/up" 2>&1
+else
+    echo "App non ancora installata."
+fi
