@@ -6,6 +6,7 @@ use App\Enums\LocationType;
 use App\Enums\OrganizationType;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Registry\OrganizationRequest;
+use App\Http\Requests\Registry\QuickOrganizationRequest;
 use App\Http\Resources\CustomerPriceResource;
 use App\Http\Resources\OrganizationResource;
 use App\Models\Organization;
@@ -13,6 +14,8 @@ use App\Models\PaymentTerm;
 use App\Models\Product;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -79,6 +82,50 @@ class OrganizationController extends Controller
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Organizzazione creata. Aggiungi ora sedi e contatti.')]);
 
         return to_route('registry.organizations.show', $organization);
+    }
+
+    /**
+     * Customer created from another page (e.g. the quote editor), with optional
+     * registered office and contact. The new organization is returned as flash data.
+     */
+    public function quickStore(QuickOrganizationRequest $request): RedirectResponse
+    {
+        $data = $request->validated();
+
+        $organization = DB::transaction(function () use ($data, $request): Organization {
+            $organization = new Organization(Arr::except($data, ['location', 'contact']));
+            $organization->created_by = $request->user()->id;
+            $organization->save();
+
+            if (filled($data['location']['address'] ?? null)) {
+                $organization->locations()->create([
+                    ...Arr::only($data['location'], ['address', 'postal_code', 'city', 'province', 'country']),
+                    'name' => __('Sede legale'),
+                    'type' => LocationType::Registered,
+                    'is_primary' => true,
+                ]);
+            }
+
+            if (filled($data['contact']['first_name'] ?? null)) {
+                $organization->contacts()->create([
+                    ...Arr::only($data['contact'], ['first_name', 'last_name', 'job_title', 'email', 'phone']),
+                    'is_primary' => true,
+                ]);
+            }
+
+            return $organization;
+        });
+
+        Inertia::flash([
+            'toast' => ['type' => 'success', 'message' => __(':name aggiunto alle anagrafiche.', ['name' => $organization->name])],
+            'createdOrganization' => [
+                'value' => $organization->id,
+                'title' => $organization->name,
+                'subtitle' => $organization->vat_number ? "P.IVA {$organization->vat_number}" : null,
+            ],
+        ]);
+
+        return back();
     }
 
     public function show(Request $request, Organization $organization): Response

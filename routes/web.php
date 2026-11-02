@@ -64,6 +64,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     });
 
     Route::prefix('registry')->name('registry.')->group(function () {
+        Route::post('organizations/quick', [OrganizationController::class, 'quickStore'])->name('organizations.quick-store');
         Route::resource('organizations', OrganizationController::class)->except('show');
         // Archived organizations stay viewable (read-only) and restorable.
         Route::get('organizations/{organization}', [OrganizationController::class, 'show'])

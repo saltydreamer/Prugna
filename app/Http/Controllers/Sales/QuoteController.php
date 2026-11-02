@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Sales;
 
 use App\Actions\Quotes\SaveQuote;
+use App\Enums\OrganizationType;
 use App\Enums\Permission;
 use App\Enums\QuoteStatus;
 use App\Enums\UnitOfMeasure;
@@ -235,6 +236,7 @@ class QuoteController extends Controller
             'paymentTerms' => PaymentTerm::query()->active()->ordered()->get(['id', 'name'])
                 ->map(fn (PaymentTerm $term) => ['value' => $term->id, 'title' => $term->name]),
             'units' => UnitOfMeasure::options(),
+            'organizationTypes' => OrganizationType::options(),
             'owners' => $user->can(Permission::QuotesSupervise->value) ? $this->ownerOptions() : null,
         ];
     }

@@ -5,7 +5,9 @@ import { route } from 'ziggy-js';
 import PageHeader from '@/components/PageHeader.vue';
 import QuoteLinesEditor from '@/components/sales/QuoteLinesEditor.vue';
 import QuoteTotalsCard from '@/components/sales/QuoteTotalsCard.vue';
+import QuickOrganizationDialog from '@/components/registry/QuickOrganizationDialog.vue';
 import { useInertiaLink } from '@/composables/useInertiaLink';
+import { usePermissions } from '@/composables/usePermissions';
 import { http } from '@/utils/http';
 import { quoteTotals } from '@/utils/quoteTotals';
 
@@ -17,11 +19,13 @@ const props = defineProps({
     vatRates: { type: Array, required: true },
     paymentTerms: { type: Array, required: true },
     units: { type: Array, required: true },
+    organizationTypes: { type: Array, default: () => [] },
     /** Users who can own quotes; null when the user can't choose. */
     owners: { type: Array, default: null },
 });
 
 const { link } = useInertiaLink();
+const { can } = usePermissions();
 const isNew = computed(() => !props.quote);
 const source = props.quote ?? props.defaults;
 
@@ -88,6 +92,22 @@ watch(
     (id) => loadCustomer(id, { applyDefaults: true }),
 );
 
+// --- New customer from the quote --------------------------------------------------
+const customerSearch = ref('');
+const quickCustomer = ref(false);
+const quickCustomerName = ref('');
+
+function openQuickCustomer(name) {
+    quickCustomerName.value = name;
+    quickCustomer.value = true;
+}
+
+function customerCreated(organization) {
+    // The page props have been reloaded with the new customer: select it.
+    form.organization_id = organization.value;
+    customerSearch.value = '';
+}
+
 function submit() {
     const transform = (data) => ({
         ...data,
@@ -124,12 +144,33 @@ const backUrl = computed(() => (isNew.value ? route('sales.quotes.index') : rout
                                 <v-col cols="12" md="7">
                                     <v-autocomplete
                                         v-model="form.organization_id"
+                                        v-model:search="customerSearch"
                                         :items="organizations"
                                         item-props
                                         label="Cliente"
                                         :error-messages="form.errors.organization_id"
                                         :autofocus="isNew && !form.organization_id"
-                                    />
+                                    >
+                                        <template v-if="can('organizations.create')" #append>
+                                            <v-btn
+                                                icon="mdi-account-plus-outline"
+                                                variant="tonal"
+                                                color="primary"
+                                                title="Nuovo cliente"
+                                                @click="openQuickCustomer('')"
+                                            />
+                                        </template>
+                                        <template #no-data>
+                                            <v-list-item
+                                                v-if="can('organizations.create') && customerSearch"
+                                                prepend-icon="mdi-plus"
+                                                :title="`Crea «${customerSearch}»`"
+                                                subtitle="Nuovo cliente nelle anagrafiche"
+                                                @click="openQuickCustomer(customerSearch)"
+                                            />
+                                            <v-list-item v-else title="Nessun cliente trovato" />
+                                        </template>
+                                    </v-autocomplete>
                                 </v-col>
                                 <v-col cols="12" md="5">
                                     <v-select
@@ -252,6 +293,14 @@ const backUrl = computed(() => (isNew.value ? route('sales.quotes.index') : rout
                 </v-col>
             </v-row>
         </v-form>
+
+        <QuickOrganizationDialog
+            v-model="quickCustomer"
+            :types="organizationTypes"
+            :payment-terms="paymentTerms"
+            :initial-name="quickCustomerName"
+            @created="customerCreated"
+        />
     </div>
 </template>
 
