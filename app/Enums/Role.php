@@ -38,7 +38,7 @@ enum Role: string
         return match ($this) {
             self::SuperAdmin => [],
             self::Admin => Permission::cases(),
-            self::User => [Permission::OrganizationsView],
+            self::User => [Permission::OrganizationsView, Permission::ProductsView],
         };
     }
 

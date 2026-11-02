@@ -27,6 +27,12 @@ enum Permission: string
     case OrganizationsUpdate = 'organizations.update';
     case OrganizationsDelete = 'organizations.delete';
 
+    case ProductsView = 'products.view';
+    case ProductsCreate = 'products.create';
+    case ProductsUpdate = 'products.update';
+    case ProductsDelete = 'products.delete';
+    case CatalogSettings = 'catalog.settings';
+
     public function label(): string
     {
         return match ($this) {
@@ -43,6 +49,11 @@ enum Permission: string
             self::OrganizationsCreate => 'Creare organizzazioni',
             self::OrganizationsUpdate => 'Modificare organizzazioni, sedi e contatti',
             self::OrganizationsDelete => 'Archiviare organizzazioni',
+            self::ProductsView => 'Consultare prodotti, servizi e listini',
+            self::ProductsCreate => 'Creare prodotti e servizi',
+            self::ProductsUpdate => 'Modificare prodotti, servizi e prezzi per cliente',
+            self::ProductsDelete => 'Eliminare prodotti e servizi',
+            self::CatalogSettings => 'Gestire categorie e aliquote IVA',
         };
     }
 
@@ -53,6 +64,7 @@ enum Permission: string
             self::RolesView, self::RolesCreate, self::RolesUpdate, self::RolesDelete => 'Ruoli e permessi',
             self::NotificationsSend => 'Notifiche',
             self::OrganizationsView, self::OrganizationsCreate, self::OrganizationsUpdate, self::OrganizationsDelete => 'Anagrafiche',
+            self::ProductsView, self::ProductsCreate, self::ProductsUpdate, self::ProductsDelete, self::CatalogSettings => 'Prodotti e servizi',
         };
     }
 

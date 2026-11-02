@@ -3,7 +3,10 @@
 namespace Database\Seeders;
 
 use App\Enums\Role;
+use App\Models\CustomerPrice;
 use App\Models\Organization;
+use App\Models\Product;
+use App\Models\ProductCategory;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 
@@ -39,7 +42,16 @@ class DatabaseSeeder extends Seeder
 
         if (app()->isLocal()) {
             User::factory(25)->withRole(Role::User)->create();
-            Organization::factory(20)->withDetails()->create();
+            $organizations = Organization::factory(20)->withDetails()->create();
+
+            $categories = ProductCategory::factory(5)->create();
+            $products = Product::factory(15)->create(fn () => ['category_id' => $categories->random()->id])
+                ->merge(Product::factory(6)->service()->create(fn () => ['category_id' => $categories->random()->id]))
+                ->merge(Product::factory(3)->recurring()->create());
+
+            foreach ($organizations->random(5) as $organization) {
+                CustomerPrice::factory()->for($organization)->for($products->random())->create();
+            }
         }
     }
 }

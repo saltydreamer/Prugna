@@ -6,8 +6,10 @@ use App\Enums\LocationType;
 use App\Enums\OrganizationType;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Registry\OrganizationRequest;
+use App\Http\Resources\CustomerPriceResource;
 use App\Http\Resources\OrganizationResource;
 use App\Models\Organization;
+use App\Models\Product;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -77,7 +79,7 @@ class OrganizationController extends Controller
         return to_route('registry.organizations.show', $organization);
     }
 
-    public function show(Organization $organization): Response
+    public function show(Request $request, Organization $organization): Response
     {
         $this->authorize('view', $organization);
 
@@ -87,9 +89,24 @@ class OrganizationController extends Controller
             'contacts' => fn ($query) => $query->with('location')->orderByDesc('is_primary')->orderBy('last_name')->orderBy('first_name'),
         ]);
 
+        $canSeePrices = $request->user()->can('viewAny', Product::class);
+
         return Inertia::render('registry/organizations/Show', [
             'organization' => OrganizationResource::make($organization)->resolve(),
             'locationTypes' => LocationType::options(),
+            'customerPrices' => $canSeePrices
+                ? CustomerPriceResource::collection($organization->customerPrices()->with('product')->get()->sortBy('product.name')->values())->resolve()
+                : null,
+            // Loaded only when the "agreed price" dialog is opened.
+            'productOptions' => Inertia::optional(fn () => Product::query()
+                ->active()
+                ->orderBy('name')
+                ->get(['id', 'code', 'name', 'price', 'unit'])
+                ->map(fn (Product $product) => [
+                    'value' => $product->id,
+                    'title' => "{$product->code} · {$product->name}",
+                    'price' => (float) $product->price,
+                ])),
         ]);
     }
 

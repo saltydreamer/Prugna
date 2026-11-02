@@ -64,6 +64,16 @@ class Organization extends Model
     }
 
     /**
+     * Prices agreed with this customer.
+     *
+     * @return HasMany<CustomerPrice, $this>
+     */
+    public function customerPrices(): HasMany
+    {
+        return $this->hasMany(CustomerPrice::class);
+    }
+
+    /**
      * @return BelongsTo<User, $this>
      */
     public function creator(): BelongsTo

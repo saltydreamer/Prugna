@@ -8,6 +8,7 @@ Scheletro applicativo **Laravel 13 + Inertia 3 + Vue 3 + Vuetify 4 + MariaDB** c
 - **Profilo utente**: dati personali, immagine del profilo, cambio password, 2FA, preferenze di notifica, sessioni attive (con disconnessione degli altri dispositivi), eliminazione account.
 - **Centro notifiche**: campanella con contatore e anteprima, pagina dedicata con filtri (tutte/da leggere/lette), segna come letta/non letta, eliminazione, invio di **annunci** da parte degli amministratori (a tutti, per ruolo o a utenti specifici), copia via email facoltativa.
 - **Anagrafiche**: organizzazioni (dati fiscali con verifica di partita IVA e codice fiscale, codice SDI, PEC), sedi e contatti con sede e referente principali, rubrica dei contatti con ricerca, archiviazione e ripristino.
+- **Prodotti e servizi**: listino con codici automatici, categorie, unità di misura, costo e margine, aliquote IVA ed esenzioni con natura per la fattura elettronica, servizi a canone (mensile, trimestrale, semestrale, annuale), prezzi e sconti concordati per cliente con scadenza.
 - Interfaccia in italiano, tema chiaro/scuro/di sistema, layout responsive, pagine d'errore, toast e dialoghi di conferma globali.
 
 ## Stack

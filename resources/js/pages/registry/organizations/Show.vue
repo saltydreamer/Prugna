@@ -3,19 +3,25 @@ import { computed, ref, watch } from 'vue';
 import { router } from '@inertiajs/vue3';
 import { route } from 'ziggy-js';
 import PageHeader from '@/components/PageHeader.vue';
+import CustomerPriceList from '@/components/catalog/CustomerPriceList.vue';
 import ContactDialog from '@/components/registry/ContactDialog.vue';
 import LocationDialog from '@/components/registry/LocationDialog.vue';
 import { useConfirm } from '@/composables/useConfirm';
 import { useInertiaLink } from '@/composables/useInertiaLink';
+import { usePermissions } from '@/composables/usePermissions';
 import { formatDate, formatDateTime } from '@/utils/format';
 
 const props = defineProps({
     organization: { type: Object, required: true },
     locationTypes: { type: Array, required: true },
+    /** null when the user can't see the catalog. */
+    customerPrices: { type: Array, default: null },
+    productOptions: { type: Array, default: null },
 });
 
 const { link } = useInertiaLink();
 const { confirm } = useConfirm();
+const { can } = usePermissions();
 
 const typeIcons = {
     company: 'mdi-domain',
@@ -25,7 +31,7 @@ const typeIcons = {
     other: 'mdi-shape-outline',
 };
 
-const tabs = ['overview', 'locations', 'contacts'];
+const tabs = ['overview', 'locations', 'contacts', 'prices'];
 const initialTab = new URLSearchParams(window.location.search).get('tab');
 const tab = ref(tabs.includes(initialTab) ? initialTab : 'overview');
 
@@ -197,6 +203,10 @@ function restore() {
                 <v-tab value="contacts" prepend-icon="mdi-account-multiple-outline">
                     Contatti
                     <v-badge :content="organization.contacts.length" color="secondary" inline />
+                </v-tab>
+                <v-tab v-if="customerPrices !== null" value="prices" prepend-icon="mdi-tag-outline">
+                    Prezzi concordati
+                    <v-badge v-if="customerPrices.length" :content="customerPrices.length" color="secondary" inline />
                 </v-tab>
             </v-tabs>
         </v-card>
@@ -434,6 +444,18 @@ function restore() {
                         </template>
                     </v-data-table>
                 </v-card>
+            </v-tabs-window-item>
+
+            <!-- Agreed prices -->
+            <v-tabs-window-item v-if="customerPrices !== null" value="prices">
+                <CustomerPriceList
+                    :prices="customerPrices"
+                    context="organization"
+                    :organization-id="organization.id"
+                    :options="productOptions"
+                    options-prop="productOptions"
+                    :can-edit="can('products.update') && !archived"
+                />
             </v-tabs-window-item>
         </v-tabs-window>
 

@@ -47,3 +47,35 @@ export function isInternalUrl(url) {
         return false;
     }
 }
+
+const moneyFormatters = {};
+
+/**
+ * "€ 1.234,50" — up to 4 decimals only when needed (unit prices such as 0,1250).
+ */
+export function formatMoney(value, { currency = 'EUR' } = {}) {
+    if (value === null || value === undefined || value === '') {
+        return '—';
+    }
+
+    const number = Number(value);
+    const decimals = Math.round(number * 100) === number * 100 ? 2 : 4;
+    const key = `${currency}-${decimals}`;
+
+    moneyFormatters[key] ??= new Intl.NumberFormat(locale, {
+        style: 'currency',
+        currency,
+        minimumFractionDigits: 2,
+        maximumFractionDigits: decimals,
+    });
+
+    return moneyFormatters[key].format(number);
+}
+
+export function formatPercent(value, decimals = 1) {
+    if (value === null || value === undefined) {
+        return '—';
+    }
+
+    return `${new Intl.NumberFormat(locale, { maximumFractionDigits: decimals }).format(value)}%`;
+}

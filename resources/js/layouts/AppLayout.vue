@@ -78,6 +78,25 @@ const navigation = computed(() => {
             ],
         },
         {
+            title: 'Catalogo',
+            items: [
+                {
+                    title: 'Prodotti e servizi',
+                    icon: 'mdi-package-variant-closed',
+                    route: 'catalog.products.index',
+                    active: 'catalog.products.*',
+                    permission: 'products.view',
+                },
+                {
+                    title: 'Categorie e IVA',
+                    icon: 'mdi-tune-variant',
+                    route: 'catalog.settings.index',
+                    active: 'catalog.settings.*',
+                    permission: 'catalog.settings',
+                },
+            ],
+        },
+        {
             title: 'Amministrazione',
             items: [
                 {

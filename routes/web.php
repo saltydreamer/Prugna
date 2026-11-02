@@ -5,6 +5,9 @@ use App\Http\Controllers\Admin\AnnouncementController;
 use App\Http\Controllers\Admin\RoleController;
 use App\Http\Controllers\Admin\SendPasswordResetLinkController;
 use App\Http\Controllers\Admin\UserController;
+use App\Http\Controllers\Catalog\CatalogSettingsController;
+use App\Http\Controllers\Catalog\CustomerPriceController;
+use App\Http\Controllers\Catalog\ProductController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\Profile\AvatarController;
@@ -63,6 +66,25 @@ Route::middleware(['auth', 'verified'])->group(function () {
         });
 
         Route::get('contacts', [ContactController::class, 'index'])->name('contacts.index');
+    });
+
+    Route::prefix('catalog')->name('catalog.')->group(function () {
+        Route::resource('products', ProductController::class);
+        Route::post('products/{product}/duplicate', [ProductController::class, 'duplicate'])->name('products.duplicate');
+
+        Route::post('customer-prices', [CustomerPriceController::class, 'store'])->name('customer-prices.store');
+        Route::put('customer-prices/{customerPrice}', [CustomerPriceController::class, 'update'])->name('customer-prices.update');
+        Route::delete('customer-prices/{customerPrice}', [CustomerPriceController::class, 'destroy'])->name('customer-prices.destroy');
+
+        Route::controller(CatalogSettingsController::class)->prefix('settings')->name('settings.')->group(function () {
+            Route::get('/', 'index')->name('index');
+            Route::post('categories', 'storeCategory')->name('categories.store');
+            Route::put('categories/{category}', 'updateCategory')->name('categories.update');
+            Route::delete('categories/{category}', 'destroyCategory')->name('categories.destroy');
+            Route::post('vat-rates', 'storeVatRate')->name('vat-rates.store');
+            Route::put('vat-rates/{vatRate}', 'updateVatRate')->name('vat-rates.update');
+            Route::delete('vat-rates/{vatRate}', 'destroyVatRate')->name('vat-rates.destroy');
+        });
     });
 
     Route::prefix('admin')->name('admin.')->group(function () {
