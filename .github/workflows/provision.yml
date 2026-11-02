@@ -4,11 +4,6 @@ name: Provision server
 # production .env with random secrets, nightly backups). Connects as VPS_USER (root).
 on:
   workflow_dispatch:
-  push:
-    branches: [infra/vps-setup]
-    paths:
-      - .github/workflows/provision.yml
-      - deploy/scripts/provision.sh
 
 permissions:
   contents: read

@@ -37,6 +37,9 @@ services:
     <<: *app
     environment:
       CONTAINER_ROLE: worker
+    # The image healthcheck probes the web server, which only runs in "app".
+    healthcheck:
+      disable: true
     command: ["php", "artisan", "queue:work", "--sleep=3", "--tries=3", "--max-time=3600"]
     stop_grace_period: 60s
 
@@ -44,6 +47,9 @@ services:
     <<: *app
     environment:
       CONTAINER_ROLE: scheduler
+    # The image healthcheck probes the web server, which only runs in "app".
+    healthcheck:
+      disable: true
     command: ["php", "artisan", "schedule:work"]
 
   mariadb:

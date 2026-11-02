@@ -3,7 +3,7 @@ name: Deploy
 # main → tests → Docker image (GHCR) → smoke test of the full stack → deploy to the VPS.
 on:
   push:
-    branches: [main, infra/vps-setup]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
