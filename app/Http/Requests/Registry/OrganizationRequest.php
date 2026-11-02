@@ -60,6 +60,8 @@ class OrganizationRequest extends FormRequest
             // 7 characters for businesses, 6 for the Public Administration ("codice univoco ufficio").
             'sdi_code' => ['nullable', $this->input('type') === OrganizationType::PublicBody->value ? 'regex:/^[A-Z0-9]{6}$/' : 'regex:/^[A-Z0-9]{7}$/'],
             'split_payment' => ['boolean'],
+            'is_customer' => ['boolean'],
+            'is_supplier' => ['boolean'],
             'payment_term_id' => ['nullable', 'integer', Rule::exists('payment_terms', 'id')],
             'email' => ['nullable', 'email', 'max:255'],
             'pec' => ['nullable', 'email', 'max:255'],

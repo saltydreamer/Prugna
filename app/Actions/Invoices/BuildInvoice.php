@@ -3,6 +3,7 @@
 namespace App\Actions\Invoices;
 
 use App\Actions\Documents\DocumentTotals;
+use App\Actions\Purchases\RebillCosts;
 use App\Enums\InvoiceStatus;
 use App\Enums\InvoiceType;
 use App\Enums\QuoteLineType;
@@ -24,7 +25,7 @@ use Illuminate\Validation\ValidationException;
  */
 class BuildInvoice
 {
-    public function __construct(private Settings $settings) {}
+    public function __construct(private Settings $settings, private RebillCosts $rebillCosts) {}
 
     /**
      * @return array<string, mixed>
@@ -48,7 +49,7 @@ class BuildInvoice
      * @param  array<int, float>  $selection  order_line_id => quantity (mode "selection")
      * @return array<string, mixed>
      */
-    public function fromOrder(Order $order, string $mode, array $selection = [], ?float $percent = null, ?float $amount = null, bool $deductDeposits = true): array
+    public function fromOrder(Order $order, string $mode, array $selection = [], ?float $percent = null, ?float $amount = null, bool $deductDeposits = true, bool $includeCosts = false): array
     {
         $order->loadMissing('lines');
         $header = $this->header($order->organization_id, $order->contact_id, $order->payment_term_id, $order->title) + [
@@ -86,6 +87,15 @@ class BuildInvoice
             ];
         }
 
+        // Headings without anything left to invoice under them are dropped.
+        if (! collect($lines)->contains(fn (array $line) => ($line['type'] ?? null) === QuoteLineType::Item)) {
+            $lines = [];
+        }
+
+        if ($includeCosts) {
+            $lines = [...$lines, ...$this->costLines($order)];
+        }
+
         if (! collect($lines)->contains(fn (array $line) => ($line['type'] ?? null) === QuoteLineType::Item)) {
             throw ValidationException::withMessages(['selection' => __("Non c'è nulla da fatturare: tutte le righe dell'ordine risultano già fatturate.")]);
         }
@@ -118,6 +128,25 @@ class BuildInvoice
                     : ['type' => $line->type, 'description' => $line->description])
                 ->values()
                 ->all(),
+        ];
+    }
+
+    /**
+     * Supplier costs of the order to charge back, under their own heading.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function costLines(Order $order): array
+    {
+        $costs = $this->rebillCosts->pending($order->organization_id, $order);
+
+        if ($costs->isEmpty()) {
+            return [];
+        }
+
+        return [
+            ['type' => QuoteLineType::Section, 'description' => __('Costi sostenuti per vostro conto')],
+            ...$costs->map(fn ($line) => [...$this->rebillCosts->invoiceLine($line), 'vat_rate_id' => $this->vatRateFor($line->vat_rate_id)])->all(),
         ];
     }
 

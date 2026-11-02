@@ -31,6 +31,7 @@ class OrganizationController extends Controller
         $filters = $request->validate([
             'search' => ['nullable', 'string', 'max:100'],
             'type' => ['nullable', Rule::enum(OrganizationType::class)],
+            'role' => ['nullable', Rule::in(['customer', 'supplier'])],
             'status' => ['nullable', Rule::in(['active', 'archived'])],
             'sort_by' => ['nullable', Rule::in(self::SORTABLE)],
             'sort_dir' => ['nullable', Rule::in(['asc', 'desc'])],
@@ -43,6 +44,7 @@ class OrganizationController extends Controller
             ->when(($filters['status'] ?? 'active') === 'archived', fn ($query) => $query->onlyTrashed())
             ->search($filters['search'] ?? null)
             ->when($filters['type'] ?? null, fn ($query, string $type) => $query->where('type', $type))
+            ->when($filters['role'] ?? null, fn ($query, string $role) => $query->where("is_{$role}", true))
             ->orderBy($filters['sort_by'] ?? 'name', $filters['sort_dir'] ?? 'asc')
             ->orderBy('id')
             ->paginate($filters['per_page'] ?? 25)
@@ -53,6 +55,7 @@ class OrganizationController extends Controller
             'filters' => [
                 'search' => $filters['search'] ?? '',
                 'type' => $filters['type'] ?? null,
+                'role' => $filters['role'] ?? null,
                 'status' => $filters['status'] ?? 'active',
                 'sort_by' => $filters['sort_by'] ?? 'name',
                 'sort_dir' => $filters['sort_dir'] ?? 'asc',

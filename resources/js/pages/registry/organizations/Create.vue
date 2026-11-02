@@ -20,6 +20,8 @@ const form = useForm({
     sdi_code: '',
     payment_term_id: null,
     split_payment: false,
+    is_customer: true,
+    is_supplier: false,
     email: '',
     pec: '',
     phone: '',

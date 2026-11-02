@@ -58,6 +58,13 @@
 - FatturaPA XML: `App\Support\FatturaPa\FatturaPaXml` (FPR12/FPA12). Strings must be Basic Latin/Latin-1 (`text()` transliterates). `FatturaPaXmlTest` validates against the official XSD in `tests/Fixtures/fatturapa`.
 - Permissions `invoices.view`, `invoices.manage` (drafts), `invoices.issue` (issue, credit notes). PDF courtesy copy via `InvoicePdf` (`resources/views/pdf/invoice.blade.php`, all PDFs extend `pdf/layout.blade.php`).
 
+## Purchases (Acquisti) and rebilled costs
+
+- Organizations have roles `is_customer` / `is_supplier` (a supplier order marks its supplier automatically).
+- `PurchaseOrder` + `PurchaseOrderLine` (numbering `OF-2026-0001`, statuses draft/sent/confirmed/received/cancelled), saved with `SavePurchaseOrder`. Optional `order_id` (customer order; forces `customer_id` to its customer) and `customer_id` (who the costs are charged to). Lines are at cost; `rebill` + `markup_percent` mark costs to charge back (ignored without a customer). Permissions `purchases.view` / `purchases.manage`. PDF via `PurchaseOrderPdf` (never shows customer or markup); email via the generic `App\Mail\DocumentMail` + `DocumentSendDialog.vue`.
+- Rebilling: `App\Actions\Purchases\RebillCosts` lists pending costs (`PurchaseOrderLine::toRebill()`: rebill lines of sent/confirmed/received orders without an invoice line, credit notes excluded) and builds the invoice line (`purchase_order_line_id`, net cost + markup, same VAT). Offered in the invoice editor (`RebillCostsDialog`, endpoint `sales.invoices.lookup.costs`) and when invoicing an order (`include_costs`). `InvoiceRequest` checks customer, committed status and single use; credit notes drop the link. Supplier orders with charged-back lines are frozen (`PurchaseOrder::isEditable()`).
+- Order page shows costs and estimated margin (revenue + markups − costs not charged back).
+
 ## Frontend
 
 - Pages: `resources/js/pages/**` (lowercase directory, e.g. `admin/users/Index`). Layout is chosen automatically in `resources/js/app.js` (`auth/*` → `AuthLayout`, else `AppLayout`).

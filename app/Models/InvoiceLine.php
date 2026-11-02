@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 #[Fillable([
-    'position', 'type', 'product_id', 'order_line_id', 'system', 'deducts_invoice_id', 'code', 'description', 'unit',
+    'position', 'type', 'product_id', 'order_line_id', 'purchase_order_line_id', 'system', 'deducts_invoice_id', 'code', 'description', 'unit',
     'quantity', 'unit_price', 'discount_percent', 'vat_rate_id', 'vat_rate', 'vat_nature', 'total',
 ])]
 class InvoiceLine extends Model
@@ -43,6 +43,16 @@ class InvoiceLine extends Model
     public function invoice(): BelongsTo
     {
         return $this->belongsTo(Invoice::class);
+    }
+
+    /**
+     * Supplier cost charged back by this line.
+     *
+     * @return BelongsTo<PurchaseOrderLine, $this>
+     */
+    public function purchaseOrderLine(): BelongsTo
+    {
+        return $this->belongsTo(PurchaseOrderLine::class);
     }
 
     /**

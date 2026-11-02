@@ -3,7 +3,9 @@
 namespace App\Http\Controllers\Sales;
 
 use App\Actions\Orders\SaveOrder;
+use App\Actions\Purchases\RebillCosts;
 use App\Enums\OrderStatus;
+use App\Enums\PurchaseOrderStatus;
 use App\Enums\QuoteStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Sales\OrderRequest;
@@ -11,6 +13,7 @@ use App\Http\Resources\OrderResource;
 use App\Models\Order;
 use App\Models\Organization;
 use App\Models\PaymentTerm;
+use App\Models\PurchaseOrder;
 use App\Models\Quote;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -119,7 +122,7 @@ class OrderController extends Controller
         return to_route('sales.orders.show', $order);
     }
 
-    public function show(Order $order): Response
+    public function show(Request $request, Order $order, RebillCosts $rebillCosts): Response
     {
         $this->authorize('view', $order);
 
@@ -129,9 +132,52 @@ class OrderController extends Controller
             'order' => OrderResource::make($order)->resolve(),
             'billing' => $order->billingSummary(),
             'openDeposits' => $order->openDeposits()->count(),
+            'purchasing' => $request->user()->can('viewAny', PurchaseOrder::class) ? $this->purchasing($order, $rebillCosts) : null,
             'statuses' => OrderStatus::options(),
             'organizationArchived' => $order->organization?->trashed() ?? false,
         ]);
+    }
+
+    /**
+     * Supplier orders of the order, costs to charge back and margin.
+     *
+     * @return array<string, mixed>
+     */
+    private function purchasing(Order $order, RebillCosts $rebillCosts): array
+    {
+        $purchaseOrders = $order->purchaseOrders()->with('lines')->orderBy('id')->get();
+        $costs = 0.0;
+        $markup = 0.0;
+
+        foreach ($purchaseOrders->where('status', '!=', PurchaseOrderStatus::Cancelled) as $purchaseOrder) {
+            foreach ($purchaseOrder->lines->filter(fn ($line) => $line->isItem()) as $line) {
+                $costs += (float) $line->total;
+
+                if ($line->rebill) {
+                    $markup += round((float) $line->quantity * $line->rebillUnitPrice(), 2) - (float) $line->total;
+                }
+            }
+        }
+
+        $pending = $rebillCosts->pending($order->organization_id, $order);
+        $rebilledCosts = (float) $purchaseOrders->where('status', '!=', PurchaseOrderStatus::Cancelled)->flatMap->lines->where('rebill', true)->sum('total');
+
+        return [
+            'purchase_orders' => $purchaseOrders->map(fn ($purchaseOrder) => [
+                'id' => $purchaseOrder->id,
+                'number' => $purchaseOrder->number,
+                'supplier' => $purchaseOrder->supplier['name'] ?? null,
+                'status' => $purchaseOrder->status->value,
+                'status_label' => $purchaseOrder->status->label(),
+                'status_color' => $purchaseOrder->status->color(),
+                'subtotal' => (float) $purchaseOrder->subtotal,
+            ])->all(),
+            'costs' => round($costs, 2),
+            // Revenue of the order plus the markup on charged back costs, minus the costs we absorb.
+            'margin' => round((float) $order->subtotal - ($costs - $rebilledCosts) + $markup, 2),
+            'rebill_pending_count' => $pending->count(),
+            'rebill_pending_amount' => round($pending->sum(fn ($line) => (float) $line->quantity * $line->rebillUnitPrice()), 2),
+        ];
     }
 
     public function edit(Order $order): Response
