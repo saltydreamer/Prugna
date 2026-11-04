@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Sales;
 use App\Actions\Orders\SaveOrder;
 use App\Actions\Purchases\RebillCosts;
 use App\Enums\ExpenseType;
+use App\Enums\InvoiceType;
 use App\Enums\OrderStatus;
 use App\Enums\PurchaseOrderStatus;
 use App\Enums\QuoteStatus;
@@ -12,10 +13,13 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Sales\OrderRequest;
 use App\Http\Resources\OrderResource;
 use App\Models\Expense;
+use App\Models\ExpenseLine;
+use App\Models\InvoiceLine;
 use App\Models\Order;
 use App\Models\Organization;
 use App\Models\PaymentTerm;
 use App\Models\PurchaseOrder;
+use App\Models\PurchaseOrderLine;
 use App\Models\Quote;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -156,21 +160,20 @@ class OrderController extends Controller
             ->concat($expenses->flatMap(fn ($expense) => $expense->lines->map(fn ($line) => [$line, $expense->type === ExpenseType::CreditNote ? -1 : 1])))
             ->filter(fn (array $item) => $item[0]->isItem());
 
-        $costs = 0.0;
-        $absorbed = 0.0;
-        $markup = 0.0;
+        $costs = round($costLines->sum(fn (array $item) => $item[1] * (float) $item[0]->total), 2);
 
-        foreach ($costLines as [$line, $sign]) {
-            $costs += $sign * (float) $line->total;
-
-            if ($line->rebill) {
-                $markup += $sign * ($line->rebillAmount() - (float) $line->total);
-            } else {
-                $absorbed += $sign * (float) $line->total;
-            }
-        }
+        // Revenue from charged back costs: the invoice lines linked to them (a line can cover several costs).
+        $costIds = fn (string $class) => $costLines->filter(fn (array $item) => $item[0] instanceof $class)->map(fn (array $item) => $item[0]->id)->all();
+        $invoicedCosts = (float) InvoiceLine::query()
+            ->whereHas('invoice', fn ($query) => $query->where('type', '!=', InvoiceType::CreditNote->value))
+            ->whereHas('costLinks', fn ($query) => $query->where(fn ($query) => $query
+                ->whereIn('purchase_order_line_id', $costIds(PurchaseOrderLine::class))
+                ->orWhereIn('expense_line_id', $costIds(ExpenseLine::class))))
+            ->sum('total');
 
         $pending = $rebillCosts->pending($order->organization_id, $order);
+        $pendingAmount = round($pending->sum(fn ($line) => $line->rebillAmount()), 2);
+        $available = $rebillCosts->available($order->organization_id, $order);
 
         return [
             'purchase_orders' => $purchaseOrders->map(fn ($purchaseOrder) => [
@@ -189,11 +192,14 @@ class OrderController extends Controller
                 'document_date' => $expense->document_date->toDateString(),
                 'subtotal' => (float) $expense->subtotal,
             ])->all(),
-            'costs' => round($costs, 2),
-            // Revenue of the order plus the markup on charged back costs, minus the costs we absorb.
-            'margin' => round((float) $order->subtotal - $absorbed + $markup, 2),
+            'costs' => $costs,
+            'invoiced_costs' => round($invoicedCosts, 2),
+            // Revenue of the order + costs charged back (invoiced, or marked to charge back) − all the costs.
+            'margin' => round((float) $order->subtotal + $invoicedCosts + $pendingAmount - $costs, 2),
             'rebill_pending_count' => $pending->count(),
-            'rebill_pending_amount' => round($pending->sum(fn ($line) => $line->rebillAmount()), 2),
+            'rebill_pending_amount' => $pendingAmount,
+            'available_count' => $available->count(),
+            'available_amount' => round($available->sum(fn ($line) => (float) $line->total), 2),
         ];
     }
 

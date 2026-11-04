@@ -44,6 +44,8 @@ class DocumentLineData
             'order_line_id' => $line->order_line_id,
             'system' => $line->system,
             'deducts_invoice_id' => $line->deducts_invoice_id,
+            // Costs charged back by the line ("po-12", "ex-7").
+            'costs' => $line->relationLoaded('costLinks') ? $line->costLinks->map(fn ($link) => $link->key())->values()->all() : [],
         ];
     }
 }

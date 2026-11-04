@@ -10,7 +10,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 #[Fillable([
     'position', 'type', 'product_id', 'code', 'description', 'unit', 'quantity', 'unit_price', 'discount_percent',
@@ -50,24 +50,34 @@ class PurchaseOrderLine extends Model
     /**
      * Invoice lines charging this cost back (credit notes excluded).
      *
-     * @return HasMany<InvoiceLine, $this>
+     * @return BelongsToMany<InvoiceLine, $this>
      */
-    public function rebilledBy(): HasMany
+    public function rebilledBy(): BelongsToMany
     {
-        return $this->hasMany(InvoiceLine::class)
+        return $this->belongsToMany(InvoiceLine::class, 'invoice_line_costs', 'purchase_order_line_id', 'invoice_line_id')
             ->whereHas('invoice', fn (Builder $query) => $query->where('type', '!=', InvoiceType::CreditNote->value));
     }
 
     /**
-     * Rebill lines of committed (sent, confirmed, received) orders not yet in an invoice.
+     * Cost lines that can still be charged back: not yet in an invoice
+     * (only committed orders: sent, confirmed or received).
+     *
+     * @param  Builder<PurchaseOrderLine>  $query
+     */
+    public function scopeNotRebilled(Builder $query): void
+    {
+        $query->where('type', QuoteLineType::Item->value)
+            ->whereDoesntHave('rebilledBy')
+            ->whereHas('purchaseOrder', fn (Builder $query) => $query->whereIn('status', ['sent', 'confirmed', 'received']));
+    }
+
+    /**
+     * Lines marked "rebill" not yet in an invoice.
      *
      * @param  Builder<PurchaseOrderLine>  $query
      */
     public function scopeToRebill(Builder $query): void
     {
-        $query->where('rebill', true)
-            ->where('type', QuoteLineType::Item->value)
-            ->whereDoesntHave('rebilledBy')
-            ->whereHas('purchaseOrder', fn (Builder $query) => $query->whereIn('status', ['sent', 'confirmed', 'received']));
+        $query->notRebilled()->where('rebill', true);
     }
 }

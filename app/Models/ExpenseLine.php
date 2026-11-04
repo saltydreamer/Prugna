@@ -10,7 +10,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 #[Fillable([
     'position', 'type', 'product_id', 'code', 'description', 'unit', 'quantity', 'unit_price', 'discount_percent',
@@ -50,24 +50,34 @@ class ExpenseLine extends Model
     /**
      * Invoice lines charging this cost back (credit notes excluded).
      *
-     * @return HasMany<InvoiceLine, $this>
+     * @return BelongsToMany<InvoiceLine, $this>
      */
-    public function rebilledBy(): HasMany
+    public function rebilledBy(): BelongsToMany
     {
-        return $this->hasMany(InvoiceLine::class)
+        return $this->belongsToMany(InvoiceLine::class, 'invoice_line_costs', 'expense_line_id', 'invoice_line_id')
             ->whereHas('invoice', fn (Builder $query) => $query->where('type', '!=', InvoiceType::CreditNote->value));
     }
 
     /**
-     * Rebill lines not yet in an invoice (supplier credit notes never are).
+     * Cost lines that can still be charged back: not yet in an invoice
+     * (supplier credit notes never are).
+     *
+     * @param  Builder<ExpenseLine>  $query
+     */
+    public function scopeNotRebilled(Builder $query): void
+    {
+        $query->where('type', QuoteLineType::Item->value)
+            ->whereDoesntHave('rebilledBy')
+            ->whereHas('expense', fn (Builder $query) => $query->where('type', '!=', 'credit_note'));
+    }
+
+    /**
+     * Lines marked "rebill" not yet in an invoice.
      *
      * @param  Builder<ExpenseLine>  $query
      */
     public function scopeToRebill(Builder $query): void
     {
-        $query->where('rebill', true)
-            ->where('type', QuoteLineType::Item->value)
-            ->whereDoesntHave('rebilledBy')
-            ->whereHas('expense', fn (Builder $query) => $query->where('type', '!=', 'credit_note'));
+        $query->notRebilled()->where('rebill', true);
     }
 }

@@ -5,7 +5,7 @@ import { route } from 'ziggy-js';
 import PageHeader from '@/components/PageHeader.vue';
 import InvoiceTotalsCard from '@/components/sales/InvoiceTotalsCard.vue';
 import QuoteLinesEditor from '@/components/sales/QuoteLinesEditor.vue';
-import RebillCostsDialog from '@/components/sales/RebillCostsDialog.vue';
+import CostInvoiceDialog from '@/components/sales/CostInvoiceDialog.vue';
 import ContactDialog from '@/components/registry/ContactDialog.vue';
 import QuickOrganizationDialog from '@/components/registry/QuickOrganizationDialog.vue';
 import { useInertiaLink } from '@/composables/useInertiaLink';
@@ -148,29 +148,15 @@ function contactCreated(contact) {
 
 // --- Supplier costs charged back --------------------------------------------------------
 const costsDialog = ref(false);
-const rebilledIds = computed(() =>
-    form.lines
-        .flatMap((line) => [line.purchase_order_line_id && `po-${line.purchase_order_line_id}`, line.expense_line_id && `ex-${line.expense_line_id}`])
-        .filter(Boolean),
-);
+const rebilledIds = computed(() => form.lines.flatMap((line) => line.costs ?? []));
 
-function addCosts(costs) {
-    const lines = costs.map((cost) => ({
-        key: `cost-${cost.key}`,
-        type: 'item',
-        product_id: cost.product_id,
-        code: cost.code,
-        description: cost.description,
-        unit: cost.unit,
-        quantity: cost.quantity,
-        unit_price: cost.unit_price,
-        discount_percent: 0,
-        vat_rate_id: isFlatRate.value ? defaultVatRateId.value : cost.vat_rate_id,
-        purchase_order_line_id: cost.purchase_order_line_id,
-        expense_line_id: cost.expense_line_id,
-    }));
+let costUid = 0;
 
-    form.lines = [...form.lines, ...lines];
+/**
+ * Lines prepared by the server for the chosen costs (one per cost, or a single one per VAT rate).
+ */
+function addCosts(lines) {
+    form.lines = [...form.lines, ...lines.map((line) => ({ ...line, key: `cost-${Date.now()}-${costUid++}`, rebill: false, markup_percent: 0 }))];
 }
 
 function submit() {
@@ -433,7 +419,14 @@ const backUrl = computed(() => (isNew.value ? route('sales.invoices.index') : ro
             </v-row>
         </v-form>
 
-        <RebillCostsDialog v-model="costsDialog" :organization-id="form.organization_id" :exclude="rebilledIds" @add="addCosts" />
+        <CostInvoiceDialog
+            v-model="costsDialog"
+            mode="add"
+            :organization-id="form.organization_id"
+            :order-id="invoice?.order_id ?? null"
+            :exclude="rebilledIds"
+            @add="addCosts"
+        />
 
         <ContactDialog
             v-if="form.organization_id"
