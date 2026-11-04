@@ -17,7 +17,7 @@ return new class extends Migration
             $table->foreignId('intervention_id')->constrained()->cascadeOnDelete();
             $table->timestamps();
 
-            $table->unique(['invoice_line_id', 'intervention_id']);
+            $table->unique(['invoice_line_id', 'intervention_id'], 'invoice_line_intervention_unique');
         });
     }
 
