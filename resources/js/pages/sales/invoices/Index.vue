@@ -28,6 +28,7 @@ const headers = [
     { title: 'Scadenza', key: 'due_date', sortable: true },
     { title: 'Totale', key: 'total', sortable: true, align: 'end' },
     { title: 'Netto a pagare', key: 'amount_due', sortable: false, align: 'end' },
+    { title: 'SDI', key: 'sdi_status', sortable: false },
 ];
 
 const statusTabs = [
@@ -195,6 +196,10 @@ function open(event, { item }) {
                 </template>
                 <template #[`item.amount_due`]="{ item }">
                     <span class="text-no-wrap font-weight-medium">{{ formatMoney(item.amount_due) }}</span>
+                </template>
+                <template #[`item.sdi_status`]="{ item }">
+                    <v-chip v-if="item.sdi_status" size="x-small" :color="item.sdi_status_color" variant="tonal">{{ item.sdi_status_label }}</v-chip>
+                    <span v-else-if="item.status === 'issued'" class="text-caption text-medium-emphasis">—</span>
                 </template>
                 <template #no-data>
                     <v-empty-state

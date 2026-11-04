@@ -7,11 +7,13 @@ use App\Actions\Invoices\InvoiceCalculator;
 use App\Actions\Invoices\IssueInvoice;
 use App\Actions\Invoices\SaveInvoice;
 use App\Actions\Purchases\RebillCosts;
+use App\Actions\Sdi\SendInvoiceToSdi;
 use App\Enums\InvoiceStatus;
 use App\Enums\InvoiceType;
 use App\Enums\OrderStatus;
 use App\Enums\Permission;
 use App\Enums\QuoteStatus;
+use App\Enums\SdiStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Sales\InvoiceRequest;
 use App\Http\Resources\InvoiceResource;
@@ -22,8 +24,10 @@ use App\Models\Organization;
 use App\Models\PaymentTerm;
 use App\Models\PurchaseOrderLine;
 use App\Models\Quote;
+use App\Models\SdiTransmission;
 use App\Models\VatRate;
 use App\Support\Fiscal\FiscalCodes;
+use App\Support\Sdi\OpenapiClient;
 use App\Support\Settings;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -194,7 +198,7 @@ class InvoiceController extends Controller
         return $this->created($invoice);
     }
 
-    public function show(Invoice $invoice, IssueInvoice $issueInvoice, InvoiceCalculator $calculator): Response
+    public function show(Invoice $invoice, IssueInvoice $issueInvoice, InvoiceCalculator $calculator, OpenapiClient $sdi): Response
     {
         $this->authorize('view', $invoice);
 
@@ -205,6 +209,26 @@ class InvoiceController extends Controller
             'totals' => $calculator->calculate($invoice, $invoice->lines),
             'problems' => $invoice->isDraft() ? $issueInvoice->problems($invoice) : [],
             'fiscal' => $this->fiscalLabels($invoice),
+            'sdi' => [
+                'enabled' => $sdi->isConfigured(),
+                'environment' => $sdi->environment(),
+                'transmissions' => $invoice->sdiTransmissions()->with('user:id,name')->get()->map(fn (SdiTransmission $transmission) => [
+                    'id' => $transmission->id,
+                    'environment' => $transmission->environment,
+                    'filename' => $transmission->filename,
+                    'status' => $transmission->status->value,
+                    'status_label' => $transmission->status->label(),
+                    'status_color' => $transmission->status->color(),
+                    'status_icon' => $transmission->status->icon(),
+                    'can_resend' => $transmission->status->canResend(),
+                    'errors' => $transmission->errors ?? [],
+                    'message' => $transmission->message,
+                    'sent_at' => $transmission->sent_at?->toIso8601String(),
+                    'outcome_at' => $transmission->outcome_at?->toIso8601String(),
+                    'created_at' => $transmission->created_at->toIso8601String(),
+                    'user' => $transmission->user?->name,
+                ]),
+            ],
         ]);
     }
 
@@ -254,13 +278,27 @@ class InvoiceController extends Controller
         return $order ? to_route('sales.orders.show', $order) : to_route('sales.invoices.index');
     }
 
-    public function issue(Invoice $invoice, IssueInvoice $issueInvoice): RedirectResponse
+    public function issue(Request $request, Invoice $invoice, IssueInvoice $issueInvoice, OpenapiClient $sdi, SendInvoiceToSdi $send): RedirectResponse
     {
         $this->authorize('issue', $invoice);
 
         $invoice = $issueInvoice->handle($invoice);
+        $message = __(':type :number emessa.', ['type' => $invoice->type->label(), 'number' => $invoice->number]);
 
-        Inertia::flash('toast', ['type' => 'success', 'message' => __(':type :number emessa.', ['type' => $invoice->type->label(), 'number' => $invoice->number])]);
+        // With electronic invoicing connected, the invoice goes straight to the SDI.
+        if ($sdi->isConfigured() && $this->settings->get('sdi.auto_send')) {
+            $transmission = $send->handle($invoice, $request->user());
+
+            if ($transmission->status === SdiStatus::Error) {
+                Inertia::flash('toast', ['type' => 'error', 'message' => $message.' '.__('Invio allo SDI non riuscito: :error', ['error' => $transmission->message])]);
+
+                return to_route('sales.invoices.show', $invoice);
+            }
+
+            $message .= ' '.__('Inviata allo SDI.');
+        }
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => $message]);
 
         return to_route('sales.invoices.show', $invoice);
     }

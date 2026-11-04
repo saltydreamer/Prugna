@@ -21,7 +21,7 @@ class Settings
     /**
      * Values stored encrypted in the database.
      */
-    private const ENCRYPTED = ['mail.password', 'ai.api_key'];
+    private const ENCRYPTED = ['mail.password', 'ai.api_key', 'sdi.api_key', 'sdi.token', 'sdi.webhook_secret'];
 
     /**
      * Defaults used until a value is saved.
@@ -49,6 +49,14 @@ class Settings
         'ai.enabled' => false,
         'ai.model' => null,
         'ai.privacy' => 'no_training',
+        'sdi.enabled' => false,
+        'sdi.environment' => 'test',
+        'sdi.auto_send' => true,
+        // € per call, VAT excluded (Openapi price list, base prices): editable in Impostazioni → Fatturazione elettronica.
+        'sdi.prices' => [
+            'POST /invoices' => 0.07,
+            'GET /invoices_download/{id}' => 0.001,
+        ],
         'interventions.rounding_minutes' => 30,
         'interventions.callout_product_id' => null,
         'interventions.km_product_id' => null,

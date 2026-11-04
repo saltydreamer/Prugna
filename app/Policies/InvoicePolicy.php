@@ -43,6 +43,14 @@ class InvoicePolicy
         return $invoice->isDraft() && $user->can(Permission::InvoicesIssue->value);
     }
 
+    /**
+     * Send an issued invoice to the SDI (again after a rejection or a failed send).
+     */
+    public function sendToSdi(User $user, Invoice $invoice): bool
+    {
+        return ! $invoice->isDraft() && $user->can(Permission::InvoicesIssue->value);
+    }
+
     public function creditNote(User $user, Invoice $invoice): bool
     {
         return ! $invoice->isDraft()

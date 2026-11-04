@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\InvoiceStatus;
 use App\Enums\InvoiceType;
+use App\Enums\SdiStatus;
 use Database\Factories\InvoiceFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
@@ -51,6 +52,7 @@ class Invoice extends Model
             'vat_total' => 'decimal:2',
             'total' => 'decimal:2',
             'amount_due' => 'decimal:2',
+            'sdi_status' => SdiStatus::class,
         ];
     }
 
@@ -76,6 +78,26 @@ class Invoice extends Model
     public function contact(): BelongsTo
     {
         return $this->belongsTo(Contact::class);
+    }
+
+    /**
+     * Latest transmission to the SDI.
+     *
+     * @return BelongsTo<SdiTransmission, $this>
+     */
+    public function sdiTransmission(): BelongsTo
+    {
+        return $this->belongsTo(SdiTransmission::class);
+    }
+
+    /**
+     * Every attempt to send the invoice to the SDI, latest first.
+     *
+     * @return HasMany<SdiTransmission, $this>
+     */
+    public function sdiTransmissions(): HasMany
+    {
+        return $this->hasMany(SdiTransmission::class)->latest('id');
     }
 
     /**
