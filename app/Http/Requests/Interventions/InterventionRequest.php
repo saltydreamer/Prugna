@@ -57,6 +57,7 @@ class InterventionRequest extends FormRequest
             'callout' => ['boolean'],
             'km' => ['nullable', 'numeric', 'between:0,99999'],
             'travel_minutes' => ['nullable', 'integer', 'between:0,1440'],
+            'skip_contract' => ['boolean'],
             'materials' => ['nullable', 'array', 'max:100'],
             'materials.*.product_id' => ['nullable', 'integer', Rule::exists('products', 'id')],
             'materials.*.code' => ['nullable', 'string', 'max:64'],

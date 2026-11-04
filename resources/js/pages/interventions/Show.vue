@@ -2,7 +2,9 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { router } from '@inertiajs/vue3';
 import { route } from 'ziggy-js';
+import DocumentSendDialog from '@/components/DocumentSendDialog.vue';
 import InterventionInvoiceDialog from '@/components/interventions/InterventionInvoiceDialog.vue';
+import SignatureDialog from '@/components/interventions/SignatureDialog.vue';
 import PageHeader from '@/components/PageHeader.vue';
 import { useConfirm } from '@/composables/useConfirm';
 import { useInertiaLink } from '@/composables/useInertiaLink';
@@ -21,6 +23,21 @@ const { confirm } = useConfirm();
 
 const item = computed(() => props.intervention);
 const invoiceDialog = ref(false);
+const sendDialog = ref(false);
+const signDialog = ref(false);
+
+async function unsign() {
+    const ok = await confirm({
+        title: 'Rimuovere la firma?',
+        message: "L'intervento tornerà modificabile; il rapportino firmato andrà fatto firmare di nuovo.",
+        confirmText: 'Rimuovi firma',
+        color: 'error',
+    });
+
+    if (ok) {
+        router.delete(route('interventions.unsign', item.value.id), { preserveScroll: true });
+    }
+}
 
 const now = ref(Date.now());
 let ticker;
@@ -67,6 +84,15 @@ async function destroy() {
                 >
                     Fattura
                 </v-btn>
+                <template v-if="!item.running">
+                    <v-btn v-if="item.can.sign" variant="tonal" color="primary" prepend-icon="mdi-draw" @click="signDialog = true">
+                        Firma cliente
+                    </v-btn>
+                    <v-btn variant="tonal" prepend-icon="mdi-file-pdf-box" :href="route('interventions.pdf', item.id)" target="_blank">
+                        Rapportino
+                    </v-btn>
+                    <v-btn v-if="item.can.send" variant="tonal" prepend-icon="mdi-email-fast-outline" @click="sendDialog = true">Invia</v-btn>
+                </template>
                 <v-btn v-if="item.can.update" variant="tonal" prepend-icon="mdi-pencil-outline" v-bind="link(route('interventions.edit', item.id))">
                     Modifica
                 </v-btn>
@@ -79,6 +105,9 @@ async function destroy() {
                 <span>In corso dalle {{ time(item.started_at) }}:</span>
                 <strong class="text-h6" style="font-variant-numeric: tabular-nums">{{ formatElapsed(item.started_at, now) }}</strong>
             </div>
+        </v-alert>
+        <v-alert v-else-if="item.signed && item.status !== 'invoiced'" type="info" variant="tonal" class="mb-6" icon="mdi-draw">
+            Rapportino firmato da {{ item.signed_by_name }}: l'intervento non si può più modificare.
         </v-alert>
         <v-alert v-else-if="item.status === 'invoiced'" type="success" variant="tonal" class="mb-6" icon="mdi-receipt-text-check-outline">
             Fatturato in
@@ -171,8 +200,51 @@ async function destroy() {
                             <span>Ore fatturate</span>
                             <strong>{{ item.billable ? formatHours(item.billable_minutes) : 'non fatturabile' }}</strong>
                         </div>
+                        <div v-if="item.contract_minutes" class="d-flex justify-space-between text-body-2">
+                            <span>Da fatturare</span>
+                            <strong>{{ formatHours(item.invoiceable_minutes) }}</strong>
+                        </div>
+                        <div v-if="item.report_sent_at" class="text-caption text-medium-emphasis mt-1">
+                            Rapportino inviato {{ dateTime(item.report_sent_at) }}
+                        </div>
                         <div v-if="!item.running && item.billable" class="text-caption text-medium-emphasis mt-1">
                             Arrotondamento {{ ROUNDING_LABELS[rounding] ?? `a ${rounding} min` }}
+                        </div>
+                    </v-card-text>
+                </v-card>
+
+                <v-card v-if="item.signed" class="mb-6" title="Firma del cliente" prepend-icon="mdi-draw">
+                    <template v-if="item.can.unsign" #append>
+                        <v-btn variant="text" size="small" color="error" @click="unsign">Rimuovi</v-btn>
+                    </template>
+                    <v-card-text>
+                        <div class="signature-preview mb-2">
+                            <img :src="item.signature_url" alt="Firma del cliente" />
+                        </div>
+                        <div class="text-body-2">{{ item.signed_by_name }}</div>
+                        <div class="text-caption text-medium-emphasis">Firmato {{ dateTime(item.signed_at) }}</div>
+                    </v-card-text>
+                </v-card>
+
+                <v-card v-if="item.contract" class="mb-6" title="Monte ore" prepend-icon="mdi-timer-sand-complete">
+                    <v-card-text>
+                        <div class="text-body-2 mb-1">
+                            <a
+                                v-if="can('contracts.manage') || can('interventions.supervise')"
+                                v-bind="link(route('interventions.contracts.show', item.contract.id))"
+                            >
+                                {{ item.contract.number }}
+                            </a>
+                            <span v-else>{{ item.contract.number }}</span>
+                            · {{ item.contract.title }}
+                        </div>
+                        <div class="d-flex justify-space-between text-body-2">
+                            <span>Scalate da questo intervento</span>
+                            <strong>{{ formatHours(item.contract_minutes) }}</strong>
+                        </div>
+                        <div class="d-flex justify-space-between text-body-2">
+                            <span>Residuo del contratto</span>
+                            <span>{{ formatHours(item.contract.remaining_minutes) }}</span>
                         </div>
                     </v-card-text>
                 </v-card>
@@ -211,5 +283,28 @@ async function destroy() {
         </v-row>
 
         <InterventionInvoiceDialog v-model="invoiceDialog" :organization-id="item.organization_id" :preselect="[item.id]" />
+        <SignatureDialog v-model="signDialog" :intervention-id="item.id" :default-name="item.contact?.name ?? ''" />
+        <DocumentSendDialog
+            v-if="item.can.send"
+            v-model="sendDialog"
+            title="Invia il rapportino"
+            :compose-url="route('interventions.compose', item.id)"
+            :send-url="route('interventions.send', item.id)"
+        />
     </div>
 </template>
+
+<style scoped>
+.signature-preview {
+    border: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+    border-radius: 8px;
+    background: #fff;
+    padding: 8px;
+    text-align: center;
+}
+
+.signature-preview img {
+    max-width: 100%;
+    max-height: 120px;
+}
+</style>

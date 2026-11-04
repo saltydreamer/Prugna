@@ -12,12 +12,14 @@ use App\Http\Requests\Registry\OrganizationRequest;
 use App\Http\Requests\Registry\QuickOrganizationRequest;
 use App\Http\Resources\CustomerPriceResource;
 use App\Http\Resources\OrganizationResource;
+use App\Http\Resources\ServiceContractResource;
 use App\Models\AiExtraction;
 use App\Models\Intervention;
 use App\Models\Organization;
 use App\Models\PaymentTerm;
 use App\Models\Product;
 use App\Models\PurchaseOrder;
+use App\Models\ServiceContract;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
@@ -160,6 +162,9 @@ class OrganizationController extends Controller
             'interventions' => ! $isSupplier && ($request->user()->can('viewAny', Intervention::class) || $request->user()->can(Permission::InvoicesManage->value))
                 ? Intervention::summary(Intervention::query()->where('organization_id', $organization->id)
                     ->when(! $request->user()->can(Permission::InvoicesManage->value), fn ($query) => $query->visibleTo($request->user())))
+                : null,
+            'contracts' => ! $isSupplier && $request->user()->can('viewAny', ServiceContract::class)
+                ? ServiceContractResource::collection($organization->hasMany(ServiceContract::class)->where('is_active', true)->orderBy('starts_on')->get())->resolve()
                 : null,
             'customerPrices' => $canSeePrices
                 ? CustomerPriceResource::collection($organization->customerPrices()->with('product')->get()->sortBy('product.name')->values())->resolve()

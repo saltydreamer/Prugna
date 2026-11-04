@@ -11,7 +11,9 @@ use App\Http\Controllers\Catalog\ProductController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DocumentImportController;
 use App\Http\Controllers\Interventions\InterventionController;
+use App\Http\Controllers\Interventions\InterventionDocumentController;
 use App\Http\Controllers\Interventions\InterventionSettingsController;
+use App\Http\Controllers\Interventions\ServiceContractController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\Profile\AvatarController;
 use App\Http\Controllers\Profile\BrowserSessionController;
@@ -195,6 +197,18 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('start', [InterventionController::class, 'start'])->name('start');
         Route::get('customers/{organization}', [InterventionController::class, 'customer'])->name('customer');
         Route::post('{intervention}/stop', [InterventionController::class, 'stop'])->name('stop');
+
+        Route::controller(InterventionDocumentController::class)->prefix('{intervention}')->group(function () {
+            Route::get('pdf', 'pdf')->name('pdf');
+            Route::get('compose', 'compose')->name('compose');
+            Route::post('send', 'send')->middleware('throttle:10,1')->name('send');
+            Route::post('signature', 'sign')->middleware('throttle:20,1')->name('sign');
+            Route::delete('signature', 'unsign')->name('unsign');
+            Route::get('signature', 'signature')->name('signature');
+        });
+
+        Route::resource('contracts', ServiceContractController::class);
+        Route::post('contracts/{contract}/invoice', [ServiceContractController::class, 'invoice'])->name('contracts.invoice');
     });
     Route::resource('interventions', InterventionController::class);
 

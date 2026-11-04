@@ -9,10 +9,12 @@ use Illuminate\Support\Facades\DB;
 
 /**
  * Creates (numbering INT-2026-0001) and updates interventions with their materials.
- * Remote interventions drop the on-site extras.
+ * Remote interventions drop the on-site extras; the hours of the customer's contract are applied.
  */
 class SaveIntervention
 {
+    public function __construct(private ApplyContract $applyContract) {}
+
     /**
      * @param  array<string, mixed>  $data  Fields plus optional "materials".
      */
@@ -54,6 +56,8 @@ class SaveIntervention
                     ]);
                 }
             }
+
+            $this->applyContract->handle($intervention);
 
             return $intervention;
         });

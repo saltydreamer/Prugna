@@ -25,6 +25,8 @@ const props = defineProps({
     productOptions: { type: Array, default: null },
     /** Customers: interventions counters (null without access). */
     interventions: { type: Object, default: null },
+    /** Customers: active hour contracts (null without access). */
+    contracts: { type: Array, default: null },
 });
 
 const interventionDialog = ref(false);
@@ -330,6 +332,15 @@ function restore() {
                                         Vedi tutti
                                     </v-btn>
                                     <v-btn
+                                        v-if="can('contracts.manage') && !archived"
+                                        variant="text"
+                                        size="small"
+                                        prepend-icon="mdi-timer-sand-complete"
+                                        v-bind="link(route('interventions.contracts.create', { organization: organization.id }))"
+                                    >
+                                        Monte ore
+                                    </v-btn>
+                                    <v-btn
                                         v-if="can('interventions.manage') && !archived"
                                         variant="tonal"
                                         size="small"
@@ -351,6 +362,30 @@ function restore() {
                                 </div>
                             </template>
                             <v-card-text>
+                                <div v-for="contract in contracts ?? []" :key="contract.id" class="mb-3">
+                                    <div class="d-flex justify-space-between text-body-2">
+                                        <a v-bind="link(route('interventions.contracts.show', contract.id))">
+                                            {{ contract.number }} · {{ contract.title }}
+                                        </a>
+                                        <span>
+                                            residuo
+                                            <strong>{{ formatHours(contract.remaining_minutes) }}</strong>
+                                            di {{ formatHours(contract.total_minutes) }}
+                                        </span>
+                                    </div>
+                                    <v-progress-linear
+                                        :model-value="contract.total_minutes ? (contract.used_minutes / contract.total_minutes) * 100 : 0"
+                                        :color="
+                                            contract.remaining_minutes <= 0
+                                                ? 'error'
+                                                : contract.used_minutes >= contract.total_minutes * 0.8
+                                                  ? 'warning'
+                                                  : 'primary'
+                                        "
+                                        rounded
+                                        height="6"
+                                    />
+                                </div>
                                 <span v-if="!interventions.count" class="text-medium-emphasis">Nessun intervento registrato.</span>
                                 <span v-else>
                                     {{ interventions.count }} interventi registrati ·

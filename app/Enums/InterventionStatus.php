@@ -11,6 +11,7 @@ enum InterventionStatus: string
     case ToInvoice = 'to_invoice';
     case Invoiced = 'invoiced';
     case NotBillable = 'not_billable';
+    case Covered = 'covered';
 
     public function label(): string
     {
@@ -19,6 +20,7 @@ enum InterventionStatus: string
             self::ToInvoice => 'Da fatturare',
             self::Invoiced => 'Fatturato',
             self::NotBillable => 'Non fatturabile',
+            self::Covered => 'Coperto dal monte ore',
         };
     }
 
@@ -29,6 +31,7 @@ enum InterventionStatus: string
             self::ToInvoice => 'warning',
             self::Invoiced => 'success',
             self::NotBillable => 'grey',
+            self::Covered => 'secondary',
         };
     }
 

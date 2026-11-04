@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Interventions;
 
+use App\Actions\Interventions\ApplyContract;
 use App\Actions\Interventions\SaveIntervention;
 use App\Enums\InterventionMode;
 use App\Enums\InterventionStatus;
@@ -18,6 +19,7 @@ use App\Models\InterventionCategory;
 use App\Models\Order;
 use App\Models\Organization;
 use App\Models\Product;
+use App\Models\ServiceContract;
 use App\Models\User;
 use App\Models\VatRate;
 use App\Support\Settings;
@@ -88,7 +90,7 @@ class InterventionController extends Controller
             ->withQueryString();
 
         $completed = (clone $listed)->whereNotNull('duration_minutes')->get(['id', 'duration_minutes', 'travel_minutes', 'mode']);
-        $toInvoice = (clone $base)->toInvoice()->get(['id', 'duration_minutes', 'organization_id']);
+        $toInvoice = (clone $base)->toInvoice()->get(['id', 'duration_minutes', 'contract_minutes', 'organization_id']);
 
         return Inertia::render('interventions/Index', [
             'interventions' => InterventionResource::collection($interventions),
@@ -112,7 +114,7 @@ class InterventionController extends Controller
                 'minutes' => (int) $completed->sum('duration_minutes'),
                 'billable_minutes' => (int) $completed->sum(fn (Intervention $intervention) => $intervention->billableMinutes()),
                 'to_invoice_count' => $toInvoice->count(),
-                'to_invoice_minutes' => (int) $toInvoice->sum(fn (Intervention $intervention) => $intervention->billableMinutes()),
+                'to_invoice_minutes' => (int) $toInvoice->sum(fn (Intervention $intervention) => $intervention->invoiceableMinutes()),
                 'to_invoice_customers' => $toInvoice->pluck('organization_id')->unique()->count(),
             ],
             'customers' => $this->organizationOptions(OrganizationRole::Customer),
@@ -149,6 +151,7 @@ class InterventionController extends Controller
                 'callout' => false,
                 'km' => 0,
                 'travel_minutes' => 0,
+                'skip_contract' => false,
                 'materials' => [],
             ],
             ...$this->formOptions($request->user()),
@@ -171,7 +174,7 @@ class InterventionController extends Controller
     {
         $this->authorize('view', $intervention);
 
-        $intervention->load(['organization', 'location', 'contact', 'order', 'category', 'technician', 'materials', 'invoiceLines.invoice']);
+        $intervention->load(['organization', 'location', 'contact', 'order', 'contract', 'category', 'technician', 'materials', 'invoiceLines.invoice']);
 
         return Inertia::render('interventions/Show', [
             'intervention' => InterventionResource::make($intervention)->resolve(),
@@ -183,7 +186,7 @@ class InterventionController extends Controller
     {
         $this->authorize('update', $intervention);
 
-        $intervention->load(['materials', 'order']);
+        $intervention->load(['materials', 'order', 'contract']);
 
         return Inertia::render('interventions/Edit', [
             'intervention' => InterventionResource::make($intervention)->resolve(),
@@ -250,13 +253,14 @@ class InterventionController extends Controller
     /**
      * Stops the timer: the duration is the time elapsed (at least one minute).
      */
-    public function stop(Intervention $intervention): RedirectResponse
+    public function stop(Intervention $intervention, ApplyContract $applyContract): RedirectResponse
     {
         $this->authorize('update', $intervention);
 
         abort_unless($intervention->isRunning(), 409, __("L'intervento è già terminato."));
 
         $intervention->forceFill(['duration_minutes' => min(1440, max(1, (int) round($intervention->started_at->diffInSeconds(now()) / 60)))])->save();
+        $applyContract->handle($intervention);
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Intervento terminato: descrivi il lavoro svolto e salva.')]);
 
@@ -279,6 +283,19 @@ class InterventionController extends Controller
                 ->map(fn ($contact) => ['value' => $contact->id, 'title' => $contact->full_name, 'subtitle' => $contact->email]),
             'orders' => $organization->orders()->whereIn('status', ['open', 'in_progress'])->orderByDesc('id')->limit(100)->get(['id', 'number', 'title'])
                 ->map(fn (Order $order) => ['value' => $order->id, 'title' => $order->number, 'subtitle' => $order->title]),
+            // Hour contracts that may cover the interventions (the form shows the remaining hours).
+            'contracts' => ServiceContract::query()->where('organization_id', $organization->id)->where('is_active', true)->orderBy('starts_on')->get()
+                ->map(fn (ServiceContract $contract) => [
+                    'id' => $contract->id,
+                    'number' => $contract->number,
+                    'title' => $contract->title,
+                    'starts_on' => $contract->starts_on->toDateString(),
+                    'ends_on' => $contract->ends_on?->toDateString(),
+                    'mode' => $contract->mode?->value,
+                    'category_ids' => array_map('intval', $contract->category_ids ?? []),
+                    'remaining_minutes' => $contract->remainingMinutes(),
+                    'total_minutes' => $contract->totalMinutes(),
+                ]),
         ]);
     }
 

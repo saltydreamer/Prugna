@@ -93,6 +93,8 @@ class BillInterventions
             'description' => mb_strimwidth((string) strtok((string) $intervention->description, "\n"), 0, 140, '…'),
             'duration_minutes' => $intervention->duration_minutes,
             'billable_minutes' => $intervention->billableMinutes(),
+            'invoiceable_minutes' => $intervention->invoiceableMinutes(),
+            'contract_minutes' => $intervention->contract_minutes,
             'travel_minutes' => $intervention->billableTravelMinutes(),
             'km' => $intervention->isOnsite() ? (float) $intervention->km : 0,
             'callout' => $intervention->isOnsite() && $intervention->callout,
@@ -112,15 +114,15 @@ class BillInterventions
         $reference = $intervention->localStart()->format('d/m/Y').' ('.$intervention->number.')';
         $lines = [];
 
-        if ($intervention->billableMinutes() > 0) {
+        if ($intervention->invoiceableMinutes() > 0) {
             $product = $intervention->category->productFor($intervention->mode);
-            $description = $this->hoursTitle($intervention).' – '.$reference;
+            $description = $this->hoursTitle($intervention).' – '.$reference.$this->contractNote($intervention);
 
             if (trim((string) $intervention->description) !== '') {
                 $description .= "\n".trim((string) $intervention->description);
             }
 
-            $lines[] = $this->productLine($product, $customer, $description, self::hours($intervention->billableMinutes()), [$intervention->id]);
+            $lines[] = $this->productLine($product, $customer, $description, self::hours($intervention->invoiceableMinutes()), [$intervention->id]);
         }
 
         foreach ($this->extras(collect([$intervention]), $customer, fn (string $title) => "{$title} – {$reference}") as $line) {
@@ -139,19 +141,19 @@ class BillInterventions
         $customer = $interventions->first()->organization;
         $lines = [];
 
-        $groups = $interventions->filter(fn (Intervention $intervention) => $intervention->billableMinutes() > 0)
+        $groups = $interventions->filter(fn (Intervention $intervention) => $intervention->invoiceableMinutes() > 0)
             ->groupBy(fn (Intervention $intervention) => $intervention->category_id.'|'.$intervention->mode->value);
 
         foreach ($groups as $group) {
             /** @var Intervention $first */
             $first = $group->first();
-            $minutes = $group->sum(fn (Intervention $intervention) => $intervention->billableMinutes());
+            $minutes = $group->sum(fn (Intervention $intervention) => $intervention->invoiceableMinutes());
             $description = $this->hoursTitle($first).', '.self::period($group).' ('.self::hoursLabel($minutes).')';
 
             if ($listDetails) {
                 $description .= "\n".$group->map(fn (Intervention $intervention) => '• '.implode(' – ', array_filter([
                     $intervention->localStart()->format('d/m/Y').' '.$intervention->number,
-                    self::hoursLabel($intervention->billableMinutes()),
+                    self::hoursLabel($intervention->invoiceableMinutes()).$this->contractNote($intervention),
                     mb_strimwidth(trim((string) strtok((string) $intervention->description, "\n")), 0, 120, '…'),
                 ])))->implode("\n");
             }
@@ -249,7 +251,7 @@ class BillInterventions
         $errors = [];
 
         foreach ($interventions as $intervention) {
-            if ($intervention->billableMinutes() > 0 && ! $intervention->category?->productFor($intervention->mode)) {
+            if ($intervention->invoiceableMinutes() > 0 && ! $intervention->category?->productFor($intervention->mode)) {
                 $errors[] = __('La categoria «:category» non ha il servizio per gli interventi :mode: impostalo in Impostazioni interventi.', [
                     'category' => $intervention->category?->name,
                     'mode' => mb_strtolower($intervention->mode->label()),
@@ -282,6 +284,20 @@ class BillInterventions
         }
 
         return $product;
+    }
+
+    /**
+     * " (oltre a 2 h del monte ore CTR-2026-0001)" when part of the time came from a contract.
+     */
+    private function contractNote(Intervention $intervention): string
+    {
+        if ($intervention->contract_minutes <= 0) {
+            return '';
+        }
+
+        $intervention->loadMissing('contract:id,number');
+
+        return ' '.__('(oltre a :hours scalate dal monte ore :number)', ['hours' => self::hoursLabel($intervention->contract_minutes), 'number' => $intervention->contract?->number]);
     }
 
     private function hoursTitle(Intervention $intervention): string

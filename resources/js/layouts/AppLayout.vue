@@ -100,8 +100,18 @@ const navigation = computed(() => {
                     title: 'Interventi',
                     icon: 'mdi-timer-outline',
                     route: 'interventions.index',
-                    active: () => route().current('interventions.*') && !route().current('interventions.settings.*'),
+                    active: () =>
+                        route().current('interventions.*') &&
+                        !route().current('interventions.settings.*') &&
+                        !route().current('interventions.contracts.*'),
                     permission: ['interventions.view', 'interventions.supervise'],
+                },
+                {
+                    title: 'Contratti monte ore',
+                    icon: 'mdi-timer-sand-complete',
+                    route: 'interventions.contracts.index',
+                    active: 'interventions.contracts.*',
+                    permission: ['contracts.manage', 'interventions.supervise'],
                 },
                 {
                     title: 'Impostazioni interventi',
