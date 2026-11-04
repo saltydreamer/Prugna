@@ -67,6 +67,21 @@ class InterventionResource extends JsonResource
                 'label' => $invoice->displayNumber(),
                 'status' => $invoice->status->value,
             ])->values()->all()),
+            'contract_id' => $this->contract_id,
+            'contract_minutes' => $this->contract_minutes,
+            'invoiceable_minutes' => $this->invoiceableMinutes(),
+            'skip_contract' => $this->skip_contract,
+            'contract' => $this->whenLoaded('contract', fn () => $this->contract ? [
+                'id' => $this->contract->id,
+                'number' => $this->contract->number,
+                'title' => $this->contract->title,
+                'remaining_minutes' => $this->contract->remainingMinutes(),
+            ] : null),
+            'signed' => $this->isSigned(),
+            'signed_by_name' => $this->signed_by_name,
+            'signed_at' => $this->signed_at?->toIso8601String(),
+            'signature_url' => $this->signature_path ? route('interventions.signature', ['intervention' => $this->id, 'v' => $this->signed_at?->timestamp]) : null,
+            'report_sent_at' => $this->report_sent_at?->toIso8601String(),
             'status' => $status->value,
             'status_label' => $status->label(),
             'status_color' => $status->color(),
@@ -75,6 +90,9 @@ class InterventionResource extends JsonResource
             'can' => [
                 'update' => $request->user()?->can('update', $this->resource) ?? false,
                 'delete' => $request->user()?->can('delete', $this->resource) ?? false,
+                'sign' => $request->user()?->can('sign', $this->resource) ?? false,
+                'unsign' => $request->user()?->can('unsign', $this->resource) ?? false,
+                'send' => $request->user()?->can('send', $this->resource) ?? false,
             ],
         ];
     }

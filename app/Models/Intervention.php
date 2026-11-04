@@ -26,7 +26,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  */
 #[Fillable([
     'organization_id', 'location_id', 'contact_id', 'order_id', 'category_id', 'mode', 'technician_id', 'started_at',
-    'duration_minutes', 'description', 'internal_notes', 'billable', 'callout', 'km', 'travel_minutes',
+    'duration_minutes', 'description', 'internal_notes', 'billable', 'callout', 'km', 'travel_minutes', 'skip_contract',
 ])]
 class Intervention extends Model
 {
@@ -50,6 +50,11 @@ class Intervention extends Model
             'billable' => 'boolean',
             'callout' => 'boolean',
             'km' => 'decimal:1',
+            'contract_minutes' => 'integer',
+            'skip_contract' => 'boolean',
+            'covered' => 'boolean',
+            'signed_at' => 'datetime',
+            'report_sent_at' => 'datetime',
         ];
     }
 
@@ -102,6 +107,16 @@ class Intervention extends Model
     }
 
     /**
+     * Contract whose hours this intervention uses.
+     *
+     * @return BelongsTo<ServiceContract, $this>
+     */
+    public function contract(): BelongsTo
+    {
+        return $this->belongsTo(ServiceContract::class, 'contract_id');
+    }
+
+    /**
      * @return HasMany<InterventionMaterial, $this>
      */
     public function materials(): HasMany
@@ -130,12 +145,17 @@ class Intervention extends Model
         return $this->relationLoaded('invoiceLines') ? $this->invoiceLines->isNotEmpty() : $this->invoiceLines()->exists();
     }
 
+    public function isSigned(): bool
+    {
+        return $this->signed_at !== null;
+    }
+
     /**
-     * Interventions in an invoice never change.
+     * Interventions in an invoice or signed by the customer never change.
      */
     public function isEditable(): bool
     {
-        return ! $this->isInvoiced();
+        return ! $this->isSigned() && ! $this->isInvoiced();
     }
 
     public function status(): InterventionStatus
@@ -144,6 +164,7 @@ class Intervention extends Model
             $this->isRunning() => InterventionStatus::Running,
             $this->isInvoiced() => InterventionStatus::Invoiced,
             ! $this->billable => InterventionStatus::NotBillable,
+            $this->covered => InterventionStatus::Covered,
             default => InterventionStatus::ToInvoice,
         };
     }
@@ -175,6 +196,14 @@ class Intervention extends Model
     }
 
     /**
+     * Minutes to invoice: the billed ones not covered by a contract.
+     */
+    public function invoiceableMinutes(): int
+    {
+        return max(0, $this->billableMinutes() - $this->contract_minutes);
+    }
+
+    /**
      * Travel minutes billed (on site only), rounded like the work.
      */
     public function billableTravelMinutes(): int
@@ -203,13 +232,13 @@ class Intervention extends Model
     public static function summary(Builder $query): array
     {
         $all = (clone $query)->get(['id', 'duration_minutes', 'billable']);
-        $toInvoice = (clone $query)->toInvoice()->get(['id', 'duration_minutes']);
+        $toInvoice = (clone $query)->toInvoice()->get(['id', 'duration_minutes', 'contract_minutes']);
 
         return [
             'count' => $all->count(),
             'minutes' => (int) $all->sum('duration_minutes'),
             'to_invoice_count' => $toInvoice->count(),
-            'to_invoice_minutes' => (int) $toInvoice->sum(fn (Intervention $intervention) => $intervention->billableMinutes()),
+            'to_invoice_minutes' => (int) $toInvoice->sum(fn (Intervention $intervention) => $intervention->invoiceableMinutes()),
             'running' => $all->whereNull('duration_minutes')->count(),
         ];
     }
@@ -233,7 +262,7 @@ class Intervention extends Model
      */
     public function scopeToInvoice(Builder $query): void
     {
-        $query->whereNotNull('duration_minutes')->where('billable', true)->whereDoesntHave('invoiceLines');
+        $query->whereNotNull('duration_minutes')->where('billable', true)->where('covered', false)->whereDoesntHave('invoiceLines');
     }
 
     /**
@@ -246,6 +275,7 @@ class Intervention extends Model
             InterventionStatus::ToInvoice->value => $query->toInvoice(),
             InterventionStatus::Invoiced->value => $query->whereHas('invoiceLines'),
             InterventionStatus::NotBillable->value => $query->whereNotNull('duration_minutes')->where('billable', false)->whereDoesntHave('invoiceLines'),
+            InterventionStatus::Covered->value => $query->whereNotNull('duration_minutes')->where('billable', true)->where('covered', true)->whereDoesntHave('invoiceLines'),
             default => null,
         };
     }

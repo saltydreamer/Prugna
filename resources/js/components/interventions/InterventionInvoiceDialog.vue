@@ -35,7 +35,7 @@ const listDetails = ref(true);
 
 const chosen = computed(() => interventions.value.filter((item) => selected.value.includes(item.id)));
 const total = computed(() => chosen.value.reduce((sum, item) => sum + (item.amount ?? 0), 0));
-const minutes = computed(() => chosen.value.reduce((sum, item) => sum + item.billable_minutes, 0));
+const minutes = computed(() => chosen.value.reduce((sum, item) => sum + item.invoiceable_minutes, 0));
 const problems = computed(() => [...new Set(chosen.value.map((item) => item.problem).filter(Boolean))]);
 const allSelected = computed({
     get: () => interventions.value.length > 0 && selected.value.length === interventions.value.length,
@@ -157,9 +157,12 @@ async function confirm() {
                                     <div v-if="item.problem" class="text-caption text-error">{{ item.problem }}</div>
                                 </td>
                                 <td class="text-right text-no-wrap">
-                                    {{ formatHours(item.billable_minutes) }}
-                                    <div v-if="item.duration_minutes !== item.billable_minutes" class="text-caption text-medium-emphasis">
+                                    {{ formatHours(item.invoiceable_minutes) }}
+                                    <div v-if="item.duration_minutes !== item.invoiceable_minutes" class="text-caption text-medium-emphasis">
                                         effettive {{ formatMinutes(item.duration_minutes) }}
+                                    </div>
+                                    <div v-if="item.contract_minutes" class="text-caption text-medium-emphasis">
+                                        {{ formatHours(item.contract_minutes) }} dal monte ore
                                     </div>
                                 </td>
                                 <td class="text-right text-no-wrap font-weight-medium">

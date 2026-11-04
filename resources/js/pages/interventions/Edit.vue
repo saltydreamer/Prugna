@@ -55,6 +55,7 @@ const form = useForm({
     callout: source.callout ?? false,
     km: source.km ?? 0,
     travel_minutes: source.travel_minutes ?? 0,
+    skip_contract: source.skip_contract ?? false,
     materials: (source.materials ?? []).map((material, index) => ({ ...material, key: `material-${material.id ?? index}` })),
 });
 
@@ -88,6 +89,7 @@ const missingService = computed(() => category.value && !(onsite.value ? categor
 const locations = ref([]);
 const contacts = ref([]);
 const orders = ref([]);
+const contracts = ref([]);
 
 async function loadCustomer(reset) {
     if (reset) {
@@ -99,6 +101,7 @@ async function loadCustomer(reset) {
     locations.value = [];
     contacts.value = [];
     orders.value = [];
+    contracts.value = [];
 
     if (!form.organization_id) {
         return;
@@ -108,6 +111,7 @@ async function loadCustomer(reset) {
     locations.value = data.locations;
     contacts.value = data.contacts;
     orders.value = data.orders;
+    contracts.value = data.contracts ?? [];
 
     // The current order may be completed: keep it selectable.
     if (props.intervention?.order && !orders.value.some((order) => order.value === props.intervention.order.id)) {
@@ -123,6 +127,34 @@ loadCustomer(false);
 watch(
     () => form.organization_id,
     () => loadCustomer(true),
+);
+
+// --- Hour contract -----------------------------------------------------------------------------
+const localDate = computed(() => (form.started_at ? form.started_at.slice(0, 10) : null));
+const contract = computed(() => {
+    if (!localDate.value) {
+        return null;
+    }
+
+    const candidates = contracts.value
+        .filter((item) => item.starts_on <= localDate.value && (!item.ends_on || item.ends_on >= localDate.value))
+        .filter((item) => !item.mode || item.mode === form.mode)
+        .filter((item) => !item.category_ids.length || item.category_ids.includes(form.category_id))
+        .map((item) => ({
+            ...item,
+            // Hours already taken by this intervention go back to the residual while editing.
+            available: item.remaining_minutes + (props.intervention?.contract_id === item.id ? props.intervention.contract_minutes : 0),
+        }));
+
+    return (
+        candidates.find((item) => item.id === props.intervention?.contract_id) ??
+        candidates.find((item) => item.available > 0) ??
+        candidates[0] ??
+        null
+    );
+});
+const fromContract = computed(() =>
+    contract.value && !form.skip_contract && form.billable ? Math.min(contract.value.available, billable.value) : 0,
 );
 
 // --- Materials -----------------------------------------------------------------------------
@@ -462,6 +494,26 @@ const backUrl = computed(() => (isNew.value ? route('interventions.index') : rou
                     <v-card class="mb-6">
                         <v-card-text>
                             <v-select v-if="technicians" v-model="form.technician_id" :items="technicians" label="Tecnico" class="mb-2" />
+                            <v-alert
+                                v-if="contract && form.billable"
+                                type="info"
+                                variant="tonal"
+                                density="compact"
+                                class="mb-4"
+                                icon="mdi-timer-sand-complete"
+                            >
+                                <div class="text-body-2">
+                                    Monte ore
+                                    <strong>{{ contract.number }}</strong>
+                                    : residuo {{ formatHours(contract.available) }} su {{ formatHours(contract.total_minutes) }}.
+                                </div>
+                                <div v-if="!form.skip_contract && form.duration_minutes" class="text-body-2">
+                                    Scala
+                                    <strong>{{ formatHours(fromContract) }}</strong>
+                                    <template v-if="billable > fromContract">, in fattura {{ formatHours(billable - fromContract) }}</template>
+                                </div>
+                                <v-checkbox v-model="form.skip_contract" label="Non scalare dal monte ore" density="compact" hide-details />
+                            </v-alert>
                             <v-switch
                                 v-model="form.billable"
                                 label="Da fatturare al cliente"

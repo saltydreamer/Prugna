@@ -60,6 +60,7 @@ enum Permission: string
     case InterventionsView = 'interventions.view';
     case InterventionsManage = 'interventions.manage';
     case InterventionsSupervise = 'interventions.supervise';
+    case ContractsManage = 'contracts.manage';
 
     case AiUse = 'ai.use';
 
@@ -107,6 +108,7 @@ enum Permission: string
             self::InterventionsView => 'Consultare i propri interventi',
             self::InterventionsManage => 'Registrare e modificare i propri interventi',
             self::InterventionsSupervise => 'Vedere e gestire gli interventi di tutti i tecnici',
+            self::ContractsManage => 'Gestire i contratti a monte ore',
             self::AiUse => "Usare l'AI per leggere i documenti",
             self::SettingsManage => 'Gestire impostazioni (azienda, email, pagamenti)',
         };
@@ -126,7 +128,7 @@ enum Permission: string
             self::InvoicesView, self::InvoicesManage, self::InvoicesIssue => 'Fatture',
             self::PurchasesView, self::PurchasesManage => 'Acquisti',
             self::ExpensesView, self::ExpensesManage => 'Spese',
-            self::InterventionsView, self::InterventionsManage, self::InterventionsSupervise => 'Interventi',
+            self::InterventionsView, self::InterventionsManage, self::InterventionsSupervise, self::ContractsManage => 'Interventi',
             self::AiUse => 'Intelligenza artificiale',
             self::SettingsManage => 'Impostazioni',
         };

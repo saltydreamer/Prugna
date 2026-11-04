@@ -38,6 +38,31 @@ class InterventionPolicy
         return $intervention->isEditable() && $this->owns($user, $intervention);
     }
 
+    /**
+     * The customer signs a completed intervention on the technician's device.
+     */
+    public function sign(User $user, Intervention $intervention): bool
+    {
+        return ! $intervention->isRunning() && ! $intervention->isSigned() && $this->owns($user, $intervention);
+    }
+
+    /**
+     * Only supervisors can remove a signature (to correct a signed intervention not yet invoiced).
+     */
+    public function unsign(User $user, Intervention $intervention): bool
+    {
+        return $intervention->isSigned() && ! $intervention->isInvoiced()
+            && $user->can(Permission::InterventionsSupervise->value) && $user->can(Permission::InterventionsManage->value);
+    }
+
+    /**
+     * Send the report by email.
+     */
+    public function send(User $user, Intervention $intervention): bool
+    {
+        return ! $intervention->isRunning() && $this->owns($user, $intervention);
+    }
+
     private function owns(User $user, Intervention $intervention): bool
     {
         return $user->can(Permission::InterventionsManage->value)
