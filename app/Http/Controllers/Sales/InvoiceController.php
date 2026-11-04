@@ -15,10 +15,12 @@ use App\Enums\QuoteStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Sales\InvoiceRequest;
 use App\Http\Resources\InvoiceResource;
+use App\Models\ExpenseLine;
 use App\Models\Invoice;
 use App\Models\Order;
 use App\Models\Organization;
 use App\Models\PaymentTerm;
+use App\Models\PurchaseOrderLine;
 use App\Models\Quote;
 use App\Models\VatRate;
 use App\Support\Fiscal\FiscalCodes;
@@ -26,8 +28,10 @@ use App\Support\Settings;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -194,7 +198,7 @@ class InvoiceController extends Controller
     {
         $this->authorize('view', $invoice);
 
-        $invoice->load(['lines', 'owner', 'contact', 'quote', 'order', 'relatedInvoice', 'creditNotes']);
+        $invoice->load(['lines.costLinks', 'owner', 'contact', 'quote', 'order', 'relatedInvoice', 'creditNotes']);
 
         return Inertia::render('sales/invoices/Show', [
             'invoice' => InvoiceResource::make($invoice)->resolve(),
@@ -216,7 +220,7 @@ class InvoiceController extends Controller
 
         $this->authorize('update', $invoice);
 
-        $invoice->load(['lines' => fn ($query) => $query->where(fn ($query) => $query->whereNull('system')->orWhere('system', '!=', 'stamp_duty'))]);
+        $invoice->load(['lines' => fn ($query) => $query->where(fn ($query) => $query->whereNull('system')->orWhere('system', '!=', 'stamp_duty'))->with('costLinks')]);
 
         return Inertia::render('sales/invoices/Edit', [
             'invoice' => InvoiceResource::make($invoice)->resolve(),
@@ -273,7 +277,7 @@ class InvoiceController extends Controller
     }
 
     /**
-     * Supplier costs waiting to be charged back to a customer (invoice editor dialog).
+     * Costs of a customer (optionally of one order) not yet charged back, for the cost picker.
      */
     public function costs(Request $request, RebillCosts $rebillCosts): JsonResponse
     {
@@ -281,18 +285,93 @@ class InvoiceController extends Controller
 
         $data = $request->validate([
             'organization_id' => ['required', 'integer'],
+            'order_id' => ['nullable', 'integer'],
             'exclude' => ['nullable', 'array'],
             'exclude.*' => ['string', 'max:20'],
         ]);
 
+        $order = isset($data['order_id']) ? Order::query()->find($data['order_id']) : null;
         $exclude = $data['exclude'] ?? [];
 
         return response()->json([
-            'data' => $rebillCosts->pending((int) $data['organization_id'])
+            'data' => $rebillCosts->available((int) $data['organization_id'], $order)
                 ->reject(fn ($line) => in_array(RebillCosts::key($line), $exclude, true))
                 ->map(fn ($line) => $rebillCosts->option($line))
                 ->values(),
         ]);
+    }
+
+    /**
+     * Invoice lines for the chosen costs (one per cost, or one per VAT rate), added to the editor.
+     */
+    public function costLines(Request $request, RebillCosts $rebillCosts): JsonResponse
+    {
+        $this->authorize('create', Invoice::class);
+
+        $data = $this->validateCostChoice($request);
+        $costs = $this->availableCosts($rebillCosts, $data);
+
+        return response()->json([
+            'data' => collect($rebillCosts->lines($costs, $data['markups'] ?? [], $request->boolean('grouped'), $data['description'] ?? null, $request->boolean('list_details', true)))
+                ->map(fn (array $line) => [...$line, 'type' => $line['type']->value])
+                ->values(),
+        ]);
+    }
+
+    /**
+     * Draft invoice charging back the chosen costs to the customer (from the order or expense page).
+     */
+    public function storeFromCosts(Request $request, BuildInvoice $build, RebillCosts $rebillCosts, SaveInvoice $saveInvoice): RedirectResponse
+    {
+        $this->authorize('create', Invoice::class);
+
+        $data = $this->validateCostChoice($request);
+        $costs = $this->availableCosts($rebillCosts, $data);
+        $order = isset($data['order_id']) ? Order::query()->find($data['order_id']) : null;
+
+        $invoice = DB::transaction(fn () => $saveInvoice->handle(new Invoice, [
+            ...$build->fromCosts((int) $data['organization_id'], $order, $costs->keys()->all(), $data['markups'] ?? [], $request->boolean('grouped'), $data['description'] ?? null, $request->boolean('list_details', true)),
+            'owner_id' => $request->user()->id,
+            'notes' => $this->settings->get('fiscal.invoice_notes'),
+        ]));
+
+        return $this->created($invoice);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function validateCostChoice(Request $request): array
+    {
+        return $request->validate([
+            'organization_id' => ['required', 'integer', Rule::exists('organizations', 'id')->where('role', 'customer')],
+            'order_id' => ['nullable', 'integer', Rule::exists('orders', 'id')->where('organization_id', $request->input('organization_id'))],
+            'costs' => ['required', 'array', 'min:1', 'max:200'],
+            'costs.*' => ['string', 'regex:/^(po|ex)-\d+$/'],
+            'markups' => ['nullable', 'array'],
+            'markups.*' => ['nullable', 'numeric', 'between:0,1000'],
+            'grouped' => ['boolean'],
+            'description' => ['nullable', 'string', 'max:255'],
+            'list_details' => ['boolean'],
+        ], [], ['costs' => 'costi', 'markups.*' => 'ricarico', 'description' => 'descrizione']);
+    }
+
+    /**
+     * The chosen costs that are still available for the customer, in the chosen order.
+     *
+     * @param  array<string, mixed>  $data
+     * @return Collection<string, PurchaseOrderLine|ExpenseLine>
+     */
+    private function availableCosts(RebillCosts $rebillCosts, array $data): Collection
+    {
+        $available = $rebillCosts->available((int) $data['organization_id'])->map(fn ($line) => RebillCosts::key($line))->all();
+        $costs = $rebillCosts->resolve(array_values(array_intersect($data['costs'], $available)));
+
+        if ($costs->isEmpty()) {
+            throw ValidationException::withMessages(['costs' => __('I costi scelti non sono più disponibili: forse sono già in un\'altra fattura.')]);
+        }
+
+        return $costs;
     }
 
     private function created(Invoice $invoice): RedirectResponse

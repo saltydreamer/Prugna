@@ -118,7 +118,7 @@ class ExpenseTest extends TestCase
 
         $this->actingAs($this->admin)->post("/sales/orders/{$order->id}/invoice", ['mode' => 'full', 'include_costs' => true])->assertRedirect();
         $this->assertSame('1120.00', Invoice::sole()->subtotal);
-        $this->assertSame($line->id, Invoice::sole()->lines()->whereNotNull('expense_line_id')->value('expense_line_id'));
+        $this->assertSame($line->id, Invoice::sole()->lines()->has('costLinks')->first()->costLinks()->value('expense_line_id'));
 
         // Charged back: frozen and not deletable.
         $this->assertFalse($expense->fresh()->isEditable());

@@ -3,9 +3,11 @@ import { computed, ref } from 'vue';
 import { router, useForm } from '@inertiajs/vue3';
 import { route } from 'ziggy-js';
 import PageHeader from '@/components/PageHeader.vue';
+import CostInvoiceDialog from '@/components/sales/CostInvoiceDialog.vue';
 import QuoteTotalsCard from '@/components/sales/QuoteTotalsCard.vue';
 import { useConfirm } from '@/composables/useConfirm';
 import { useInertiaLink } from '@/composables/useInertiaLink';
+import { usePermissions } from '@/composables/usePermissions';
 import { formatDate, formatMoney } from '@/utils/format';
 
 const props = defineProps({
@@ -15,12 +17,17 @@ const props = defineProps({
 
 const { link } = useInertiaLink();
 const { confirm } = useConfirm();
+const { can } = usePermissions();
+const costDialog = ref(false);
+const unbilledKeys = computed(() => props.expense.lines.filter((line) => line.type === 'item' && !line.rebilled_in).map((line) => `ex-${line.id}`));
+const canInvoiceCosts = computed(
+    () => can('invoices.manage') && props.expense.customer_id && props.expense.type !== 'credit_note' && unbilledKeys.value.length > 0,
+);
 
 const attachmentUrl = computed(() => route('purchases.expenses.attachment', props.expense.id));
 const isImage = computed(() => props.expense.attachment_mime?.startsWith('image/'));
 const isPdf = computed(() => props.expense.attachment_mime === 'application/pdf');
 const quantity = (value) => Number(value).toLocaleString('it-IT', { maximumFractionDigits: 3 });
-const rebillLines = computed(() => props.expense.lines.filter((line) => line.type === 'item' && line.rebill));
 const title = computed(() => [props.expense.type_label, props.expense.number].filter(Boolean).join(' '));
 
 const paymentDialog = ref(false);
@@ -68,6 +75,9 @@ async function destroy() {
                     v-bind="link(route('purchases.expenses.edit', expense.id))"
                 >
                     Modifica
+                </v-btn>
+                <v-btn v-if="canInvoiceCosts" color="primary" variant="tonal" prepend-icon="mdi-cash-plus" @click="costDialog = true">
+                    Fattura al cliente
                 </v-btn>
                 <template v-if="expense.can?.update && expense.type !== 'credit_note'">
                     <v-btn v-if="!expense.is_paid" color="success" variant="flat" prepend-icon="mdi-cash-check" @click="openPayment">
@@ -234,11 +244,19 @@ async function destroy() {
                         </v-btn>
                     </v-card-text>
                 </v-card>
-                <v-alert v-if="rebillLines.length && !expense.customer_id" type="info" variant="tonal" class="mt-6">
-                    Collega un cliente per ribaltargli i costi.
+                <v-alert v-if="!expense.customer_id && expense.type !== 'credit_note'" type="info" variant="tonal" class="mt-6">
+                    Per addebitare questa spesa a un cliente, collegala a un ordine o a un cliente da «Modifica».
                 </v-alert>
             </v-col>
         </v-row>
+
+        <CostInvoiceDialog
+            v-if="expense.customer_id"
+            v-model="costDialog"
+            :organization-id="expense.customer_id"
+            :order-id="expense.order_id"
+            :preselect="unbilledKeys"
+        />
 
         <v-dialog v-model="paymentDialog" max-width="420">
             <v-card title="Registra pagamento" :subtitle="formatMoney(expense.total)">

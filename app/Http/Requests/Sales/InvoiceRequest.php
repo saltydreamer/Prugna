@@ -2,9 +2,9 @@
 
 namespace App\Http\Requests\Sales;
 
+use App\Actions\Purchases\RebillCosts;
 use App\Enums\InvoiceType;
 use App\Http\Requests\Concerns\ValidatesDocumentLines;
-use App\Models\ExpenseLine;
 use App\Models\Invoice;
 use App\Models\InvoiceLine;
 use App\Models\OrderLine;
@@ -63,8 +63,8 @@ class InvoiceRequest extends FormRequest
             'apply_pension' => ['boolean'],
             ...$this->lineRules(),
             'lines.*.order_line_id' => ['nullable', 'integer'],
-            'lines.*.purchase_order_line_id' => ['nullable', 'integer', 'distinct'],
-            'lines.*.expense_line_id' => ['nullable', 'integer', 'distinct'],
+            'lines.*.costs' => ['nullable', 'array', 'max:200'],
+            'lines.*.costs.*' => ['string', 'regex:/^(po|ex)-\d+$/'],
             'lines.*.system' => ['nullable', Rule::in([InvoiceLine::SYSTEM_DEPOSIT_DEDUCTION])],
             'lines.*.deducts_invoice_id' => ['nullable', 'integer', Rule::exists('invoices', 'id')->where('type', InvoiceType::Deposit->value)],
         ];
@@ -124,36 +124,34 @@ class InvoiceRequest extends FormRequest
      */
     private function checkRebilledCosts(Validator $validator): void
     {
+        $lines = collect($this->input('lines', []))->filter(fn ($line) => ! empty($line['costs']) && is_array($line['costs']));
+
+        if ($lines->isEmpty()) {
+            return;
+        }
+
         $invoice = $this->route('invoice');
         $customerId = (int) $this->input('organization_id');
-        $lines = collect($this->input('lines', []));
+        $costs = app(RebillCosts::class)->resolve($lines->flatMap(fn ($line) => $line['costs'])->unique()->values()->all());
+        $seen = [];
 
-        $sources = [
-            'purchase_order_line_id' => PurchaseOrderLine::query()->with(['purchaseOrder', 'rebilledBy']),
-            'expense_line_id' => ExpenseLine::query()->with(['expense', 'rebilledBy']),
-        ];
-
-        foreach ($sources as $field => $query) {
-            $linked = $lines->filter(fn ($line) => filled($line[$field] ?? null));
-
-            if ($linked->isEmpty()) {
-                continue;
-            }
-
-            $costs = $query->whereIn('id', $linked->pluck($field))->get()->keyBy('id');
-
-            foreach ($linked as $index => $line) {
-                $cost = $costs->get($line[$field]);
+        foreach ($lines as $index => $line) {
+            foreach ($line['costs'] as $key) {
+                $cost = $costs->get($key);
                 $parent = $cost instanceof PurchaseOrderLine ? $cost->purchaseOrder : $cost?->expense;
                 $elsewhere = $cost?->rebilledBy->contains(fn (InvoiceLine $other) => ! $invoice instanceof Invoice || $other->invoice_id !== $invoice->id);
 
-                if (! $cost || ! $cost->rebill || (int) $parent->customer_id !== $customerId) {
+                if (isset($seen[$key])) {
+                    $validator->errors()->add("lines.{$index}.description", __('Lo stesso costo compare in più righe della fattura.'));
+                } elseif (! $cost || (int) $parent->customer_id !== $customerId) {
                     $validator->errors()->add("lines.{$index}.description", __('Il costo da ribaltare non appartiene a questo cliente.'));
                 } elseif ($cost instanceof PurchaseOrderLine && ! $parent->status->isCommitted()) {
                     $validator->errors()->add("lines.{$index}.description", __("L'ordine fornitore :number non è stato inviato o è annullato.", ['number' => $parent->number]));
                 } elseif ($elsewhere) {
                     $validator->errors()->add("lines.{$index}.description", __('Questo costo è già stato ribaltato in un\'altra fattura.'));
                 }
+
+                $seen[$key] = true;
             }
         }
     }

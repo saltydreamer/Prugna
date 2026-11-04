@@ -144,6 +144,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('orders/{order}/invoice', [InvoiceController::class, 'storeFromOrder'])->name('orders.invoice');
 
         Route::get('invoices/lookup/costs', [InvoiceController::class, 'costs'])->name('invoices.lookup.costs');
+        Route::post('invoices/lookup/cost-lines', [InvoiceController::class, 'costLines'])->name('invoices.lookup.cost-lines');
+        Route::post('invoices/from-costs', [InvoiceController::class, 'storeFromCosts'])->name('invoices.from-costs');
         Route::resource('invoices', InvoiceController::class);
         Route::controller(InvoiceController::class)->prefix('invoices/{invoice}')->name('invoices.')->group(function () {
             Route::post('issue', 'issue')->name('issue');

@@ -4,6 +4,7 @@ namespace App\Actions\Documents;
 
 use App\Enums\QuoteLineType;
 use App\Models\VatRate;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
@@ -15,9 +16,12 @@ class SyncDocumentLines
     /**
      * @param  list<array<string, mixed>>  $lines
      * @param  list<string>  $extra  Additional attributes copied as they are (e.g. order_line_id).
+     * @return list<Model> The created lines, in the same order as $lines.
      */
-    public function handle(HasMany $relation, array $lines, array $extra = []): void
+    public function handle(HasMany $relation, array $lines, array $extra = []): array
     {
+        $created = [];
+
         $relation->delete();
 
         $rates = VatRate::query()->whereIn('id', array_filter(array_column($lines, 'vat_rate_id')))->get()->keyBy('id');
@@ -32,7 +36,7 @@ class SyncDocumentLines
             $unitPrice = $isItem ? (float) $line['unit_price'] : 0;
             $discount = $isItem ? (float) ($line['discount_percent'] ?? 0) : 0;
 
-            $relation->create([
+            $created[] = $relation->create([
                 ...array_intersect_key($line, array_flip($extra)),
                 'position' => $position + 1,
                 'type' => $type,
@@ -49,5 +53,7 @@ class SyncDocumentLines
                 'total' => $isItem ? DocumentTotals::lineTotal($quantity, $unitPrice, $discount) : 0,
             ]);
         }
+
+        return $created;
     }
 }

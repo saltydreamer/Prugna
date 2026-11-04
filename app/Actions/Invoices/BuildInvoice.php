@@ -9,9 +9,9 @@ use App\Enums\InvoiceType;
 use App\Enums\QuoteLineType;
 use App\Models\Invoice;
 use App\Models\Order;
+use App\Models\Organization;
 use App\Models\Quote;
 use App\Models\VatRate;
-use App\Support\Fiscal\FiscalCodes;
 use App\Support\Settings;
 use Illuminate\Support\Collection;
 use Illuminate\Validation\ValidationException;
@@ -25,7 +25,7 @@ use Illuminate\Validation\ValidationException;
  */
 class BuildInvoice
 {
-    public function __construct(private Settings $settings, private RebillCosts $rebillCosts) {}
+    public function __construct(private Settings $settings, private RebillCosts $rebillCosts, private RegimeVatRate $vatRates) {}
 
     /**
      * @return array<string, mixed>
@@ -43,6 +43,35 @@ class BuildInvoice
         $deposits = Invoice::query()->where('quote_id', $quote->id)->whereNull('order_id')->where('type', InvoiceType::Deposit->value)->where('status', InvoiceStatus::Issued->value)->whereDoesntHave('deductedBy')->with('lines')->get();
 
         return [...$header, 'type' => InvoiceType::Invoice, 'lines' => [...$this->copyLines($lines), ...$this->deductions($deposits)]];
+    }
+
+    /**
+     * Invoice charging back chosen costs (supplier order lines, expenses) of a customer, optionally for an order.
+     *
+     * @param  list<string>  $keys  Cost keys ("po-12", "ex-7").
+     * @param  array<string, mixed>  $markups  key => markup %
+     * @return array<string, mixed>
+     */
+    public function fromCosts(int $customerId, ?Order $order, array $keys, array $markups = [], bool $grouped = false, ?string $description = null, bool $listDetails = true): array
+    {
+        $costs = $this->rebillCosts->resolve($keys);
+
+        if ($costs->isEmpty()) {
+            throw ValidationException::withMessages(['costs' => __('Scegli almeno un costo da fatturare.')]);
+        }
+
+        $customer = Organization::query()->findOrFail($customerId);
+        $header = $this->header($customer->id, null, $order?->payment_term_id ?? $customer->payment_term_id, $order?->title ?? __('Rimborso spese'));
+
+        return [
+            ...$header,
+            'type' => InvoiceType::Invoice,
+            'order_id' => $order?->id,
+            'quote_id' => $order?->quote_id,
+            'customer_reference' => $order?->customer_reference,
+            'customer_reference_date' => $order?->customer_reference_date?->toDateString(),
+            'lines' => $this->rebillCosts->lines($costs, $markups, $grouped, $description, $listDetails),
+        ];
     }
 
     /**
@@ -146,7 +175,7 @@ class BuildInvoice
 
         return [
             ['type' => QuoteLineType::Section, 'description' => __('Costi sostenuti per vostro conto')],
-            ...$costs->map(fn ($line) => [...$this->rebillCosts->invoiceLine($line), 'vat_rate_id' => $this->vatRateFor($line->vat_rate_id)])->all(),
+            ...$this->rebillCosts->lines($costs),
         ];
     }
 
@@ -276,15 +305,8 @@ class BuildInvoice
         return $lines;
     }
 
-    /**
-     * In the flat-rate regime every line is "non soggetta" (N2.2).
-     */
     private function vatRateFor(?int $vatRateId): ?int
     {
-        if (! in_array($this->settings->get('fiscal.regime'), FiscalCodes::VAT_FREE_REGIMES, true)) {
-            return $vatRateId;
-        }
-
-        return VatRate::query()->where('nature', 'N2.2')->value('id') ?? $vatRateId;
+        return $this->vatRates->for($vatRateId);
     }
 }

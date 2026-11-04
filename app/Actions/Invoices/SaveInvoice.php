@@ -71,10 +71,9 @@ class SaveInvoice
             $invoice->save();
 
             if ($lines !== null) {
-                $this->syncLines->handle($invoice->lines(), array_values(array_filter(
-                    $lines,
-                    fn (array $line) => ($line['system'] ?? null) !== InvoiceLine::SYSTEM_STAMP_DUTY,
-                )), ['order_line_id', 'purchase_order_line_id', 'expense_line_id', 'system', 'deducts_invoice_id']);
+                $lines = array_values(array_filter($lines, fn (array $line) => ($line['system'] ?? null) !== InvoiceLine::SYSTEM_STAMP_DUTY));
+                $created = $this->syncLines->handle($invoice->lines(), $lines, ['order_line_id', 'system', 'deducts_invoice_id']);
+                $this->linkCosts($created, $lines);
             }
 
             $this->syncStampDuty($invoice);
@@ -86,6 +85,26 @@ class SaveInvoice
 
             return $invoice;
         });
+    }
+
+    /**
+     * Costs charged back by each line ("costs": ["po-12", "ex-7"]).
+     *
+     * @param  list<InvoiceLine>  $created
+     * @param  list<array<string, mixed>>  $lines
+     */
+    private function linkCosts(array $created, array $lines): void
+    {
+        foreach ($lines as $index => $line) {
+            foreach ((array) ($line['costs'] ?? []) as $key) {
+                $id = (int) substr((string) $key, 3);
+
+                $created[$index]->costLinks()->create(match (substr((string) $key, 0, 3)) {
+                    'ex-' => ['expense_line_id' => $id],
+                    default => ['purchase_order_line_id' => $id],
+                });
+            }
+        }
     }
 
     public function refreshTotals(Invoice $invoice): void

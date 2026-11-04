@@ -4,6 +4,7 @@ import { router } from '@inertiajs/vue3';
 import { route } from 'ziggy-js';
 import PageHeader from '@/components/PageHeader.vue';
 import DocumentLinesTable from '@/components/sales/DocumentLinesTable.vue';
+import CostInvoiceDialog from '@/components/sales/CostInvoiceDialog.vue';
 import InvoiceDialog from '@/components/sales/InvoiceDialog.vue';
 import QuoteTotalsCard from '@/components/sales/QuoteTotalsCard.vue';
 import { useConfirm } from '@/composables/useConfirm';
@@ -26,6 +27,7 @@ const { confirm } = useConfirm();
 const { can } = usePermissions();
 
 const invoiceDialog = ref(false);
+const costDialog = ref(false);
 const pendingCosts = computed(() =>
     props.purchasing?.rebill_pending_count ? { count: props.purchasing.rebill_pending_count, amount: props.purchasing.rebill_pending_amount } : null,
 );
@@ -200,16 +202,24 @@ async function destroy() {
                             <span>Costi d'acquisto</span>
                             <span>{{ formatMoney(purchasing.costs) }}</span>
                         </div>
+                        <div v-if="purchasing.invoiced_costs" class="d-flex justify-space-between text-body-2">
+                            <span>Costi fatturati al cliente</span>
+                            <span>{{ formatMoney(purchasing.invoiced_costs) }}</span>
+                        </div>
                         <div v-if="purchasing.rebill_pending_count" class="d-flex justify-space-between text-body-2">
-                            <span>Da ribaltare al cliente</span>
+                            <span>Segnati da ribaltare</span>
                             <span>{{ formatMoney(purchasing.rebill_pending_amount) }}</span>
+                        </div>
+                        <div v-if="purchasing.available_count" class="d-flex justify-space-between text-body-2 text-medium-emphasis">
+                            <span>Costi non ancora fatturati ({{ purchasing.available_count }})</span>
+                            <span>{{ formatMoney(purchasing.available_amount) }}</span>
                         </div>
                         <div class="d-flex justify-space-between font-weight-bold" :class="purchasing.margin < 0 ? 'text-error' : 'text-success'">
                             <span>Margine stimato</span>
                             <span>{{ formatMoney(purchasing.margin) }}</span>
                         </div>
                         <div class="text-caption text-medium-emphasis mt-1">
-                            Ricavi dell'ordine più i ricarichi, meno i costi non ribaltati. IVA esclusa.
+                            Ricavi dell'ordine più i costi fatturati (o segnati da ribaltare) al cliente, meno tutti i costi. IVA esclusa.
                         </div>
                     </v-card-text>
                     <v-list v-if="purchasing.purchase_orders.length || purchasing.expenses.length" density="compact" class="pt-0">
@@ -230,7 +240,20 @@ async function destroy() {
                             v-bind="link(route('purchases.expenses.show', expense.id))"
                         />
                     </v-list>
-                    <v-card-actions v-if="(can('purchases.manage') || can('expenses.manage')) && order.status !== 'cancelled'" class="flex-wrap ga-2">
+                    <v-card-actions
+                        v-if="(can('purchases.manage') || can('expenses.manage') || can('invoices.manage')) && order.status !== 'cancelled'"
+                        class="flex-wrap ga-2"
+                    >
+                        <v-btn
+                            v-if="can('invoices.manage') && purchasing.available_count"
+                            block
+                            color="primary"
+                            variant="flat"
+                            prepend-icon="mdi-cash-plus"
+                            @click="costDialog = true"
+                        >
+                            Fattura costi al cliente
+                        </v-btn>
                         <v-btn
                             v-if="can('purchases.manage')"
                             block
@@ -255,6 +278,8 @@ async function destroy() {
                 <QuoteTotalsCard :totals="order.totals" />
             </v-col>
         </v-row>
+
+        <CostInvoiceDialog v-model="costDialog" :organization-id="order.organization_id" :order-id="order.id" />
 
         <InvoiceDialog
             v-model="invoiceDialog"

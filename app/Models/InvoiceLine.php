@@ -7,9 +7,10 @@ use App\Models\Concerns\IsDocumentLine;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
-    'position', 'type', 'product_id', 'order_line_id', 'purchase_order_line_id', 'expense_line_id', 'system', 'deducts_invoice_id', 'code', 'description', 'unit',
+    'position', 'type', 'product_id', 'order_line_id', 'system', 'deducts_invoice_id', 'code', 'description', 'unit',
     'quantity', 'unit_price', 'discount_percent', 'vat_rate_id', 'vat_rate', 'vat_nature', 'total',
 ])]
 class InvoiceLine extends Model
@@ -46,23 +47,13 @@ class InvoiceLine extends Model
     }
 
     /**
-     * Supplier cost charged back by this line.
+     * Costs charged back by this line (one or more, e.g. a single "spese" line).
      *
-     * @return BelongsTo<PurchaseOrderLine, $this>
+     * @return HasMany<InvoiceLineCost, $this>
      */
-    public function purchaseOrderLine(): BelongsTo
+    public function costLinks(): HasMany
     {
-        return $this->belongsTo(PurchaseOrderLine::class);
-    }
-
-    /**
-     * Expense charged back by this line.
-     *
-     * @return BelongsTo<ExpenseLine, $this>
-     */
-    public function expenseLine(): BelongsTo
-    {
-        return $this->belongsTo(ExpenseLine::class);
+        return $this->hasMany(InvoiceLineCost::class);
     }
 
     /**
