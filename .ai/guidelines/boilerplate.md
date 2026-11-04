@@ -81,7 +81,7 @@
 - Toasts: server side `Inertia::flash('toast', ['type' => 'success', 'message' => '...'])`; client side `useToast()`.
 - Confirmations: `await useConfirm().confirm({...})`.
 - Shared props: `auth` (user, roles, permissions), `inbox` (unread_count, latest), `app`, `status` (Fortify), `runningIntervention`.
-- Component defaults (variants, density...) are set once in `resources/js/plugins/vuetify.js`.
+- Look: compact and minimal. Component defaults (compact density, flat bordered cards, flat buttons, no ripple) are set once in `resources/js/plugins/vuetify.js`; typography (Inter via `@fontsource-variable/inter`, root font size 14 px, heading/table/button sizes) in `resources/css/app.css`. Don't add elevation, uppercase text or per-page font sizes: change the global files.
 
 ## Quality
 - `php artisan test` (feature tests per area in `tests/Feature`), `vendor/bin/pint`, `npm run lint`, `npm run format`.

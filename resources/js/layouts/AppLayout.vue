@@ -277,14 +277,14 @@ function logout() {
 
 <template>
     <v-app>
-        <v-navigation-drawer v-model="drawer" :rail="rail" :temporary="mobile" width="264">
-            <v-list-item class="py-4" :prepend-icon="rail ? 'mdi-cube-outline' : undefined" v-bind="link(route('dashboard'))">
+        <v-navigation-drawer v-model="drawer" :rail="rail" :temporary="mobile" width="236" class="app-drawer">
+            <v-list-item class="py-3" :prepend-icon="rail ? 'mdi-cube-outline' : undefined" v-bind="link(route('dashboard'))">
                 <template v-if="!rail" #prepend>
-                    <v-avatar color="primary" rounded="lg" size="36">
-                        <v-icon icon="mdi-cube-outline" />
+                    <v-avatar color="primary" rounded="md" size="28">
+                        <v-icon icon="mdi-cube-outline" size="18" />
                     </v-avatar>
                 </template>
-                <v-list-item-title class="text-subtitle-1 font-weight-bold">{{ appName }}</v-list-item-title>
+                <v-list-item-title class="text-body-1 font-weight-bold">{{ appName }}</v-list-item-title>
             </v-list-item>
 
             <v-divider />
@@ -310,7 +310,7 @@ function logout() {
             </v-list>
         </v-navigation-drawer>
 
-        <v-app-bar flat border="b">
+        <v-app-bar flat border="b" density="compact">
             <v-app-bar-nav-icon @click="toggleDrawer" />
             <v-spacer />
 
@@ -408,7 +408,7 @@ function logout() {
         </v-app-bar>
 
         <v-main>
-            <v-container class="py-6 py-md-8" style="max-width: 1280px">
+            <v-container class="py-4 py-md-6 px-4 px-md-6" style="max-width: 1320px">
                 <slot />
             </v-container>
         </v-main>
@@ -419,3 +419,23 @@ function logout() {
         <InterventionStartDialog v-if="can('interventions.manage')" v-model="startDialog" />
     </v-app>
 </template>
+
+<style scoped>
+.app-drawer :deep(.v-list-item--nav) {
+    min-height: 34px;
+    margin-bottom: 1px;
+}
+
+.app-drawer :deep(.v-list-item--nav .v-list-item__prepend > .v-icon) {
+    font-size: 19px;
+    opacity: 0.75;
+}
+
+.app-drawer :deep(.v-list-item--nav .v-list-item__spacer) {
+    width: 14px;
+}
+
+.app-drawer :deep(.v-list-item--active .v-list-item__prepend > .v-icon) {
+    opacity: 1;
+}
+</style>
