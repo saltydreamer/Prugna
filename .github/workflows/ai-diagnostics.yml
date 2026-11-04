@@ -1,0 +1,33 @@
+name: AI diagnostics
+
+# Read-only: the latest AI document readings on the VPS (outcome, model, errors; never document contents).
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Configure SSH
+        uses: ./.github/actions/ssh
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          port: ${{ secrets.VPS_PORT }}
+          user: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+
+      - name: Latest AI readings
+        run: ssh vps 'cd /srv/boilerplate && docker compose exec -T app php artisan ai:diagnose --limit=15'
+
+      - name: Recent application errors
+        run: ssh vps "cd /srv/boilerplate && docker compose exec -T app sh -c 'grep -h \"\\.ERROR\" storage/logs/laravel*.log 2>/dev/null | tail -n 15 | cut -c1-500'" || true
