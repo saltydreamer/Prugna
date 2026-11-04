@@ -17,10 +17,13 @@ use App\Models\AiExtraction;
 use App\Models\Expense;
 use App\Models\Order;
 use App\Support\Ai\DocumentReader;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -52,6 +55,7 @@ class ExpenseController extends Controller
         $base = Expense::query()->when($filters['supplier'] ?? null, fn ($query, int $supplier) => $query->where('supplier_id', $supplier));
 
         $expenses = (clone $base)
+            ->with(['customer', 'order'])
             ->search($filters['search'] ?? null)
             ->when($filters['category'] ?? null, fn ($query, string $category) => $query->where('category', $category))
             ->when($status === 'unpaid', fn ($query) => $query->unpaid())
@@ -154,6 +158,74 @@ class ExpenseController extends Controller
     }
 
     /**
+     * Orders and customers an expense can be linked to (for the "Collega a ordine" dialog).
+     */
+    public function linkOptions(): JsonResponse
+    {
+        $this->authorize('create', Expense::class);
+
+        return response()->json([
+            'orders' => $this->orderOptions(),
+            'customers' => $this->organizationOptions(OrganizationRole::Customer),
+        ]);
+    }
+
+    /**
+     * Links one or more expenses to a customer order (or only to a customer, or to nobody),
+     * optionally marking their lines to charge back with a markup.
+     */
+    public function link(Request $request): RedirectResponse
+    {
+        $this->authorize('create', Expense::class);
+
+        $data = $request->validate([
+            'ids' => ['required', 'array', 'min:1', 'max:200'],
+            'ids.*' => ['integer', Rule::exists('expenses', 'id')],
+            'order_id' => ['nullable', 'integer', Rule::exists('orders', 'id')],
+            'customer_id' => ['nullable', 'integer', Rule::exists('organizations', 'id')->where('role', 'customer')],
+            'rebill' => ['boolean'],
+            'markup_percent' => ['nullable', 'numeric', 'between:0,1000'],
+        ], [], ['order_id' => 'ordine', 'customer_id' => 'cliente', 'markup_percent' => 'ricarico']);
+
+        $order = isset($data['order_id']) ? Order::query()->find($data['order_id']) : null;
+        $customerId = $order?->organization_id ?? ($data['customer_id'] ?? null);
+        $rebill = $customerId !== null && $request->boolean('rebill');
+        $expenses = Expense::query()->with('lines')->whereIn('id', $data['ids'])->get();
+        $frozen = $expenses->reject(fn (Expense $expense) => $expense->isEditable());
+
+        foreach ($expenses as $expense) {
+            $this->authorize('update', $expense);
+        }
+
+        if ($frozen->isNotEmpty()) {
+            throw ValidationException::withMessages(['ids' => __('Alcune spese sono già fatturate al cliente e non si possono ricollegare: :list.', [
+                'list' => $frozen->map(fn (Expense $expense) => trim(($expense->number ?? '#'.$expense->id).' '.($expense->supplier['name'] ?? '')))->implode(', '),
+            ])]);
+        }
+
+        DB::transaction(function () use ($expenses, $order, $customerId, $rebill, $data): void {
+            foreach ($expenses as $expense) {
+                $expense->forceFill(['order_id' => $order?->id, 'customer_id' => $customerId])->save();
+
+                foreach ($expense->lines->filter(fn ($line) => $line->isItem()) as $line) {
+                    $line->forceFill([
+                        'rebill' => $rebill,
+                        'markup_percent' => $rebill ? (float) ($data['markup_percent'] ?? $line->markup_percent) : $line->markup_percent,
+                    ])->save();
+                }
+            }
+        });
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => match (true) {
+            $order !== null => trans_choice('{1} Spesa collegata all\'ordine :order.|[2,*] :count spese collegate all\'ordine :order.', $expenses->count(), ['order' => $order->number, 'count' => $expenses->count()]),
+            $customerId !== null => trans_choice('{1} Spesa collegata al cliente.|[2,*] :count spese collegate al cliente.', $expenses->count(), ['count' => $expenses->count()]),
+            default => trans_choice('{1} Spesa scollegata: ora è un costo interno.|[2,*] :count spese scollegate: ora sono costi interni.', $expenses->count(), ['count' => $expenses->count()]),
+        }]);
+
+        return back();
+    }
+
+    /**
      * Records the payment (or undoes it).
      */
     public function payment(Request $request, Expense $expense): RedirectResponse
@@ -197,6 +269,28 @@ class ExpenseController extends Controller
     }
 
     /**
+     * Recent customer orders not cancelled (plus the current one).
+     *
+     * @return list<array{value: int, title: string, subtitle: string, organization_id: int}>
+     */
+    private function orderOptions(?int $currentOrderId = null): array
+    {
+        return Order::query()
+            ->whereIn('status', ['open', 'in_progress', 'completed'])
+            ->when($currentOrderId, fn ($query, int $id) => $query->orWhere('id', $id))
+            ->orderByDesc('id')
+            ->limit(300)
+            ->get(['id', 'number', 'title', 'customer', 'organization_id'])
+            ->map(fn (Order $order) => [
+                'value' => $order->id,
+                'title' => $order->number,
+                'subtitle' => trim(($order->customer['name'] ?? '').($order->title ? " · {$order->title}" : '')),
+                'organization_id' => $order->organization_id,
+            ])
+            ->all();
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function expenseEditorOptions(?Expense $expense = null): array
@@ -205,19 +299,7 @@ class ExpenseController extends Controller
             ...$this->editorOptions(),
             'suppliers' => $this->organizationOptions(OrganizationRole::Supplier, $expense?->supplier_id),
             'customers' => $this->organizationOptions(OrganizationRole::Customer, $expense?->customer_id),
-            'orders' => Order::query()
-                ->whereIn('status', ['open', 'in_progress', 'completed'])
-                ->when($expense?->order_id, fn ($query, int $id) => $query->orWhere('id', $id))
-                ->orderByDesc('id')
-                ->limit(200)
-                ->get(['id', 'number', 'title', 'customer', 'organization_id'])
-                ->map(fn (Order $order) => [
-                    'value' => $order->id,
-                    'title' => $order->number,
-                    'subtitle' => trim(($order->customer['name'] ?? '').($order->title ? " · {$order->title}" : '')),
-                    'organization_id' => $order->organization_id,
-                ])
-                ->all(),
+            'orders' => $this->orderOptions($expense?->order_id),
             'types' => ExpenseType::options(),
             'categories' => ExpenseCategory::options(),
             'paymentMethods' => PaymentMethod::options(),

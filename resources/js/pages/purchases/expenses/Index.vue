@@ -3,6 +3,7 @@ import { reactive, ref, watch } from 'vue';
 import { router } from '@inertiajs/vue3';
 import { route } from 'ziggy-js';
 import DocumentImportDialog from '@/components/DocumentImportDialog.vue';
+import ExpenseLinkDialog from '@/components/purchases/ExpenseLinkDialog.vue';
 import PageHeader from '@/components/PageHeader.vue';
 import { useInertiaLink } from '@/composables/useInertiaLink';
 import { usePermissions } from '@/composables/usePermissions';
@@ -29,7 +30,25 @@ const headers = [
     { title: 'Totale', key: 'total', sortable: true, align: 'end' },
     { title: 'Scadenza', key: 'due_date', sortable: true },
     { title: 'Stato', key: 'status', sortable: false },
+    { title: 'Collegata a', key: 'link', sortable: false },
+    { title: '', key: 'actions', sortable: false, align: 'end' },
 ];
+
+// --- Link to an order --------------------------------------------------------------------
+const selected = ref([]);
+const linkDialog = ref(false);
+const linkIds = ref([]);
+const linkCurrent = ref(null);
+
+function openLink(items) {
+    linkIds.value = items.map((item) => item.id);
+    linkCurrent.value = items.length === 1 ? { order_id: items[0].order_id, customer_id: items[0].customer_id } : null;
+    linkDialog.value = true;
+}
+
+function linkSelected() {
+    openLink(props.expenses.data.filter((item) => selected.value.includes(item.id)));
+}
 
 const tabs = [
     { value: 'all', title: 'Tutte' },
@@ -165,7 +184,17 @@ function open(event, { item }) {
                 </v-row>
             </v-card-text>
 
+            <v-toolbar v-if="selected.length" density="compact" color="primary" class="px-4">
+                <span class="text-body-2">{{ selected.length }} selezionate</span>
+                <v-spacer />
+                <v-btn variant="flat" color="white" prepend-icon="mdi-link-variant" @click="linkSelected">Collega a ordine</v-btn>
+                <v-btn variant="text" icon="mdi-close" title="Annulla selezione" @click="selected = []" />
+            </v-toolbar>
+
             <v-data-table-server
+                v-model="selected"
+                :show-select="can('expenses.manage')"
+                item-value="id"
                 :headers="headers"
                 :items="expenses.data"
                 :items-length="expenses.meta.total"
@@ -205,6 +234,27 @@ function open(event, { item }) {
                     </v-chip>
                     <v-chip v-else size="small" color="warning" variant="tonal">Da pagare</v-chip>
                 </template>
+                <template #[`item.link`]="{ item }">
+                    <div v-if="item.order" class="text-body-2 text-no-wrap">
+                        <v-icon icon="mdi-clipboard-text-outline" size="small" />
+                        {{ item.order.number }}
+                    </div>
+                    <div v-else-if="item.customer" class="text-body-2">
+                        <v-icon icon="mdi-domain" size="small" />
+                        {{ item.customer.name }}
+                    </div>
+                    <span v-else class="text-caption text-medium-emphasis">Costo interno</span>
+                </template>
+                <template #[`item.actions`]="{ item }">
+                    <v-btn
+                        v-if="item.can?.edit_lines && item.type !== 'credit_note'"
+                        icon="mdi-link-variant"
+                        size="small"
+                        variant="text"
+                        title="Collega a ordine"
+                        @click.stop="openLink([item])"
+                    />
+                </template>
                 <template #no-data>
                     <v-empty-state
                         icon="mdi-receipt-text-outline"
@@ -217,5 +267,6 @@ function open(event, { item }) {
         </v-card>
 
         <DocumentImportDialog v-model="importDialog" kind="expense" />
+        <ExpenseLinkDialog v-model="linkDialog" :expense-ids="linkIds" :current="linkCurrent" @linked="selected = []" />
     </div>
 </template>
