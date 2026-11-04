@@ -2,7 +2,9 @@
 
 namespace App\Console\Commands;
 
+use App\Actions\Documents\ExpenseDraft;
 use App\Models\AiExtraction;
+use App\Models\Expense;
 use App\Support\Ai\OpenRouterClient;
 use App\Support\Settings;
 use Illuminate\Console\Attributes\Description;
@@ -18,7 +20,7 @@ use Throwable;
 #[Description('Show the latest AI document readings (no document contents)')]
 class AiDiagnoseCommand extends Command
 {
-    public function handle(Settings $settings, OpenRouterClient $client): int
+    public function handle(Settings $settings, OpenRouterClient $client, ExpenseDraft $draft): int
     {
         $model = (string) $settings->get('ai.model');
         $this->line('Configured: '.($client->isConfigured() ? 'yes' : 'no').' · model: '.($model ?: '—').' · privacy: '.$settings->get('ai.privacy'));
@@ -57,6 +59,10 @@ class AiDiagnoseCommand extends Command
                 $this->line('   error: '.mb_strimwidth($extraction->error, 0, 600, '…'));
             }
 
+            if ($extraction->succeeded() && $extraction->kind === AiExtraction::KIND_EXPENSE) {
+                $this->checkDraft($extraction, $draft);
+            }
+
             if ($extraction->succeeded()) {
                 $this->line(sprintf(
                     '   filled fields: %d · supplier name: %s · lines: %d · warnings: %s',
@@ -69,5 +75,27 @@ class AiDiagnoseCommand extends Command
         }
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Why the prefilled expense might not save: saved already, supplier, duplicates, invalid lines.
+     */
+    private function checkDraft(AiExtraction $extraction, ExpenseDraft $draft): void
+    {
+        $saved = Expense::query()->where('ai_extraction_id', $extraction->id)->value('id');
+        $defaults = $draft->fromExtraction($extraction)['defaults'];
+        $duplicate = $defaults['supplier_id'] && $defaults['number']
+            ? Expense::query()->where('supplier_id', $defaults['supplier_id'])->where('number', $defaults['number'])->whereYear('document_date', substr($defaults['document_date'], 0, 4))->value('id')
+            : null;
+        $badLines = collect($defaults['lines'])->filter(fn (array $line) => (float) $line['quantity'] <= 0 || blank($line['vat_rate_id']) || blank($line['description']))->count();
+
+        $this->line(sprintf(
+            '   expense saved: %s · supplier matched: %s · same supplier document already recorded: %s · invalid lines: %d of %d',
+            $saved ? "yes (#{$saved})" : 'no',
+            $defaults['supplier_id'] ? 'yes' : 'no',
+            $duplicate ? "yes (#{$duplicate})" : 'no',
+            $badLines,
+            count($defaults['lines']),
+        ));
     }
 }

@@ -7,6 +7,7 @@ use App\Enums\OrganizationRole;
 use App\Enums\PaymentMethod;
 use App\Enums\QuoteLineType;
 use App\Models\AiExtraction;
+use App\Models\Expense;
 use App\Models\Organization;
 use App\Models\VatRate;
 use App\Rules\ItalianTaxCode;
@@ -50,11 +51,16 @@ class ExpenseDraft
             ]);
         }
 
+        $number = $this->string($data['number'] ?? null, 64);
+        $duplicate = $supplierId && $number
+            ? Expense::query()->where('supplier_id', $supplierId)->where('number', $number)->whereYear('document_date', substr($date, 0, 4))->first()
+            : null;
+
         return [
             'defaults' => [
                 'type' => $type->value,
                 'supplier_id' => $supplierId,
-                'number' => $this->string($data['number'] ?? null, 64),
+                'number' => $number,
                 'document_date' => $date,
                 'title' => $this->string($data['description'] ?? null, 255),
                 'payment_method' => $method?->value,
@@ -73,6 +79,12 @@ class ExpenseDraft
                 'file_mime' => $extraction->mime_type,
                 'document_total' => $documentTotal,
                 'supplier_suggestion' => $suggestion,
+                // The same supplier document is already recorded (e.g. read before from a screenshot).
+                'duplicate' => $duplicate ? [
+                    'id' => $duplicate->id,
+                    'label' => trim($duplicate->type->label().' '.$duplicate->number),
+                    'date' => $duplicate->document_date->toDateString(),
+                ] : null,
                 'warnings' => array_values(array_unique($warnings)),
             ],
         ];

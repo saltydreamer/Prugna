@@ -9,7 +9,7 @@ import QuoteLinesEditor from '@/components/sales/QuoteLinesEditor.vue';
 import QuoteTotalsCard from '@/components/sales/QuoteTotalsCard.vue';
 import { useInertiaLink } from '@/composables/useInertiaLink';
 import { usePermissions } from '@/composables/usePermissions';
-import { formatMoney } from '@/utils/format';
+import { formatDate, formatMoney } from '@/utils/format';
 import { quoteTotals } from '@/utils/quoteTotals';
 
 const props = defineProps({
@@ -152,6 +152,16 @@ const backUrl = computed(() => (isNew.value ? route('purchases.expenses.index') 
             <ul v-if="review.warnings.length" class="ml-4 mt-2 text-body-2">
                 <li v-for="(warning, index) in review.warnings" :key="index">{{ warning }}</li>
             </ul>
+        </v-alert>
+
+        <v-alert v-if="review?.duplicate" type="error" variant="tonal" class="mb-6" title="Documento già registrato">
+            <div class="text-body-2">
+                {{ review.duplicate.label }} del {{ formatDate(review.duplicate.date) }} di questo fornitore è già tra le spese: non può essere
+                registrato due volte.
+            </div>
+            <template #append>
+                <v-btn variant="text" v-bind="link(route('purchases.expenses.show', review.duplicate.id))">Apri la spesa</v-btn>
+            </template>
         </v-alert>
 
         <v-form @submit.prevent="submit">
@@ -365,7 +375,12 @@ const backUrl = computed(() => (isNew.value ? route('purchases.expenses.index') 
                                 {{ isNew ? 'Registra spesa' : 'Salva' }}
                             </v-btn>
                         </div>
-                        <div v-if="Object.keys(form.errors).length" class="text-error text-body-2 mb-4">Controlla i campi evidenziati.</div>
+                        <v-alert v-if="Object.keys(form.errors).length" type="error" variant="tonal" density="compact" class="mb-4">
+                            <div class="text-body-2 font-weight-medium">Non salvata:</div>
+                            <ul class="ml-4 text-body-2">
+                                <li v-for="(message, field) in form.errors" :key="field">{{ message }}</li>
+                            </ul>
+                        </v-alert>
 
                         <v-card v-if="showOriginal" title="Documento originale" :subtitle="review.file_name">
                             <v-img v-if="review.file_mime.startsWith('image/')" :src="review.file_url" max-height="700" contain />
