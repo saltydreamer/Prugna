@@ -308,7 +308,7 @@ const backUrl = computed(() => (isNew.value ? route('interventions.index') : rou
                                         variant="outlined"
                                         divided
                                         class="w-100"
-                                        style="height: 56px"
+                                        style="height: 40px"
                                     >
                                         <v-btn
                                             v-for="mode in modes"

@@ -1,7 +1,219 @@
-/* Global tweaks on top of Vuetify. Prefer Vuetify utility classes and component defaults. */
+/*
+ * Global look on top of Vuetify: compact type (13–14 px), Inter, hairline borders, no shadows.
+ * Component defaults (density, variants) live in resources/js/plugins/vuetify.js.
+ */
 
 html {
     overflow-y: auto;
+    /* Vuetify typography is in rem: 14 px makes the whole scale ~12% smaller. */
+    font-size: 14px;
+}
+
+:root {
+    --app-font: 'Inter Variable', 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+body,
+.v-application,
+.v-application [class*='text-'] {
+    font-family: var(--app-font) !important;
+    letter-spacing: normal;
+}
+
+.v-application {
+    font-feature-settings: 'cv11', 'ss01';
+    -webkit-font-smoothing: antialiased;
+}
+
+.mdi::before {
+    font-family: 'Material Design Icons' !important;
+}
+
+/* Headings: tighter and lighter. */
+.text-h4 {
+    font-size: 1.6rem !important;
+    font-weight: 600 !important;
+    letter-spacing: -0.01em !important;
+}
+
+.text-h5 {
+    font-size: 1.35rem !important;
+    font-weight: 600 !important;
+    letter-spacing: -0.01em !important;
+}
+
+.text-h6 {
+    font-size: 1.1rem !important;
+    font-weight: 600 !important;
+}
+
+.text-subtitle-1 {
+    font-size: 0.95rem !important;
+}
+
+.text-subtitle-2 {
+    font-size: 0.86rem !important;
+    font-weight: 600 !important;
+}
+
+.text-body-1 {
+    font-size: 0.95rem !important;
+}
+
+.text-body-2 {
+    font-size: 0.875rem !important;
+}
+
+.text-caption {
+    font-size: 0.78rem !important;
+    letter-spacing: normal !important;
+}
+
+.text-overline {
+    font-size: 0.7rem !important;
+    letter-spacing: 0.06em !important;
+    font-weight: 600 !important;
+}
+
+/* Cards */
+.v-card-title {
+    font-size: 1rem;
+    font-weight: 600;
+    letter-spacing: -0.005em;
+    line-height: 1.4;
+}
+
+.v-card-subtitle {
+    font-size: 0.82rem;
+    opacity: 0.7;
+}
+
+.v-card-item {
+    padding: 14px 16px 8px;
+}
+
+/* Outlined fields right below a card title need room for their floating label. */
+.v-card-item + .v-card-text {
+    padding-top: 10px;
+}
+
+.v-card-text {
+    font-size: 0.9rem;
+}
+
+.v-card--variant-tonal .v-card-subtitle {
+    opacity: 0.85;
+}
+
+/* Buttons: sentence case, medium weight, one consistent size per button size. */
+.v-btn {
+    text-transform: none;
+    letter-spacing: normal;
+    font-weight: 500;
+}
+
+.v-btn.v-btn--size-default {
+    font-size: 0.93rem !important;
+}
+
+.v-btn.v-btn--size-small {
+    font-size: 0.84rem !important;
+}
+
+.v-btn.v-btn--size-x-small {
+    font-size: 0.75rem !important;
+}
+
+.v-btn.v-btn--size-large {
+    font-size: 1rem !important;
+}
+
+/* Page header actions wrap tighter on phones. */
+@media (max-width: 599px) {
+    .page-header__actions .v-btn.v-btn--size-default {
+        font-size: 0.86rem !important;
+        padding: 0 10px;
+        height: 32px;
+    }
+}
+
+/* Fields */
+.v-field {
+    font-size: 0.9rem;
+}
+
+.v-label {
+    font-size: 0.875rem;
+}
+
+.v-messages {
+    font-size: 0.75rem;
+}
+
+/* Lists (navigation, details) */
+.v-list-item-title {
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+.v-list-item-subtitle {
+    font-size: 0.8rem;
+}
+
+.v-list-subheader {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    min-height: 32px;
+}
+
+/* Tables: muted small-caps header, roomy rows. */
+.v-table {
+    font-size: 0.875rem;
+}
+
+.v-table > .v-table__wrapper > table > thead > tr > th {
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: rgba(var(--v-theme-on-surface), 0.6);
+    background: rgb(var(--v-theme-surface));
+    white-space: nowrap;
+}
+
+.v-table.v-table--density-compact > .v-table__wrapper > table > tbody > tr > td {
+    height: 40px;
+}
+
+.v-data-table-footer {
+    font-size: 0.8rem;
+}
+
+/* Tabs */
+.v-tab.v-btn {
+    font-size: 0.93rem !important;
+    min-width: 0;
+    text-transform: none;
+}
+
+/* Chips and alerts */
+.v-chip {
+    font-weight: 500;
+}
+
+.v-alert {
+    font-size: 0.875rem;
+}
+
+.v-alert-title {
+    font-size: 0.95rem;
+}
+
+/* Dialog titles */
+.v-dialog .v-card-title {
+    font-size: 1.05rem;
 }
 
 .text-pre-line {
@@ -10,4 +222,34 @@ html {
 
 .cursor-pointer {
     cursor: pointer;
+}
+
+/* Links: accent color, underline only on hover. */
+.v-application a:not(.v-btn):not(.v-list-item):not(.v-chip):not(.v-card) {
+    color: rgb(var(--v-theme-primary));
+    text-decoration: none;
+}
+
+.v-application a:not(.v-btn):not(.v-list-item):not(.v-chip):not(.v-card):hover {
+    text-decoration: underline;
+}
+
+/* Subtle top bar and drawer on the page background. */
+.v-app-bar.v-toolbar {
+    background: rgba(var(--v-theme-surface), 0.92) !important;
+    backdrop-filter: saturate(180%) blur(8px);
+}
+
+.v-navigation-drawer {
+    background: rgb(var(--v-theme-surface));
+}
+
+/* Stat cards: tonal colored cards stay readable but calmer. */
+.v-card--variant-tonal {
+    border-color: transparent !important;
+}
+
+/* Snackbars: compact. */
+.v-snackbar__content {
+    font-size: 0.875rem;
 }
