@@ -66,6 +66,22 @@ class Organization extends Model
     }
 
     /**
+     * @return HasMany<Order, $this>
+     */
+    public function orders(): HasMany
+    {
+        return $this->hasMany(Order::class);
+    }
+
+    /**
+     * @return HasMany<Intervention, $this>
+     */
+    public function interventions(): HasMany
+    {
+        return $this->hasMany(Intervention::class);
+    }
+
+    /**
      * @return HasOne<Contact, $this>
      */
     public function primaryContact(): HasOne
@@ -131,6 +147,7 @@ class Organization extends Model
         return Quote::query()->where('organization_id', $this->id)->exists()
             || Order::query()->where('organization_id', $this->id)->exists()
             || Invoice::query()->where('organization_id', $this->id)->exists()
+            || Intervention::query()->where('organization_id', $this->id)->exists()
             || PurchaseOrder::query()->where('supplier_id', $this->id)->orWhere('customer_id', $this->id)->exists();
     }
 

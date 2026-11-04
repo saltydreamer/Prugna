@@ -14,6 +14,7 @@ enum UnitOfMeasure: string
     case Year = 'anno';
     case Lump = 'forfait';
     case Meter = 'm';
+    case Kilometer = 'km';
     case SquareMeter = 'm²';
     case Kilogram = 'kg';
     case Liter = 'l';
@@ -28,6 +29,7 @@ enum UnitOfMeasure: string
             self::Year => 'Anni',
             self::Lump => 'A corpo (forfait)',
             self::Meter => 'Metri (m)',
+            self::Kilometer => 'Chilometri (km)',
             self::SquareMeter => 'Metri quadri (m²)',
             self::Kilogram => 'Chilogrammi (kg)',
             self::Liter => 'Litri (l)',

@@ -45,6 +45,8 @@ enum Role: string
                 Permission::QuotesCreate,
                 Permission::QuotesUpdate,
                 Permission::QuotesDelete,
+                Permission::InterventionsView,
+                Permission::InterventionsManage,
             ],
         };
     }

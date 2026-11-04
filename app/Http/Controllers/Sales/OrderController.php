@@ -7,6 +7,7 @@ use App\Actions\Purchases\RebillCosts;
 use App\Enums\ExpenseType;
 use App\Enums\InvoiceType;
 use App\Enums\OrderStatus;
+use App\Enums\Permission;
 use App\Enums\PurchaseOrderStatus;
 use App\Enums\QuoteStatus;
 use App\Http\Controllers\Controller;
@@ -14,6 +15,7 @@ use App\Http\Requests\Sales\OrderRequest;
 use App\Http\Resources\OrderResource;
 use App\Models\Expense;
 use App\Models\ExpenseLine;
+use App\Models\Intervention;
 use App\Models\InvoiceLine;
 use App\Models\Order;
 use App\Models\Organization;
@@ -141,6 +143,9 @@ class OrderController extends Controller
             'purchasing' => $request->user()->can('viewAny', PurchaseOrder::class) || $request->user()->can('viewAny', Expense::class) ? $this->purchasing($order, $rebillCosts) : null,
             'statuses' => OrderStatus::options(),
             'organizationArchived' => $order->organization?->trashed() ?? false,
+            'interventions' => $request->user()->can('viewAny', Intervention::class) || $request->user()->can(Permission::InvoicesManage->value)
+                ? Intervention::summary(Intervention::query()->where('order_id', $order->id))
+                : null,
         ]);
     }
 

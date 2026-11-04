@@ -71,6 +71,13 @@
 - Document reading: `App\Support\Ai\DocumentReader` stores the upload and returns an `AiExtraction` (status, result, model, tokens, cost, time). FatturaPA XML / .p7m are parsed by `App\Support\FatturaPa\FatturaPaReader` (no AI); photos (shrunk to 2000 px) and PDFs go to `OpenRouterClient` (chat completions, `response_format` json_schema strict, `provider` with `require_parameters` and `data_collection: deny` / `zdr`, PDFs via the `file-parser` plugin). Schemas and instructions in `DocumentSchemas`; drafts built by `ExpenseDraft` / `OrganizationDraft` (supplier matched by VAT/CF, customers never used as suppliers, VAT rates mapped, total checked). Nothing is saved until the user confirms the prefilled form (`?extraction=ID`).
 - Settings `ai.enabled`, `ai.api_key` (encrypted, never sent to the frontend), `ai.model` (chosen from the live OpenRouter catalog, cached 6 h), `ai.privacy`. Permission `ai.use` (XML import doesn't need it). In tests fake `openrouter.ai/*` with `Http::fake`.
 
+## Interventions (Interventi)
+
+- `Intervention` (numbering `INT-2026-0001` from `started_at`, saved with `SaveIntervention`): customer, optional location/contact/order, `InterventionCategory`, `InterventionMode` remote|onsite, technician, `started_at` (UTC; local times use `config('app.display_timezone')` / `localStart()`), `duration_minutes` (null = timer running), description, internal notes, `billable`; on site only: `callout`, `km`, `travel_minutes`, `InterventionMaterial` lines (remote interventions drop them). Status is derived (`InterventionStatus`: running / to_invoice / invoiced / not_billable).
+- Timer: `interventions.start` (one running per user) / `interventions.stop` (duration = elapsed minutes); the running one is the shared prop `runningIntervention` (chip + stop button in the app bar, start dialog `InterventionStartDialog.vue`).
+- Billing: time and travel are rounded up to `interventions.rounding_minutes` (1/15/30/60, default 30: `Intervention::roundUp()`, mirrored in `resources/js/utils/duration.js`). Each category bills hours with its remote/onsite service (`ResolvePrice`, so customer prices apply); call-out, km and travel use the services in `interventions.{callout,km,travel}_product_id`. `App\Actions\Interventions\BillInterventions` builds the lines (one set per intervention, or grouped per category+mode with extras on their own lines); every line lists its `interventions` ids, stored by `SaveInvoice` in `invoice_line_interventions`. `InvoiceRequest` checks customer, completed, billable and single use. Invoiced interventions (credit notes excluded) are frozen. Endpoints `sales.invoices.lookup.interventions`, `sales.invoices.lookup.intervention-lines` (editor), `sales.invoices.from-interventions`; UI `InterventionInvoiceDialog.vue` (list, intervention, order and customer pages, invoice editor).
+- Settings page `interventions.settings.*` (permission `settings.manage`): categories (services can be created on the fly from a price), rounding, extra services. Permissions `interventions.view` / `interventions.manage` (own interventions), `interventions.supervise` (everyone's, `Intervention::visibleTo()`).
+
 ## Frontend
 
 - Pages: `resources/js/pages/**` (lowercase directory, e.g. `admin/users/Index`). Layout is chosen automatically in `resources/js/app.js` (`auth/*` → `AuthLayout`, else `AppLayout`).
@@ -78,7 +85,7 @@
 - Links: use `useInertiaLink().link(route('name'))` with `v-bind` on Vuetify components (`v-btn`, `v-list-item`...).
 - Toasts: server side `Inertia::flash('toast', ['type' => 'success', 'message' => '...'])`; client side `useToast()`.
 - Confirmations: `await useConfirm().confirm({...})`.
-- Shared props: `auth` (user, roles, permissions), `inbox` (unread_count, latest), `app`, `status` (Fortify).
+- Shared props: `auth` (user, roles, permissions), `inbox` (unread_count, latest), `app`, `status` (Fortify), `runningIntervention`.
 - Component defaults (variants, density...) are set once in `resources/js/plugins/vuetify.js`.
 
 ## Quality

@@ -6,11 +6,13 @@ import PageHeader from '@/components/PageHeader.vue';
 import DocumentLinesTable from '@/components/sales/DocumentLinesTable.vue';
 import CostInvoiceDialog from '@/components/sales/CostInvoiceDialog.vue';
 import InvoiceDialog from '@/components/sales/InvoiceDialog.vue';
+import InterventionInvoiceDialog from '@/components/interventions/InterventionInvoiceDialog.vue';
 import QuoteTotalsCard from '@/components/sales/QuoteTotalsCard.vue';
 import { useConfirm } from '@/composables/useConfirm';
 import { useInertiaLink } from '@/composables/useInertiaLink';
 import { usePermissions } from '@/composables/usePermissions';
 import { formatDate, formatMoney } from '@/utils/format';
+import { formatHours, formatMinutes } from '@/utils/duration';
 
 const props = defineProps({
     order: { type: Object, required: true },
@@ -20,7 +22,11 @@ const props = defineProps({
     purchasing: { type: Object, default: null },
     statuses: { type: Array, required: true },
     organizationArchived: { type: Boolean, default: false },
+    /** Interventions linked to the order (null without access). */
+    interventions: { type: Object, default: null },
 });
+
+const interventionDialog = ref(false);
 
 const { link } = useInertiaLink();
 const { confirm } = useConfirm();
@@ -275,11 +281,55 @@ async function destroy() {
                     </v-card-actions>
                 </v-card>
 
+                <v-card v-if="interventions" class="mb-6" title="Interventi" prepend-icon="mdi-timer-outline">
+                    <v-card-text>
+                        <div class="d-flex justify-space-between text-body-2 mb-1">
+                            <span>Registrati</span>
+                            <span>{{ interventions.count }} · {{ formatMinutes(interventions.minutes) }}</span>
+                        </div>
+                        <div class="d-flex justify-space-between text-body-2">
+                            <span>Da fatturare</span>
+                            <strong>{{ interventions.to_invoice_count }} · {{ formatHours(interventions.to_invoice_minutes) }}</strong>
+                        </div>
+                    </v-card-text>
+                    <v-card-actions class="flex-wrap ga-2">
+                        <v-btn
+                            v-if="can('invoices.manage') && interventions.to_invoice_count && order.status !== 'cancelled'"
+                            block
+                            color="primary"
+                            variant="flat"
+                            prepend-icon="mdi-receipt-text-plus-outline"
+                            @click="interventionDialog = true"
+                        >
+                            Fattura interventi
+                        </v-btn>
+                        <v-btn
+                            v-if="interventions.count && (can('interventions.view') || can('interventions.supervise'))"
+                            block
+                            variant="tonal"
+                            prepend-icon="mdi-format-list-bulleted"
+                            v-bind="link(route('interventions.index', { order: order.id }))"
+                        >
+                            Vedi interventi
+                        </v-btn>
+                        <v-btn
+                            v-if="can('interventions.manage') && order.status !== 'cancelled'"
+                            block
+                            variant="tonal"
+                            prepend-icon="mdi-plus"
+                            v-bind="link(route('interventions.create', { order: order.id }))"
+                        >
+                            Registra intervento
+                        </v-btn>
+                    </v-card-actions>
+                </v-card>
+
                 <QuoteTotalsCard :totals="order.totals" />
             </v-col>
         </v-row>
 
         <CostInvoiceDialog v-model="costDialog" :organization-id="order.organization_id" :order-id="order.id" />
+        <InterventionInvoiceDialog v-model="interventionDialog" :organization-id="order.organization_id" :order-id="order.id" />
 
         <InvoiceDialog
             v-model="invoiceDialog"

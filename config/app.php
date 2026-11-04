@@ -67,6 +67,9 @@ return [
 
     'timezone' => 'UTC',
 
+    // Timezone used to show and print local times (e.g. interventions): data stays in UTC.
+    'display_timezone' => env('APP_DISPLAY_TIMEZONE', 'Europe/Rome'),
+
     /*
     |--------------------------------------------------------------------------
     | Application Locale Configuration

@@ -3,10 +3,12 @@
 namespace App\Actions\Invoices;
 
 use App\Actions\Documents\DocumentTotals;
+use App\Actions\Interventions\BillInterventions;
 use App\Actions\Purchases\RebillCosts;
 use App\Enums\InvoiceStatus;
 use App\Enums\InvoiceType;
 use App\Enums\QuoteLineType;
+use App\Models\Intervention;
 use App\Models\Invoice;
 use App\Models\Order;
 use App\Models\Organization;
@@ -25,7 +27,7 @@ use Illuminate\Validation\ValidationException;
  */
 class BuildInvoice
 {
-    public function __construct(private Settings $settings, private RebillCosts $rebillCosts, private RegimeVatRate $vatRates) {}
+    public function __construct(private Settings $settings, private RebillCosts $rebillCosts, private RegimeVatRate $vatRates, private BillInterventions $billInterventions) {}
 
     /**
      * @return array<string, mixed>
@@ -71,6 +73,34 @@ class BuildInvoice
             'customer_reference' => $order?->customer_reference,
             'customer_reference_date' => $order?->customer_reference_date?->toDateString(),
             'lines' => $this->rebillCosts->lines($costs, $markups, $grouped, $description, $listDetails),
+        ];
+    }
+
+    /**
+     * Invoice for interventions of a customer, optionally for an order.
+     *
+     * @param  Collection<int, Intervention>  $interventions
+     * @return array<string, mixed>
+     */
+    public function fromInterventions(int $customerId, ?Order $order, Collection $interventions, bool $grouped = false, bool $listDetails = true): array
+    {
+        $lines = $this->billInterventions->lines($interventions, $grouped, $listDetails);
+
+        if ($lines === []) {
+            throw ValidationException::withMessages(['interventions' => __('Gli interventi scelti non hanno nulla da fatturare.')]);
+        }
+
+        $customer = Organization::query()->findOrFail($customerId);
+        $header = $this->header($customer->id, null, $order?->payment_term_id ?? $customer->payment_term_id, $order?->title ?? __('Interventi di assistenza :period', ['period' => BillInterventions::period($interventions)]));
+
+        return [
+            ...$header,
+            'type' => InvoiceType::Invoice,
+            'order_id' => $order?->id,
+            'quote_id' => $order?->quote_id,
+            'customer_reference' => $order?->customer_reference,
+            'customer_reference_date' => $order?->customer_reference_date?->toDateString(),
+            'lines' => $lines,
         ];
     }
 
