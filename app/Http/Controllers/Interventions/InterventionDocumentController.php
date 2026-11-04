@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Interventions;
 
+use App\Actions\Interventions\SignIntervention;
 use App\Http\Controllers\Controller;
 use App\Mail\DocumentMail;
 use App\Models\Intervention;
@@ -13,7 +14,6 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Symfony\Component\HttpFoundation\Response;
 use Throwable;
@@ -23,9 +23,6 @@ use Throwable;
  */
 class InterventionDocumentController extends Controller
 {
-    /** Largest accepted signature image (PNG data URL), in bytes once decoded. */
-    private const MAX_SIGNATURE_BYTES = 512 * 1024;
-
     public function pdf(Request $request, Intervention $intervention, InterventionPdf $pdf): Response
     {
         $this->authorize('view', $intervention);
@@ -121,29 +118,16 @@ class InterventionDocumentController extends Controller
     /**
      * Customer signature drawn on the device (PNG data URL): the intervention is then final.
      */
-    public function sign(Request $request, Intervention $intervention): RedirectResponse
+    public function sign(Request $request, Intervention $intervention, SignIntervention $sign): RedirectResponse
     {
         $this->authorize('sign', $intervention);
 
         $data = $request->validate([
             'signed_by_name' => ['required', 'string', 'max:120'],
-            'signature' => ['required', 'string', 'starts_with:data:image/png;base64,', 'max:'.(int) (self::MAX_SIGNATURE_BYTES * 1.4)],
+            'signature' => ['required', 'string', 'starts_with:'.SignIntervention::PREFIX, 'max:'.(int) (SignIntervention::MAX_BYTES * 1.4)],
         ], [], ['signed_by_name' => 'nome di chi firma', 'signature' => 'firma']);
 
-        $png = base64_decode(substr($data['signature'], strlen('data:image/png;base64,')), true);
-
-        if ($png === false || strlen($png) > self::MAX_SIGNATURE_BYTES || ! str_starts_with($png, "\x89PNG\r\n\x1a\n")) {
-            throw ValidationException::withMessages(['signature' => __('La firma non è valida: riprova.')]);
-        }
-
-        $path = "interventions/signatures/{$intervention->id}-".now()->format('YmdHis').'.png';
-        Storage::disk('local')->put($path, $png);
-
-        $intervention->forceFill([
-            'signature_path' => $path,
-            'signed_by_name' => $data['signed_by_name'],
-            'signed_at' => now(),
-        ])->saveQuietly();
+        $sign->handle($intervention, $data['signed_by_name'], $data['signature']);
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Rapportino firmato da :name.', ['name' => $data['signed_by_name']])]);
 

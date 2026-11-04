@@ -26,7 +26,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  */
 #[Fillable([
     'organization_id', 'location_id', 'contact_id', 'order_id', 'category_id', 'mode', 'technician_id', 'started_at',
-    'duration_minutes', 'description', 'internal_notes', 'billable', 'callout', 'km', 'travel_minutes', 'skip_contract',
+    'duration_minutes', 'description', 'internal_notes', 'billable', 'callout', 'km', 'travel_minutes', 'skip_contract', 'client_uuid',
 ])]
 class Intervention extends Model
 {

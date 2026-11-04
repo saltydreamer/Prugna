@@ -6,6 +6,7 @@ import AvatarForm from './partials/AvatarForm.vue';
 import BrowserSessions from './partials/BrowserSessions.vue';
 import DeleteAccount from './partials/DeleteAccount.vue';
 import NotificationPreferencesForm from './partials/NotificationPreferencesForm.vue';
+import PushNotificationsCard from './partials/PushNotificationsCard.vue';
 import PasswordForm from './partials/PasswordForm.vue';
 import ProfileInformationForm from './partials/ProfileInformationForm.vue';
 import TwoFactorAuthentication from './partials/TwoFactorAuthentication.vue';
@@ -79,7 +80,10 @@ watch(
         </v-tabs-window-item>
 
         <v-tabs-window-item value="notifications">
-            <NotificationPreferencesForm :user="user" />
+            <div class="d-flex flex-column ga-6">
+                <PushNotificationsCard />
+                <NotificationPreferencesForm :user="user" />
+            </div>
         </v-tabs-window-item>
 
         <v-tabs-window-item value="sessions">

@@ -7,6 +7,8 @@ use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
+use NotificationChannels\WebPush\WebPushChannel;
+use NotificationChannels\WebPush\WebPushMessage;
 
 /**
  * Base class for every notification shown in the notification center.
@@ -67,7 +69,26 @@ abstract class AppNotification extends Notification implements ShouldQueue
             $channels[] = 'mail';
         }
 
+        // Phones and computers where the user turned on notifications.
+        if ($notifiable instanceof User && $notifiable->pushSubscriptions()->exists()) {
+            $channels[] = WebPushChannel::class;
+        }
+
         return $channels;
+    }
+
+    /**
+     * Push notification shown by the service worker (resources/js/sw.js); a tap opens the action URL.
+     */
+    public function toWebPush(object $notifiable, mixed $notification = null): WebPushMessage
+    {
+        return (new WebPushMessage)
+            ->title($this->title())
+            ->body($this->message())
+            ->icon('/icons/icon-192.png')
+            ->badge('/icons/badge-96.png')
+            ->tag(class_basename(static::class).'-'.$this->id)
+            ->data(['url' => $this->actionUrl() ?? route('notifications.index')]);
     }
 
     public function toMail(object $notifiable): MailMessage

@@ -8,6 +8,9 @@ import vuetify from './plugins/vuetify';
 import AppLayout from './layouts/AppLayout.vue';
 import AuthLayout from './layouts/AuthLayout.vue';
 import PublicLayout from './layouts/PublicLayout.vue';
+import { registerServiceWorker } from './utils/pwa';
+
+registerServiceWorker();
 
 createInertiaApp({
     title: (title, page) => {
@@ -51,7 +54,7 @@ createInertiaApp({
             .mount(el);
     },
     progress: {
-        color: '#7986CB',
+        color: '#4F46E5',
         showSpinner: false,
     },
 });

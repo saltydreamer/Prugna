@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Policies\RolePolicy;
 use App\Support\MailSettings;
 use App\Support\Settings;
+use App\Support\WebPushKeys;
 use Carbon\CarbonImmutable;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
@@ -16,6 +17,7 @@ use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
+use NotificationChannels\WebPush\WebPushChannel;
 use Spatie\Permission\Models\Role;
 
 class AppServiceProvider extends ServiceProvider
@@ -39,6 +41,7 @@ class AppServiceProvider extends ServiceProvider
         $this->configureDefaults();
 
         $this->app->afterResolving('mail.manager', fn () => $this->app->make(MailSettings::class)->apply());
+        $this->app->beforeResolving(WebPushChannel::class, fn () => $this->app->make(WebPushKeys::class)->apply());
 
         $this->configureRateLimiting();
     }
