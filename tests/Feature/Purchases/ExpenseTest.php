@@ -125,6 +125,64 @@ class ExpenseTest extends TestCase
         $this->actingAs($this->admin)->delete("/purchases/expenses/{$expense->id}")->assertForbidden();
     }
 
+    public function test_expenses_are_linked_to_an_order_in_bulk(): void
+    {
+        $order = Order::factory()->create();
+        $first = Expense::factory()->create();
+        $second = Expense::factory()->create();
+        $first->lines()->update(['rebill' => false, 'markup_percent' => 0]);
+
+        $this->actingAs($this->admin)->getJson('/purchases/expenses/link-options')
+            ->assertOk()
+            ->assertJsonPath('orders.0.value', $order->id);
+
+        $this->actingAs($this->admin)->patch('/purchases/expenses/link', [
+            'ids' => [$first->id, $second->id],
+            'order_id' => $order->id,
+            'rebill' => true,
+            'markup_percent' => 15,
+        ])->assertRedirect();
+
+        foreach ([$first, $second] as $expense) {
+            $expense->refresh();
+            $this->assertSame($order->id, $expense->order_id);
+            $this->assertSame($order->organization_id, $expense->customer_id);
+            $this->assertTrue($expense->lines()->first()->rebill);
+            $this->assertSame('15.00', $expense->lines()->first()->markup_percent);
+        }
+
+        // The costs are now offered for the order.
+        $this->actingAs($this->admin)->getJson("/sales/invoices/lookup/costs?organization_id={$order->organization_id}&order_id={$order->id}")
+            ->assertJsonCount(2, 'data');
+
+        // Only to a customer, then back to an internal cost.
+        $customer = Organization::factory()->create();
+        $this->actingAs($this->admin)->patch('/purchases/expenses/link', ['ids' => [$first->id], 'customer_id' => $customer->id, 'rebill' => false]);
+        $this->assertNull($first->fresh()->order_id);
+        $this->assertSame($customer->id, $first->fresh()->customer_id);
+        $this->assertFalse($first->fresh()->lines()->first()->rebill);
+
+        $this->actingAs($this->admin)->patch('/purchases/expenses/link', ['ids' => [$first->id], 'rebill' => true]);
+        $this->assertNull($first->fresh()->customer_id);
+        $this->assertFalse($first->fresh()->lines()->first()->rebill);
+
+        // A supplier is not a customer.
+        $this->actingAs($this->admin)->patch('/purchases/expenses/link', ['ids' => [$first->id], 'customer_id' => Organization::factory()->supplier()->create()->id])
+            ->assertSessionHasErrors('customer_id');
+    }
+
+    public function test_invoiced_expenses_cannot_be_relinked(): void
+    {
+        $customer = Organization::factory()->withDetails(1, 0)->create();
+        $order = Order::factory()->create(['organization_id' => $customer->id]);
+        $expense = Expense::factory()->create(['order_id' => $order->id, 'customer_id' => $customer->id]);
+        $this->actingAs($this->admin)->post("/sales/orders/{$order->id}/invoice", ['mode' => 'full', 'include_costs' => true]);
+
+        $this->actingAs($this->admin)->patch('/purchases/expenses/link', ['ids' => [$expense->id], 'order_id' => Order::factory()->create()->id])
+            ->assertSessionHasErrors('ids');
+        $this->assertSame($order->id, $expense->fresh()->order_id);
+    }
+
     public function test_expenses_require_their_permissions(): void
     {
         $user = User::factory()->withRole(Role::User)->create();

@@ -161,6 +161,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('documents/{extraction}/file', [DocumentImportController::class, 'file'])->name('documents.file');
 
     Route::prefix('purchases')->name('purchases.')->group(function () {
+        Route::get('expenses/link-options', [ExpenseController::class, 'linkOptions'])->name('expenses.link-options');
+        Route::patch('expenses/link', [ExpenseController::class, 'link'])->name('expenses.link');
         Route::resource('expenses', ExpenseController::class);
         Route::patch('expenses/{expense}/payment', [ExpenseController::class, 'payment'])->name('expenses.payment');
         Route::get('expenses/{expense}/attachment', [ExpenseController::class, 'attachment'])->name('expenses.attachment');

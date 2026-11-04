@@ -3,6 +3,7 @@ import { computed, ref } from 'vue';
 import { router, useForm } from '@inertiajs/vue3';
 import { route } from 'ziggy-js';
 import PageHeader from '@/components/PageHeader.vue';
+import ExpenseLinkDialog from '@/components/purchases/ExpenseLinkDialog.vue';
 import CostInvoiceDialog from '@/components/sales/CostInvoiceDialog.vue';
 import QuoteTotalsCard from '@/components/sales/QuoteTotalsCard.vue';
 import { useConfirm } from '@/composables/useConfirm';
@@ -19,6 +20,7 @@ const { link } = useInertiaLink();
 const { confirm } = useConfirm();
 const { can } = usePermissions();
 const costDialog = ref(false);
+const linkDialog = ref(false);
 const unbilledKeys = computed(() => props.expense.lines.filter((line) => line.type === 'item' && !line.rebilled_in).map((line) => `ex-${line.id}`));
 const canInvoiceCosts = computed(
     () => can('invoices.manage') && props.expense.customer_id && props.expense.type !== 'credit_note' && unbilledKeys.value.length > 0,
@@ -75,6 +77,14 @@ async function destroy() {
                     v-bind="link(route('purchases.expenses.edit', expense.id))"
                 >
                     Modifica
+                </v-btn>
+                <v-btn
+                    v-if="expense.can?.edit_lines && expense.type !== 'credit_note'"
+                    variant="tonal"
+                    prepend-icon="mdi-link-variant"
+                    @click="linkDialog = true"
+                >
+                    {{ expense.order_id || expense.customer_id ? 'Cambia collegamento' : 'Collega a ordine' }}
                 </v-btn>
                 <v-btn v-if="canInvoiceCosts" color="primary" variant="tonal" prepend-icon="mdi-cash-plus" @click="costDialog = true">
                     Fattura al cliente
@@ -245,10 +255,16 @@ async function destroy() {
                     </v-card-text>
                 </v-card>
                 <v-alert v-if="!expense.customer_id && expense.type !== 'credit_note'" type="info" variant="tonal" class="mt-6">
-                    Per addebitare questa spesa a un cliente, collegala a un ordine o a un cliente da «Modifica».
+                    Per addebitare questa spesa a un cliente, usa «Collega a ordine».
                 </v-alert>
             </v-col>
         </v-row>
+
+        <ExpenseLinkDialog
+            v-model="linkDialog"
+            :expense-ids="[expense.id]"
+            :current="{ order_id: expense.order_id, customer_id: expense.customer_id }"
+        />
 
         <CostInvoiceDialog
             v-if="expense.customer_id"
