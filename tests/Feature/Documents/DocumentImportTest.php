@@ -135,6 +135,15 @@ class DocumentImportTest extends TestCase
 
         $this->assertSame($extraction->file_path, Expense::sole()->attachment_path);
         $this->assertSame('xml', Expense::sole()->source);
+
+        // Reading the same document again warns that it's already recorded.
+        $this->actingAs($this->admin)->post('/documents/read', [
+            'kind' => 'expense',
+            'file' => UploadedFile::fake()->createWithContent('copia.xml', $xml),
+        ]);
+
+        $this->actingAs($this->admin)->get('/purchases/expenses/create?extraction='.AiExtraction::latest('id')->value('id'))
+            ->assertInertia(fn (Assert $page) => $page->where('review.duplicate.id', Expense::sole()->id));
     }
 
     public function test_signed_p7m_invoices_are_unwrapped(): void
