@@ -21,10 +21,17 @@ class FatturaPaXml
 
     private DOMDocument $document;
 
+    private ?string $progressiveOverride = null;
+
     public function __construct(private Settings $settings, private InvoiceCalculator $calculator) {}
 
-    public function make(Invoice $invoice): string
+    /**
+     * @param  string|null  $progressive  ProgressivoInvio of the file (each SDI transmission has its own).
+     */
+    public function make(Invoice $invoice, ?string $progressive = null): string
     {
+        $this->progressiveOverride = $progressive;
+
         $invoice->loadMissing(['lines', 'relatedInvoice']);
 
         $company = $this->settings->group('company');
@@ -57,16 +64,25 @@ class FatturaPaXml
     /**
      * IT{partita IVA}_{progressivo}.xml, progressive of 5 alphanumeric characters.
      */
-    public function filename(Invoice $invoice): string
+    public function filename(Invoice $invoice, ?string $progressive = null): string
     {
         $company = $this->settings->group('company');
 
-        return 'IT'.($company['vat_number'] ?? $company['tax_code'] ?? '').'_'.$this->progressive($invoice).'.xml';
+        return 'IT'.($company['vat_number'] ?? $company['tax_code'] ?? '').'_'.($progressive ?? $this->progressive($invoice)).'.xml';
     }
 
     private function progressive(Invoice $invoice): string
     {
-        return str_pad(strtoupper(base_convert((string) $invoice->id, 10, 36)), 5, '0', STR_PAD_LEFT);
+        return $this->progressiveOverride ?? str_pad(strtoupper(base_convert((string) $invoice->id, 10, 36)), 5, '0', STR_PAD_LEFT);
+    }
+
+    /**
+     * ProgressivoInvio of an SDI transmission: "S" + 4 base-36 characters, never equal to the
+     * progressive of the downloadable XML (which starts with "0").
+     */
+    public static function transmissionProgressive(int $transmissionId): string
+    {
+        return 'S'.str_pad(strtoupper(base_convert((string) $transmissionId, 10, 36)), 4, '0', STR_PAD_LEFT);
     }
 
     /**

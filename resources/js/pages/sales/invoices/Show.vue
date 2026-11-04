@@ -5,6 +5,7 @@ import { route } from 'ziggy-js';
 import PageHeader from '@/components/PageHeader.vue';
 import DocumentLinesTable from '@/components/sales/DocumentLinesTable.vue';
 import InvoiceTotalsCard from '@/components/sales/InvoiceTotalsCard.vue';
+import SdiCard from '@/components/sdi/SdiCard.vue';
 import { useConfirm } from '@/composables/useConfirm';
 import { useInertiaLink } from '@/composables/useInertiaLink';
 import { formatDate, formatMoney } from '@/utils/format';
@@ -15,6 +16,8 @@ const props = defineProps({
     /** Field => message: what prevents issuing the draft. */
     problems: { type: [Object, Array], default: () => ({}) },
     fiscal: { type: Object, required: true },
+    /** SDI transmissions ({ enabled, environment, transmissions }). */
+    sdi: { type: Object, default: () => ({ enabled: false, transmissions: [] }) },
 });
 
 const { link } = useInertiaLink();
@@ -116,7 +119,7 @@ async function destroy() {
             <strong>Emetti</strong>
             per assegnare il numero.
         </v-alert>
-        <v-alert v-else type="success" variant="tonal" class="mb-6" icon="mdi-cloud-upload-outline">
+        <v-alert v-else-if="!sdi.enabled && !sdi.transmissions.length" type="success" variant="tonal" class="mb-6" icon="mdi-cloud-upload-outline">
             Scarica l'
             <strong>XML SdI</strong>
             e caricalo su «Fatture e corrispettivi» dell'Agenzia delle Entrate (Fatture elettroniche → Trasmissione → Upload file fattura). Il PDF è
@@ -203,6 +206,8 @@ async function destroy() {
 
             <v-col cols="12" lg="4">
                 <InvoiceTotalsCard :totals="allTotals" :invoice="invoice" :pension-label="pensionLabel" class="mb-6" />
+
+                <SdiCard v-if="!isDraft" :invoice="invoice" :sdi="sdi" class="mb-6" />
 
                 <v-card title="Dati fiscali">
                     <v-list density="compact">

@@ -133,6 +133,13 @@ const navigation = computed(() => {
                     permission: 'expenses.view',
                 },
                 {
+                    title: 'Fatture ricevute',
+                    icon: 'mdi-inbox-arrow-down-outline',
+                    route: 'purchases.received.index',
+                    active: 'purchases.received.*',
+                    permission: 'expenses.view',
+                },
+                {
                     title: 'Ordini fornitore',
                     icon: 'mdi-cart-outline',
                     route: 'purchases.orders.index',
@@ -211,10 +218,17 @@ const navigation = computed(() => {
                     permission: 'notifications.send',
                 },
                 {
+                    title: 'Fatturazione elettronica',
+                    icon: 'mdi-bank-transfer',
+                    route: 'settings.einvoicing.index',
+                    active: 'settings.einvoicing.*',
+                    permission: 'settings.manage',
+                },
+                {
                     title: 'Impostazioni',
                     icon: 'mdi-cog-outline',
                     route: 'settings.index',
-                    active: 'settings.*',
+                    active: () => route().current('settings.*') && !route().current('settings.einvoicing.*'),
                     permission: 'settings.manage',
                 },
             ],

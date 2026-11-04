@@ -22,17 +22,20 @@ use App\Http\Controllers\PublicArea\PublicQuoteController;
 use App\Http\Controllers\Purchases\ExpenseController;
 use App\Http\Controllers\Purchases\PurchaseOrderController;
 use App\Http\Controllers\Purchases\PurchaseOrderDocumentController;
+use App\Http\Controllers\Purchases\ReceivedInvoiceController;
 use App\Http\Controllers\Registry\ContactController;
 use App\Http\Controllers\Registry\LocationController;
 use App\Http\Controllers\Registry\OrganizationController;
 use App\Http\Controllers\Sales\InterventionInvoiceController;
 use App\Http\Controllers\Sales\InvoiceController;
 use App\Http\Controllers\Sales\InvoiceDocumentController;
+use App\Http\Controllers\Sales\InvoiceSdiController;
 use App\Http\Controllers\Sales\OrderController;
 use App\Http\Controllers\Sales\OrderDocumentController;
 use App\Http\Controllers\Sales\QuoteController;
 use App\Http\Controllers\Sales\QuoteDocumentController;
 use App\Http\Controllers\Sales\QuoteLookupController;
+use App\Http\Controllers\Settings\ElectronicInvoicingController;
 use App\Http\Controllers\Settings\PaymentTermController;
 use App\Http\Controllers\Settings\SettingsController;
 use Illuminate\Routing\RedirectController;
@@ -159,6 +162,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::post('issue', 'issue')->name('issue');
             Route::post('credit-note', 'creditNote')->name('credit-note');
         });
+        Route::controller(InvoiceSdiController::class)->prefix('invoices/{invoice}/sdi')->name('invoices.sdi.')->group(function () {
+            Route::post('send', 'send')->middleware('throttle:20,1')->name('send');
+            Route::post('refresh', 'refresh')->middleware('throttle:20,1')->name('refresh');
+        });
         Route::controller(InvoiceDocumentController::class)->prefix('invoices/{invoice}')->name('invoices.')->group(function () {
             Route::get('pdf', 'pdf')->name('pdf');
             Route::get('xml', 'xml')->name('xml');
@@ -169,6 +176,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('documents/{extraction}/file', [DocumentImportController::class, 'file'])->name('documents.file');
 
     Route::prefix('purchases')->name('purchases.')->group(function () {
+        Route::get('received-invoices', [ReceivedInvoiceController::class, 'index'])->name('received.index');
+        Route::post('received-invoices/import', [ReceivedInvoiceController::class, 'import'])->name('received.import');
+        Route::post('received-invoices/{receivedInvoice}/record', [ReceivedInvoiceController::class, 'record'])->name('received.record');
+        Route::patch('received-invoices/{receivedInvoice}/status', [ReceivedInvoiceController::class, 'updateStatus'])->name('received.status');
+        Route::get('received-invoices/{receivedInvoice}/file', [ReceivedInvoiceController::class, 'file'])->name('received.file');
+
         Route::get('expenses/link-options', [ExpenseController::class, 'linkOptions'])->name('expenses.link-options');
         Route::patch('expenses/link', [ExpenseController::class, 'link'])->name('expenses.link');
         Route::resource('expenses', ExpenseController::class);
@@ -225,6 +238,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::put('ai', 'updateAi')->name('ai.update');
             Route::get('ai/models', 'aiModels')->name('ai.models');
             Route::post('ai/test', 'testAi')->middleware('throttle:10,1')->name('ai.test');
+        });
+
+        Route::controller(ElectronicInvoicingController::class)->prefix('einvoicing')->name('einvoicing.')->group(function () {
+            Route::get('/', 'index')->name('index');
+            Route::put('/', 'update')->name('update');
+            Route::post('connect', 'connect')->middleware('throttle:10,1')->name('connect');
+            Route::put('prices', 'updatePrices')->name('prices');
+            Route::get('costs', 'costs')->name('costs');
+            Route::get('counters', 'counters')->middleware('throttle:20,1')->name('counters');
         });
 
         Route::resource('payment-terms', PaymentTermController::class)->only(['store', 'update', 'destroy']);

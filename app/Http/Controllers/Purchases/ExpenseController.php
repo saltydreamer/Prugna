@@ -16,6 +16,7 @@ use App\Http\Resources\ExpenseResource;
 use App\Models\AiExtraction;
 use App\Models\Expense;
 use App\Models\Order;
+use App\Models\ReceivedInvoice;
 use App\Support\Ai\DocumentReader;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -118,6 +119,12 @@ class ExpenseController extends Controller
     public function store(ExpenseRequest $request, SaveExpense $save): RedirectResponse
     {
         $expense = $save->handle(new Expense, [...$request->validated(), 'attachment' => $request->file('attachment'), 'owner_id' => $request->user()->id]);
+
+        // Recorded from the "Fatture ricevute" inbox.
+        if ($expense->ai_extraction_id) {
+            ReceivedInvoice::query()->where('ai_extraction_id', $expense->ai_extraction_id)->whereNull('expense_id')
+                ->update(['expense_id' => $expense->id, 'status' => ReceivedInvoice::STATUS_RECORDED]);
+        }
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Spesa registrata.')]);
 
