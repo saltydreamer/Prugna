@@ -14,6 +14,8 @@ import { useInertiaLink } from '@/composables/useInertiaLink';
 import { usePermissions } from '@/composables/usePermissions';
 import { THEME_STORAGE_KEY } from '@/plugins/vuetify';
 import { formatElapsed } from '@/utils/duration';
+import { installApp, pwa, tellServiceWorker } from '@/utils/pwa';
+import { fieldQueue, startFieldSync } from '@/utils/fieldQueue';
 
 const page = usePage();
 const theme = useTheme();
@@ -105,6 +107,13 @@ const navigation = computed(() => {
                         !route().current('interventions.settings.*') &&
                         !route().current('interventions.contracts.*'),
                     permission: ['interventions.view', 'interventions.supervise'],
+                },
+                {
+                    title: 'Sul campo',
+                    icon: 'mdi-cellphone-marker',
+                    route: 'field.index',
+                    active: 'field.*',
+                    permission: 'interventions.manage',
                 },
                 {
                     title: 'Contratti monte ore',
@@ -273,7 +282,16 @@ const startDialog = ref(false);
 const now = ref(Date.now());
 let ticker;
 
-onMounted(() => (ticker = setInterval(() => (now.value = Date.now()), 1000)));
+onMounted(() => {
+    ticker = setInterval(() => (now.value = Date.now()), 1000);
+
+    // Interventions recorded offline are sent as soon as there is a connection, from any page.
+    if (can('interventions.manage')) {
+        startFieldSync(user.value.id);
+        // Keep "Interventi sul campo" ready for offline use.
+        navigator.serviceWorker?.ready.then((registration) => registration.active?.postMessage('warm')).catch(() => null);
+    }
+});
 onBeforeUnmount(() => clearInterval(ticker));
 
 const elapsed = computed(() => (running.value ? formatElapsed(running.value.started_at, now.value) : ''));
@@ -285,6 +303,8 @@ function stopRunning() {
 const themeIcon = computed(() => themeOptions.find((option) => option.value === selectedTheme.value)?.icon);
 
 function logout() {
+    // Pages kept for offline use belong to this user.
+    tellServiceWorker('clear');
     router.post(route('logout'));
 }
 </script>
@@ -327,6 +347,29 @@ function logout() {
         <v-app-bar flat border="b" density="compact">
             <v-app-bar-nav-icon @click="toggleDrawer" />
             <v-spacer />
+
+            <v-chip
+                v-if="!fieldQueue.online"
+                color="warning"
+                variant="tonal"
+                prepend-icon="mdi-cloud-off-outline"
+                class="mr-1"
+                v-bind="link(route('field.index'))"
+            >
+                Offline
+            </v-chip>
+            <v-btn
+                v-if="fieldQueue.pending"
+                variant="text"
+                :title="`${fieldQueue.pending} interventi da sincronizzare`"
+                aria-label="Interventi da sincronizzare"
+                v-bind="link(route('field.index'))"
+                icon
+            >
+                <v-badge :content="fieldQueue.pending" color="warning">
+                    <v-icon :icon="fieldQueue.syncing ? 'mdi-cloud-sync-outline' : 'mdi-cloud-upload-outline'" />
+                </v-badge>
+            </v-btn>
 
             <template v-if="running">
                 <v-chip
@@ -408,6 +451,7 @@ function logout() {
                             v-bind="link(route('profile.show', { tab: 'security' }))"
                         />
                         <v-list-item prepend-icon="mdi-bell-outline" title="Notifiche" v-bind="link(route('notifications.index'))" />
+                        <v-list-item v-if="pwa.installable" prepend-icon="mdi-cellphone-arrow-down" title="Installa l'app" @click="installApp" />
                         <v-list-item
                             v-if="can('settings.manage')"
                             prepend-icon="mdi-cog-outline"

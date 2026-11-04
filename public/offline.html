@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#4F46E5">
+    <title>Sei offline</title>
+    <style>
+        :root { color-scheme: light dark; }
+        body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; box-sizing: border-box;
+            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; background: #F8FAFC; color: #0F172A; }
+        .card { max-width: 380px; width: 100%; background: #fff; border: 1px solid rgba(15, 23, 42, .09); border-radius: 12px; padding: 28px 24px; text-align: center; }
+        img { width: 48px; height: 48px; border-radius: 12px; }
+        h1 { font-size: 18px; margin: 16px 0 8px; }
+        p { font-size: 14px; line-height: 1.5; color: #475569; margin: 0 0 20px; }
+        a, button { display: block; width: 100%; box-sizing: border-box; padding: 11px 14px; border-radius: 8px; font: inherit; font-size: 14px; font-weight: 600; text-decoration: none; cursor: pointer; }
+        a { background: #4F46E5; color: #fff; border: 0; margin-bottom: 8px; }
+        button { background: transparent; color: #4F46E5; border: 1px solid rgba(79, 70, 229, .35); }
+        @media (prefers-color-scheme: dark) {
+            body { background: #0B0D12; color: #E2E8F0; }
+            .card { background: #13161D; border-color: rgba(255, 255, 255, .1); }
+            p { color: #94A3B8; }
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <img src="/icons/icon-192.png" alt="">
+        <h1>Sei offline</h1>
+        <p>Questa pagina ha bisogno della connessione. Gli interventi puoi registrarli lo stesso: si sincronizzano da soli quando torna la rete.</p>
+        <a href="/field">Interventi sul campo</a>
+        <button type="button" onclick="location.reload()">Riprova</button>
+    </div>
+</body>
+</html>

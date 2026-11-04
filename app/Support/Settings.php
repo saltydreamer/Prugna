@@ -21,7 +21,7 @@ class Settings
     /**
      * Values stored encrypted in the database.
      */
-    private const ENCRYPTED = ['mail.password', 'ai.api_key', 'sdi.api_key', 'sdi.token', 'sdi.webhook_secret'];
+    private const ENCRYPTED = ['mail.password', 'ai.api_key', 'sdi.api_key', 'sdi.token', 'sdi.webhook_secret', 'push.vapid_private_key'];
 
     /**
      * Defaults used until a value is saved.

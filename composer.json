@@ -15,6 +15,7 @@
         "php": "^8.3",
         "barryvdh/laravel-dompdf": "^3.1",
         "inertiajs/inertia-laravel": "^3.6",
+        "laravel-notification-channels/webpush": "^13.0",
         "laravel/fortify": "^1.41",
         "laravel/framework": "^13.17",
         "laravel/tinker": "^3.0",

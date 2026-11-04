@@ -26,5 +26,16 @@ export default [
             'vue/valid-v-slot': ['error', { allowModifiers: true }],
         },
     },
+    {
+        // The service worker is served as is by PwaController (placeholders replaced at request time).
+        files: ['resources/js/sw.js'],
+        languageOptions: {
+            sourceType: 'script',
+            globals: {
+                ...globals.serviceworker,
+                __ASSETS__: 'readonly',
+            },
+        },
+    },
     prettier,
 ];

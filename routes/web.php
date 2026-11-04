@@ -10,6 +10,7 @@ use App\Http\Controllers\Catalog\CustomerPriceController;
 use App\Http\Controllers\Catalog\ProductController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DocumentImportController;
+use App\Http\Controllers\Field\FieldController;
 use App\Http\Controllers\Interventions\InterventionController;
 use App\Http\Controllers\Interventions\InterventionDocumentController;
 use App\Http\Controllers\Interventions\InterventionSettingsController;
@@ -18,11 +19,13 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\Profile\AvatarController;
 use App\Http\Controllers\Profile\BrowserSessionController;
 use App\Http\Controllers\Profile\ProfileController;
+use App\Http\Controllers\Profile\PushSubscriptionController;
 use App\Http\Controllers\PublicArea\PublicQuoteController;
 use App\Http\Controllers\Purchases\ExpenseController;
 use App\Http\Controllers\Purchases\PurchaseOrderController;
 use App\Http\Controllers\Purchases\PurchaseOrderDocumentController;
 use App\Http\Controllers\Purchases\ReceivedInvoiceController;
+use App\Http\Controllers\Pwa\PwaController;
 use App\Http\Controllers\Registry\ContactController;
 use App\Http\Controllers\Registry\LocationController;
 use App\Http\Controllers\Registry\OrganizationController;
@@ -49,6 +52,10 @@ use Illuminate\Support\Facades\Route;
 
 Route::redirect('/', '/dashboard');
 
+// Installable app: manifest and service worker (public, no session needed).
+Route::get('manifest.webmanifest', [PwaController::class, 'manifest'])->name('pwa.manifest');
+Route::get('sw.js', [PwaController::class, 'serviceWorker'])->name('pwa.sw');
+
 // Quote shared with the customer: no login, the unguessable token is the key.
 Route::prefix('q/{token}')->name('quotes.public.')->middleware('throttle:public-quote')->controller(PublicQuoteController::class)->group(function () {
     Route::get('/', 'show')->name('show');
@@ -65,6 +72,10 @@ Route::middleware('auth')->group(function () {
         Route::post('avatar', [AvatarController::class, 'update'])->name('avatar.update');
         Route::delete('avatar', [AvatarController::class, 'destroy'])->name('avatar.destroy');
         Route::delete('sessions', [BrowserSessionController::class, 'destroy'])->name('sessions.destroy');
+        Route::get('push/key', [PushSubscriptionController::class, 'key'])->name('push.key');
+        Route::post('push/subscriptions', [PushSubscriptionController::class, 'store'])->name('push.store');
+        Route::delete('push/subscriptions', [PushSubscriptionController::class, 'destroy'])->name('push.destroy');
+        Route::post('push/test', [PushSubscriptionController::class, 'test'])->middleware('throttle:5,1')->name('push.test');
     });
 });
 
@@ -227,6 +238,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('contracts/{contract}/invoice', [ServiceContractController::class, 'invoice'])->name('contracts.invoice');
     });
     Route::resource('interventions', InterventionController::class);
+
+    // Phone page that works offline: interventions recorded on the device and synced.
+    Route::get('field', [FieldController::class, 'index'])->name('field.index');
+    Route::post('field/sync', [FieldController::class, 'sync'])->middleware('throttle:120,1')->name('field.sync');
 
     Route::prefix('settings')->name('settings.')->group(function () {
         Route::controller(SettingsController::class)->group(function () {

@@ -9,9 +9,12 @@ import { route } from 'ziggy-js';
 const open = defineModel({ type: Boolean, default: false });
 
 const props = defineProps({
-    interventionId: { type: Number, required: true },
+    /** Without an intervention (offline form) the signature is emitted instead of being sent. */
+    interventionId: { type: Number, default: null },
     defaultName: { type: String, default: '' },
 });
+
+const emit = defineEmits(['signed']);
 
 const canvas = ref(null);
 const name = ref('');
@@ -108,6 +111,13 @@ function clear() {
 }
 
 function save() {
+    if (!props.interventionId) {
+        emit('signed', { name: name.value.trim(), data: canvas.value.toDataURL('image/png') });
+        open.value = false;
+
+        return;
+    }
+
     saving.value = true;
     router.post(
         route('interventions.sign', props.interventionId),
