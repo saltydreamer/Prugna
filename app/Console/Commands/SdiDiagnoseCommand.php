@@ -17,7 +17,7 @@ use Illuminate\Console\Command;
  * latest transmissions, events and calls. Never prints secrets, tokens or invoice contents
  * (only the structure of the responses, i.e. their keys).
  */
-#[Signature('sdi:diagnose {--limit=10 : Rows per section} {--probe : Also list the keys of GET /invoices (shape only)}')]
+#[Signature('sdi:diagnose {--limit=10 : Rows per section}')]
 #[Description('Diagnose the Openapi SDI integration without printing secrets or contents')]
 class SdiDiagnoseCommand extends Command
 {
@@ -102,17 +102,39 @@ class SdiDiagnoseCommand extends Command
             }
 
             foreach ($this->rows($client->apiConfigurations()) as $row) {
-                foreach ((array) ($row['callbacks'] ?? $row['callback'] ?? []) as $callback) {
+                $callbacks = $row['callbacks'] ?? $row['callback'] ?? [];
+                $callbacks = is_array($callbacks) && ! array_is_list($callbacks) ? [$callbacks] : (array) $callbacks;
+
+                foreach ($callbacks as $callback) {
                     if (is_array($callback)) {
-                        $this->line(sprintf('Callback: %s → %s', $callback['event'] ?? '?', $callback['url'] ?? '?'));
+                        $this->line(sprintf('Callback: %s → %s · fiscal_id %s · keys %s', $callback['event'] ?? '?', $callback['url'] ?? '?', $row['fiscal_id'] ?? '?', implode(',', array_keys($row))));
                     }
                 }
             }
 
-            if ($this->option('probe')) {
-                $list = $client->invoices(['per_page' => 1]);
-                $first = is_array($list[0] ?? null) ? $list[0] : (is_array(reset($list)) ? reset($list) : []);
-                $this->line('GET /invoices keys: '.implode(',', array_keys($list)).' · first item keys: '.implode(',', array_keys((array) $first)));
+            $invoices = $client->invoices();
+            $this->line('GET /invoices: '.count($invoices).' items · first item keys: '.implode(',', array_keys((array) (reset($invoices) ?: []))));
+
+            // Status fields of our latest transmissions as Openapi sees them (no invoice contents).
+            foreach (SdiTransmission::query()->whereNotNull('uuid')->latest('id')->limit(3)->get() as $transmission) {
+                $item = collect($invoices)->first(fn ($row) => is_array($row) && ($row['uuid'] ?? null) === $transmission->uuid);
+                $notifications = (array) ($item['notifications'] ?? []);
+
+                $this->line(sprintf(
+                    'Openapi view of #%d: %s · marking %s · notice %s · sdi_file_id %s · sdi_file_name %s · notifications %d (%s) · retry %s',
+                    $transmission->id,
+                    $item ? 'found' : 'not in list',
+                    json_encode($item['marking'] ?? null),
+                    mb_strimwidth((string) json_encode($item['notice'] ?? null), 0, 160, '…'),
+                    json_encode($item['sdi_file_id'] ?? null),
+                    json_encode($item['sdi_file_name'] ?? null),
+                    count($notifications),
+                    implode(' ', array_map(fn ($notification) => is_array($notification) ? ($notification['type'] ?? '?').'['.implode(',', array_keys($notification)).']' : '?', array_slice($notifications, 0, 5))),
+                    mb_strimwidth((string) json_encode($item['retry_information'] ?? null), 0, 120, '…'),
+                ));
+
+                $polled = $client->notifications($transmission->uuid);
+                $this->line('  GET /invoices_notifications: '.count($polled).' · '.implode(' ', array_map(fn ($notification) => ($notification['type'] ?? '?').'['.implode(',', array_keys($notification)).']', array_slice($polled, 0, 5))));
             }
         } catch (OpenapiException $exception) {
             $this->error('Openapi: '.$exception->getMessage());
