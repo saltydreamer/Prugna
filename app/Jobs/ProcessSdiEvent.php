@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Actions\Sdi\ImportReceivedInvoice;
 use App\Enums\SdiStatus;
+use App\Models\ReceivedInvoice;
 use App\Models\SdiEvent;
 use App\Models\SdiTransmission;
 use App\Notifications\SdiOutcomeNotification;
@@ -47,6 +48,7 @@ class ProcessSdiEvent implements ShouldQueue
                 'customer-invoice' => $this->customerInvoice($event, $data),
                 'customer-notification' => $this->notification($event, $data),
                 'supplier-invoice' => $this->supplierInvoice($event, $data, $client, $import),
+                'invoice-status-quarantena', 'invoice-status-invoice-error' => $this->marking($event, $event->payload),
                 default => $event->forceFill(['result' => 'ignored'])->save(),
             };
         } catch (AiException $exception) {
@@ -70,8 +72,13 @@ class ProcessSdiEvent implements ShouldQueue
             $transmission->forceFill(['status' => SdiStatus::Sent, 'sent_at' => $transmission->sent_at ?? now()]);
         }
 
-        if ($transmission && ($fileId = Arr::get($data, 'invoice.sdi_file_id'))) {
+        // Openapi transmits as intermediary, with its own file name and SDI identifier.
+        if ($transmission && ($fileId = Arr::get($data, 'invoice.file_id') ?? Arr::get($data, 'invoice.sdi_file_id'))) {
             $transmission->sdi_file_id = (string) $fileId;
+        }
+
+        if ($transmission && is_string($filename = Arr::get($data, 'invoice.filename')) && $filename !== '') {
+            $transmission->filename = mb_substr($filename, 0, 64);
         }
 
         $transmission?->save();
@@ -113,6 +120,32 @@ class ProcessSdiEvent implements ShouldQueue
     }
 
     /**
+     * Openapi could not hand the invoice to the SDI: "quarantena" (it retries) or "invoice-error" (it gave up).
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private function marking(SdiEvent $event, array $data): void
+    {
+        $data = isset($data['uuid']) ? $data : self::unwrap($data);
+        $transmission = $this->transmission($event, (string) ($data['uuid'] ?? ''));
+        $status = SdiStatus::fromMarking($data['marking'] ?? null);
+        $event->type = isset($data['marking']) ? mb_substr((string) $data['marking'], 0, 16) : null;
+
+        if ($transmission && $status && ! in_array($transmission->status, [SdiStatus::Delivered, SdiStatus::NotDelivered, SdiStatus::Rejected, SdiStatus::Accepted, SdiStatus::Refused, SdiStatus::Expired], true)) {
+            $notice = is_string($data['notice'] ?? null) ? $data['notice'] : null;
+            $transmission->forceFill([
+                'status' => $status,
+                'message' => $status === SdiStatus::Error
+                    ? __('Openapi non è riuscito a consegnare la fattura allo SDI: :notice', ['notice' => $notice ?? '—'])
+                    : __('In quarantena presso Openapi, che riprova l\'invio: :notice', ['notice' => $notice ?? '—']),
+            ])->save();
+            $this->sync($transmission);
+        }
+
+        $event->forceFill(['result' => $transmission ? 'done' : 'unmatched'])->save();
+    }
+
+    /**
      * @param  array<string, mixed>  $data
      */
     private function supplierInvoice(SdiEvent $event, array $data, OpenapiClient $client, ImportReceivedInvoice $import): void
@@ -120,6 +153,13 @@ class ProcessSdiEvent implements ShouldQueue
         $uuid = Arr::get($data, 'invoice.uuid') ?? Arr::get($data, 'uuid');
         $uuid = is_string($uuid) ? $uuid : null;
         $event->uuid = $uuid;
+
+        // Already received (callback repeated, or recovered from the list): no paid download.
+        if ($uuid && ($existing = ReceivedInvoice::query()->where('uuid', $uuid)->value('id'))) {
+            $event->forceFill(['received_invoice_id' => $existing, 'result' => 'done'])->save();
+
+            return;
+        }
 
         // The callback may carry the XML; otherwise it is downloaded (a cheap paid call).
         $xml = Arr::get($data, 'invoice.xml') ?? Arr::get($data, 'xml');

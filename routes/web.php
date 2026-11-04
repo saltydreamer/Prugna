@@ -165,6 +165,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::controller(InvoiceSdiController::class)->prefix('invoices/{invoice}/sdi')->name('invoices.sdi.')->group(function () {
             Route::post('send', 'send')->middleware('throttle:20,1')->name('send');
             Route::post('refresh', 'refresh')->middleware('throttle:20,1')->name('refresh');
+            Route::post('simulate', 'simulate')->middleware('throttle:20,1')->name('simulate');
         });
         Route::controller(InvoiceDocumentController::class)->prefix('invoices/{invoice}')->name('invoices.')->group(function () {
             Route::get('pdf', 'pdf')->name('pdf');
@@ -178,6 +179,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::prefix('purchases')->name('purchases.')->group(function () {
         Route::get('received-invoices', [ReceivedInvoiceController::class, 'index'])->name('received.index');
         Route::post('received-invoices/import', [ReceivedInvoiceController::class, 'import'])->name('received.import');
+        Route::post('received-invoices/sync', [ReceivedInvoiceController::class, 'sync'])->middleware('throttle:10,1')->name('received.sync');
+        Route::post('received-invoices/simulate', [ReceivedInvoiceController::class, 'simulate'])->middleware('throttle:10,1')->name('received.simulate');
         Route::post('received-invoices/{receivedInvoice}/record', [ReceivedInvoiceController::class, 'record'])->name('received.record');
         Route::patch('received-invoices/{receivedInvoice}/status', [ReceivedInvoiceController::class, 'updateStatus'])->name('received.status');
         Route::get('received-invoices/{receivedInvoice}/file', [ReceivedInvoiceController::class, 'file'])->name('received.file');

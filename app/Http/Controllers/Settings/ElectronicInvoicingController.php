@@ -28,14 +28,14 @@ class ElectronicInvoicingController extends Controller
     public const PRICED_ENDPOINTS = [
         'POST /invoices' => 'Invio di una fattura allo SDI',
         'GET /invoices_download/{id}' => 'Download dell\'XML di una fattura ricevuta',
+        'GET /invoices/{id}' => 'Stato di una fattura',
         'GET /invoices_notifications/{id}' => 'Lettura delle notifiche di una fattura',
-        'GET /invoices' => 'Elenco fatture',
+        'GET /invoices' => 'Elenco fatture (recupero delle ricevute)',
         'POST /business_registry_configurations' => 'Registrazione azienda',
         'GET /business_registry_configurations' => 'Verifica registrazione azienda',
         'POST /api_configurations' => 'Configurazione webhook',
         'GET /api_configurations' => 'Verifica webhook',
         'DELETE /api_configurations/{id}' => 'Rimozione webhook',
-        'POST /simulate-supplier-invoice' => 'Fattura fornitore di prova (solo sandbox)',
     ];
 
     public function __construct(private Settings $settings) {}
@@ -60,7 +60,7 @@ class ElectronicInvoicingController extends Controller
             'prices' => collect(self::PRICED_ENDPOINTS)->map(fn (string $label, string $endpoint) => [
                 'endpoint' => $endpoint,
                 'label' => $label,
-                'price' => (float) (((array) $this->settings->get('sdi.prices'))[$endpoint] ?? 0),
+                ...(OpenapiClient::prices($this->settings)[$endpoint] ?? ['price' => 0, 'free' => 0]),
             ])->values(),
         ]);
     }
@@ -122,10 +122,13 @@ class ElectronicInvoicingController extends Controller
 
         $data = $request->validate([
             'prices' => ['required', 'array'],
-            'prices.*' => ['nullable', 'numeric', 'between:0,100'],
+            'prices.*.price' => ['nullable', 'numeric', 'between:0,100'],
+            'prices.*.free' => ['nullable', 'integer', 'between:0,100000'],
         ]);
 
-        $prices = collect($data['prices'])->only(array_keys(self::PRICED_ENDPOINTS))->map(fn ($price) => round((float) $price, 4))->all();
+        $prices = collect($data['prices'])->only(array_keys(self::PRICED_ENDPOINTS))
+            ->map(fn ($entry) => ['price' => round((float) ($entry['price'] ?? 0), 4), 'free' => (int) ($entry['free'] ?? 0)])
+            ->all();
 
         $this->settings->set(['sdi.prices' => $prices]);
 

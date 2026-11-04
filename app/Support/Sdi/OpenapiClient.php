@@ -94,6 +94,16 @@ class OpenapiClient
     }
 
     /**
+     * An invoice (sent or received) with its "marking" (status at Openapi) and notifications.
+     *
+     * @return array<string, mixed>
+     */
+    public function invoice(string $uuid): array
+    {
+        return $this->json('GET', '/invoices/'.$uuid, fn (PendingRequest $request) => $request->get($this->baseUrl().'/invoices/'.rawurlencode($uuid)));
+    }
+
+    /**
      * Notifications of a sent invoice.
      *
      * @return list<array<string, mixed>>
@@ -107,11 +117,32 @@ class OpenapiClient
 
     /**
      * @param  array<string, scalar|null>  $query
-     * @return array<string, mixed>
+     * @return array<int|string, mixed>
      */
     public function invoices(array $query = []): array
     {
         return $this->json('GET', '/invoices', fn (PendingRequest $request) => $request->get($this->baseUrl().'/invoices', $query));
+    }
+
+    /**
+     * One page of invoices: type 0 sent, 1 received (max 30 per page).
+     *
+     * @param  array<string, scalar|null>  $query
+     * @return array{data: list<array<string, mixed>>, has_more: bool}
+     */
+    public function invoicesPage(int $type, int $page = 1, array $query = []): array
+    {
+        $response = $this->call('GET', '/invoices', fn (PendingRequest $request) => $request->get($this->baseUrl().'/invoices', [
+            'type' => $type,
+            'page' => $page,
+            'itemsPerPage' => 30,
+            ...$query,
+        ]));
+
+        return [
+            'data' => array_values(array_filter((array) $response->json('data'), 'is_array')),
+            'has_more' => (bool) $response->json('hasMore'),
+        ];
     }
 
     /**
@@ -154,17 +185,19 @@ class OpenapiClient
     }
 
     /**
-     * Sandbox only: makes the SDI deliver a test supplier invoice to the callback.
+     * Sandbox only: simulates a "supplier-invoice" (JSON invoice payload) or a "customer-notification"
+     * ({uuid, notification: RC|NS|MC|NE|DT|AT}); Openapi then calls our webhook.
      *
-     * @return array<string, mixed>
+     * @param  array<string, mixed>  $data
+     * @return array<int|string, mixed>
      */
-    public function simulateSupplierInvoice(string $xml): array
+    public function simulate(string $type, array $data): array
     {
-        abort_unless($this->isTest(), 409, 'Solo in ambiente di prova.');
+        if (! $this->isTest()) {
+            throw new OpenapiException(__('La simulazione è disponibile solo in ambiente di prova.'));
+        }
 
-        return $this->json('POST', '/simulate-supplier-invoice', fn (PendingRequest $request) => $request
-            ->withBody($xml, 'application/xml')
-            ->post($this->baseUrl().'/simulate-supplier-invoice'));
+        return $this->json('POST', '/simulate/'.$type, fn (PendingRequest $request) => $request->post($this->baseUrl().'/simulate/'.rawurlencode($type), $data));
     }
 
     /**
@@ -341,8 +374,6 @@ class OpenapiClient
 
     private function log(string $endpoint, ?int $status, bool $ok, int $durationMs, ?string $error): void
     {
-        $prices = (array) $this->settings->get('sdi.prices');
-
         OpenapiCall::create([
             'environment' => $this->environment(),
             'method' => strtok($endpoint, ' '),
@@ -350,13 +381,56 @@ class OpenapiClient
             'http_status' => $status,
             'success' => $ok,
             // Only successful calls are charged; the sandbox is free.
-            'price' => $ok && ! $this->isTest() ? (float) ($prices[$endpoint] ?? 0) : 0,
+            'price' => $ok && ! $this->isTest() ? $this->priceOf($endpoint) : 0,
             'duration_ms' => $durationMs,
             'error' => $error ? mb_substr($error, 0, 500) : null,
             'invoice_id' => $this->invoiceId,
             'user_id' => auth()->id(),
             'created_at' => now(),
         ]);
+    }
+
+    /**
+     * Price of the next call to an endpoint: free while today's free calls last.
+     */
+    public function priceOf(string $endpoint): float
+    {
+        $entry = self::prices($this->settings)[$endpoint] ?? null;
+
+        if (! $entry || $entry['price'] <= 0) {
+            return 0.0;
+        }
+
+        if ($entry['free'] > 0) {
+            $today = OpenapiCall::query()
+                ->where('environment', 'production')
+                ->where('endpoint', $endpoint)
+                ->where('success', true)
+                ->where('created_at', '>=', now()->startOfDay())
+                ->count();
+
+            if ($today < $entry['free']) {
+                return 0.0;
+            }
+        }
+
+        return $entry['price'];
+    }
+
+    /**
+     * The price list: endpoint => {price, free per day} (older numeric entries are prices without free calls).
+     *
+     * @return array<string, array{price: float, free: int}>
+     */
+    public static function prices(Settings $settings): array
+    {
+        $defaults = (array) Settings::DEFAULTS['sdi.prices'];
+
+        return collect([...$defaults, ...(array) $settings->get('sdi.prices')])
+            ->map(fn ($entry) => is_array($entry)
+                ? ['price' => (float) ($entry['price'] ?? 0), 'free' => (int) ($entry['free'] ?? 0)]
+                : ['price' => (float) $entry, 'free' => 0])
+            ->all();
     }
 
     /**

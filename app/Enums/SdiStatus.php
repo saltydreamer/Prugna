@@ -87,6 +87,25 @@ enum SdiStatus: string
     }
 
     /**
+     * From the "marking" of an invoice at Openapi (waiting, sent, quarantena, invoice-error, rejected,
+     * delivered, delivered-pa, not-delivered, accepted-pa, rejected-pa, deadline-terms).
+     */
+    public static function fromMarking(?string $marking): ?self
+    {
+        return match (strtolower(trim((string) $marking))) {
+            'waiting', 'sent', 'quarantena' => self::Sent,
+            'invoice-error' => self::Error,
+            'rejected' => self::Rejected,
+            'delivered', 'delivered-pa' => self::Delivered,
+            'not-delivered', 'non consegnata', 'not_delivered' => self::NotDelivered,
+            'accepted-pa' => self::Accepted,
+            'rejected-pa' => self::Refused,
+            'deadline-terms' => self::Expired,
+            default => null,
+        };
+    }
+
+    /**
      * @return list<array{value: string, title: string}>
      */
     public static function options(): array

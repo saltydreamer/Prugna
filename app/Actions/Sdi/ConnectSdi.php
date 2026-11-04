@@ -10,11 +10,12 @@ use Illuminate\Support\Str;
 /**
  * "Collega": checks the credentials (token for the SDI scopes), registers the company on Openapi
  * (no signature, no legal storage: the Agenzia delle Entrate service keeps them) and points the
- * callbacks of our events to the webhook, authenticated by a secret header.
+ * callbacks of our events to the webhook, authenticated by a secret header. A new API configuration
+ * replaces the previous one of the same fiscal_id.
  */
 class ConnectSdi
 {
-    public const EVENTS = ['customer-invoice', 'customer-notification', 'supplier-invoice'];
+    public const EVENTS = ['customer-invoice', 'customer-notification', 'supplier-invoice', 'invoice-status-quarantena', 'invoice-status-invoice-error'];
 
     public function __construct(private OpenapiClient $client, private Settings $settings) {}
 
