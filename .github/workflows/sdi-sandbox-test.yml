@@ -1,0 +1,39 @@
+name: SDI sandbox test
+
+# Openapi sandbox only: refreshes the callbacks, simulates an SDI outcome and a supplier invoice, then shows the diagnostics.
+on:
+  workflow_dispatch:
+    inputs:
+      notification:
+        description: Outcome to simulate (RC, MC, NS, DT, AT)
+        default: RC
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Configure SSH
+        uses: ./.github/actions/ssh
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          port: ${{ secrets.VPS_PORT }}
+          user: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+
+      - name: Sandbox test
+        env:
+          NOTIFICATION: ${{ inputs.notification }}
+        run: ssh vps "cd /srv/boilerplate && docker compose exec -T app php artisan sdi:sandbox-test --notification=${NOTIFICATION//[^A-Z]/}"
+
+      - name: SDI status
+        run: ssh vps 'cd /srv/boilerplate && docker compose exec -T app php artisan sdi:diagnose --limit=8'

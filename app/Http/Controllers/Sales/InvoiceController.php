@@ -216,6 +216,7 @@ class InvoiceController extends Controller
                     'id' => $transmission->id,
                     'environment' => $transmission->environment,
                     'filename' => $transmission->filename,
+                    'has_uuid' => $transmission->uuid !== null,
                     'status' => $transmission->status->value,
                     'status_label' => $transmission->status->label(),
                     'status_color' => $transmission->status->color(),

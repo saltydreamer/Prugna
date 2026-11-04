@@ -52,10 +52,19 @@ class Settings
         'sdi.enabled' => false,
         'sdi.environment' => 'test',
         'sdi.auto_send' => true,
-        // € per call, VAT excluded (Openapi price list, base prices): editable in Impostazioni → Fatturazione elettronica.
+        // € per call (VAT excluded) and free calls per day, from the Openapi price list (base prices):
+        // editable in Impostazioni → Fatturazione elettronica.
         'sdi.prices' => [
-            'POST /invoices' => 0.07,
-            'GET /invoices_download/{id}' => 0.001,
+            'POST /invoices' => ['price' => 0.07, 'free' => 0],
+            'GET /invoices_download/{id}' => ['price' => 0.001, 'free' => 0],
+            'GET /invoices' => ['price' => 0.001, 'free' => 1000],
+            'GET /invoices/{id}' => ['price' => 0.001, 'free' => 1000],
+            'GET /invoices_notifications/{id}' => ['price' => 0.001, 'free' => 1000],
+            'POST /business_registry_configurations' => ['price' => 0.001, 'free' => 100],
+            'GET /business_registry_configurations' => ['price' => 0.001, 'free' => 1000],
+            'POST /api_configurations' => ['price' => 0.001, 'free' => 400],
+            'GET /api_configurations' => ['price' => 0.001, 'free' => 1000],
+            'DELETE /api_configurations/{id}' => ['price' => 0.001, 'free' => 50],
         ],
         'interventions.rounding_minutes' => 30,
         'interventions.callout_product_id' => null,

@@ -3,14 +3,18 @@
 namespace App\Http\Controllers\Purchases;
 
 use App\Actions\Sdi\ImportReceivedInvoice;
+use App\Actions\Sdi\SimulateSupplierInvoice;
 use App\Http\Controllers\Controller;
+use App\Jobs\ProcessSdiEvent;
 use App\Models\AiExtraction;
 use App\Models\Expense;
 use App\Models\ReceivedInvoice;
+use App\Models\SdiEvent;
 use App\Support\Ai\AiException;
 use App\Support\Ai\DocumentReader;
 use App\Support\FatturaPa\FatturaPaReader;
 use App\Support\Sdi\OpenapiClient;
+use App\Support\Sdi\OpenapiException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -68,6 +72,7 @@ class ReceivedInvoiceController extends Controller
             ],
             'sdi' => [
                 'enabled' => $sdi->isConfigured(),
+                'test' => $sdi->isTest(),
                 'recipient_code' => OpenapiClient::RECIPIENT_CODE,
             ],
         ]);
@@ -149,6 +154,71 @@ class ReceivedInvoiceController extends Controller
         $receivedInvoice->forceFill(['ai_extraction_id' => $extraction->id])->save();
 
         return to_route('purchases.expenses.create', ['extraction' => $extraction->id]);
+    }
+
+    /**
+     * Recovers from Openapi the received invoices not yet here (e.g. a callback that never arrived).
+     */
+    public function sync(OpenapiClient $client): RedirectResponse
+    {
+        $this->authorize('create', Expense::class);
+
+        $created = 0;
+
+        try {
+            for ($page = 1; $page <= 10; $page++) {
+                $result = $client->invoicesPage(1, $page);
+
+                foreach ($result['data'] as $item) {
+                    $uuid = $item['uuid'] ?? null;
+
+                    if (! is_string($uuid) || ReceivedInvoice::query()->where('uuid', $uuid)->exists()) {
+                        continue;
+                    }
+
+                    $event = SdiEvent::create([
+                        'event' => 'supplier-invoice',
+                        'payload' => ['event' => 'supplier-invoice', 'source' => 'sync', 'data' => ['invoice' => ['uuid' => $uuid, 'filename' => $item['sdi_file_name'] ?? null]]],
+                    ]);
+                    ProcessSdiEvent::dispatchSync($event->id);
+                    $created += (int) ($event->refresh()->received_invoice_id !== null);
+                }
+
+                if (! $result['has_more']) {
+                    break;
+                }
+            }
+        } catch (OpenapiException $exception) {
+            Inertia::flash('toast', ['type' => 'error', 'message' => $exception->getMessage()]);
+
+            return back();
+        }
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => $created
+            ? trans_choice('{1} Recuperata 1 fattura.|[2,*] Recuperate :count fatture.', $created)
+            : __('Nessuna fattura nuova su Openapi.')]);
+
+        return back();
+    }
+
+    /**
+     * Sandbox only: Openapi sends a test supplier invoice addressed to us to the supplier-invoice callback.
+     */
+    public function simulate(SimulateSupplierInvoice $simulate): RedirectResponse
+    {
+        $this->authorize('create', Expense::class);
+
+        try {
+            $simulate->handle();
+        } catch (OpenapiException $exception) {
+            Inertia::flash('toast', ['type' => 'error', 'message' => $exception->getMessage()]);
+
+            return back();
+        }
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => __('Fattura di prova richiesta: arriva tra pochi secondi, poi aggiorna la pagina.')]);
+
+        return back();
     }
 
     public function updateStatus(Request $request, ReceivedInvoice $receivedInvoice): RedirectResponse

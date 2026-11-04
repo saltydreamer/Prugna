@@ -36,7 +36,7 @@ function connect() {
     router.post(route('settings.einvoicing.connect'), {}, { preserveScroll: true, onFinish: () => (connecting.value = false) });
 }
 
-const priceForm = useForm({ prices: Object.fromEntries(props.prices.map((item) => [item.endpoint, item.price])) });
+const priceForm = useForm({ prices: Object.fromEntries(props.prices.map((item) => [item.endpoint, { price: item.price, free: item.free }])) });
 
 function savePrices() {
     priceForm.put(route('settings.einvoicing.prices'), { preserveScroll: true });
@@ -179,15 +179,22 @@ async function copy(text) {
 
                 <v-card title="Listino Openapi" subtitle="Prezzo per chiamata, IVA esclusa: serve a calcolare i costi">
                     <v-table density="compact">
+                        <thead>
+                            <tr>
+                                <th>Servizio</th>
+                                <th>Prezzo</th>
+                                <th>Gratis</th>
+                            </tr>
+                        </thead>
                         <tbody>
                             <tr v-for="item in prices" :key="item.endpoint">
                                 <td class="py-1">
                                     <div class="text-body-2">{{ item.label }}</div>
                                     <div class="text-caption text-medium-emphasis">{{ item.endpoint }}</div>
                                 </td>
-                                <td style="width: 130px">
+                                <td style="width: 120px">
                                     <v-text-field
-                                        v-model.number="priceForm.prices[item.endpoint]"
+                                        v-model.number="priceForm.prices[item.endpoint].price"
                                         type="number"
                                         step="0.001"
                                         min="0"
@@ -196,12 +203,23 @@ async function copy(text) {
                                         density="compact"
                                     />
                                 </td>
+                                <td style="width: 110px">
+                                    <v-text-field
+                                        v-model.number="priceForm.prices[item.endpoint].free"
+                                        type="number"
+                                        min="0"
+                                        suffix="/gg"
+                                        hide-details
+                                        density="compact"
+                                        title="Chiamate gratuite al giorno"
+                                    />
+                                </td>
                             </tr>
                         </tbody>
                     </v-table>
                     <v-card-text class="text-caption text-medium-emphasis pb-0">
-                        Prezzi base del listino Openapi (invio 0,07 €, download 0,001 €; le altre chiamate sono gratuite entro i limiti giornalieri).
-                        Con un abbonamento annuale l'invio costa meno: aggiorna qui il tuo prezzo.
+                        Prezzi base del listino Openapi: invio 0,07 €, download 0,001 €; le consultazioni sono gratuite fino alla quota giornaliera,
+                        poi 0,001 €. Con un abbonamento l'invio scende fino a 0,022 €: aggiorna qui il tuo prezzo.
                     </v-card-text>
                     <v-card-actions>
                         <v-spacer />

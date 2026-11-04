@@ -79,6 +79,17 @@ function pick(event) {
     });
 }
 
+const syncing = ref(false);
+
+function sync() {
+    syncing.value = true;
+    router.post(route('purchases.received.sync'), {}, { preserveScroll: true, onFinish: () => (syncing.value = false) });
+}
+
+function simulate() {
+    router.post(route('purchases.received.simulate'), {}, { preserveScroll: true });
+}
+
 function record(item) {
     router.post(route('purchases.received.record', item.id));
 }
@@ -93,6 +104,10 @@ function setStatus(item, status) {
         <PageHeader title="Fatture ricevute" subtitle="Fatture elettroniche dei fornitori arrivate dallo SDI o importate da Fatture e Corrispettivi">
             <template v-if="can('expenses.manage')" #actions>
                 <input ref="input" type="file" multiple accept=".xml,.p7m,.zip" class="d-none" @change="pick" />
+                <v-btn v-if="sdi.enabled && sdi.test" variant="text" prepend-icon="mdi-flask-outline" @click="simulate">Fattura di prova</v-btn>
+                <v-btn v-if="sdi.enabled" variant="tonal" prepend-icon="mdi-cloud-sync-outline" :loading="syncing" @click="sync">
+                    Recupera dallo SDI
+                </v-btn>
                 <v-btn color="primary" prepend-icon="mdi-file-import-outline" :loading="importForm.processing" @click="input.click()">
                     Importa file
                 </v-btn>

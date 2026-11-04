@@ -98,7 +98,7 @@ class OpenapiSdiTest extends TestCase
         Http::assertSent(fn (Request $request) => $request->url() === 'https://test.sdi.openapi.it/business_registry_configurations' && $request->method() === 'POST'
             && $request['fiscal_id'] === '01234567897' && $request['apply_legal_storage'] === false && $request->hasHeader('Authorization', 'Bearer tok-123'));
         Http::assertSent(fn (Request $request) => $request->url() === 'https://test.sdi.openapi.it/api_configurations' && $request->method() === 'POST'
-            && count($request['callbacks']) === 3 && str_contains($request['callbacks'][0]['url'], '/webhooks/openapi/sdi')
+            && count($request['callbacks']) === 5 && str_contains($request['callbacks'][0]['url'], '/webhooks/openapi/sdi')
             && $request['callbacks'][0]['auth_header'] === 'Bearer '.self::SECRET);
         // The token asks only for the SDI scopes of the environment.
         Http::assertSent(fn (Request $request) => str_ends_with($request->url(), '/token') && $request['scopes'] === ['POST:test.sdi.openapi.it/invoices', 'GET:test.sdi.openapi.it/invoices_download']);
@@ -241,6 +241,79 @@ class OpenapiSdiTest extends TestCase
 
         $this->assertSame(2, ReceivedInvoice::count());
         $this->assertSame(ReceivedInvoice::SOURCE_IMPORT, ReceivedInvoice::first()->source);
+    }
+
+    public function test_free_daily_calls_cost_nothing_until_the_quota_is_used(): void
+    {
+        app(Settings::class)->set(['sdi.environment' => 'production', 'sdi.prices' => ['GET /invoices/{id}' => ['price' => 0.001, 'free' => 2]]]);
+        Http::fake([
+            'oauth.openapi.it/scopes*' => Http::response(['data' => ['GET:sdi.openapi.it/invoices']]),
+            'oauth.openapi.it/token' => Http::response(['token' => 'tok-prod']),
+            'sdi.openapi.it/invoices/*' => Http::response(['data' => ['uuid' => 'x', 'marking' => 'sent']]),
+        ]);
+
+        $client = app(OpenapiClient::class);
+        foreach (range(1, 3) as $call) {
+            $client->invoice('9f1c2e44-aa31-4c1f');
+        }
+
+        $this->assertSame(['0.0000', '0.0000', '0.0010'], OpenapiCall::query()->orderBy('id')->pluck('price')->all());
+    }
+
+    public function test_quarantine_and_send_errors_from_openapi(): void
+    {
+        $this->fakeOpenapi(['test.sdi.openapi.it/invoices' => Http::response(['data' => ['uuid' => 'q-1']])]);
+        $invoice = app(IssueInvoice::class)->handle($this->draft());
+        app(SendInvoiceToSdi::class)->handle($invoice);
+
+        // Status callbacks carry no "event": the callback URL names it.
+        $this->postJson('/webhooks/openapi/sdi?event=invoice-status-quarantena', ['uuid' => 'q-1', 'marking' => 'quarantena', 'notice' => 'File non conforme'], ['Authorization' => 'Bearer '.self::SECRET])->assertOk();
+        $this->assertSame(SdiStatus::Sent, $invoice->refresh()->sdi_status);
+        $this->assertStringContainsString('quarantena', $invoice->sdiTransmission->message);
+
+        $this->postJson('/webhooks/openapi/sdi?event=invoice-status-invoice-error', ['uuid' => 'q-1', 'marking' => 'invoice-error', 'notice' => 'Errore di autenticazione con SDI'], ['Authorization' => 'Bearer '.self::SECRET])->assertOk();
+        $this->assertSame(SdiStatus::Error, $invoice->refresh()->sdi_status);
+        $this->assertTrue($invoice->sdiTransmission->status->canResend());
+    }
+
+    public function test_the_outcome_is_read_from_openapi_and_simulated_in_the_sandbox(): void
+    {
+        $this->fakeOpenapi([
+            'test.sdi.openapi.it/invoices' => Http::response(['data' => ['uuid' => 'r-1']]),
+            'test.sdi.openapi.it/invoices/r-1' => Http::response(['data' => ['uuid' => 'r-1', 'marking' => 'delivered', 'sdi_file_id' => '100797808783', 'sdi_file_name' => 'IT10442360961_00Edu.xml']]),
+            'test.sdi.openapi.it/invoices_notifications/r-1' => Http::response(['data' => []]),
+            'test.sdi.openapi.it/simulate/customer-notification' => Http::response(['success' => true]),
+        ]);
+        $invoice = app(IssueInvoice::class)->handle($this->draft());
+        app(SendInvoiceToSdi::class)->handle($invoice);
+
+        $this->actingAs($this->admin)->post("/sales/invoices/{$invoice->id}/sdi/simulate", ['notification' => 'RC'])->assertRedirect();
+        Http::assertSent(fn (Request $request) => str_ends_with($request->url(), '/simulate/customer-notification') && $request['uuid'] === 'r-1' && $request['notification'] === 'RC');
+
+        $this->actingAs($this->admin)->post("/sales/invoices/{$invoice->id}/sdi/refresh")->assertRedirect();
+        $this->assertSame(SdiStatus::Delivered, $invoice->refresh()->sdi_status);
+        $this->assertSame('100797808783', $invoice->sdiTransmission->sdi_file_id);
+        $this->assertSame('IT10442360961_00Edu.xml', $invoice->sdiTransmission->filename);
+    }
+
+    public function test_received_invoices_are_recovered_from_openapi(): void
+    {
+        $xml = app(FatturaPaXml::class)->make(app(IssueInvoice::class)->handle($this->draft()));
+        $this->fakeOpenapi([
+            'test.sdi.openapi.it/invoices?*' => Http::response(['data' => [['uuid' => 'in-7', 'sdi_file_name' => 'IT1_A.xml']], 'hasMore' => false]),
+            'test.sdi.openapi.it/invoices_download/*' => Http::response($xml),
+            'test.sdi.openapi.it/simulate/supplier-invoice' => Http::response(['success' => true]),
+        ]);
+
+        $this->actingAs($this->admin)->post('/purchases/received-invoices/sync')->assertRedirect();
+        $this->actingAs($this->admin)->post('/purchases/received-invoices/sync')->assertRedirect();
+
+        $this->assertSame('in-7', ReceivedInvoice::sole()->uuid);
+        Http::assertSentCount(4 + 2 - 1); // scopes + token, 2 lists, 1 download (the second sync downloads nothing)
+
+        $this->actingAs($this->admin)->post('/purchases/received-invoices/simulate')->assertRedirect();
+        Http::assertSent(fn (Request $request) => str_ends_with($request->url(), '/simulate/supplier-invoice')
+            && $request['fattura_elettronica_header']['cessionario_committente']['dati_anagrafici']['id_fiscale_iva']['id_codice'] === '01234567897');
     }
 
     public function test_endpoints_are_normalized_for_the_price_list(): void

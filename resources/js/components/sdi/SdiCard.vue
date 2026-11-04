@@ -28,6 +28,17 @@ function send() {
     router.post(route('sales.invoices.sdi.send', props.invoice.id), {}, { preserveScroll: true, onFinish: () => (sending.value = false) });
 }
 
+const simulations = [
+    { value: 'RC', title: 'Consegnata (RC)' },
+    { value: 'MC', title: 'Mancata consegna (MC)' },
+    { value: 'NS', title: 'Scartata (NS)' },
+    { value: 'DT', title: 'Decorrenza termini (DT)' },
+];
+
+function simulate(notification) {
+    router.post(route('sales.invoices.sdi.simulate', props.invoice.id), { notification }, { preserveScroll: true });
+}
+
 function refresh() {
     refreshing.value = true;
     router.post(route('sales.invoices.sdi.refresh', props.invoice.id), {}, { preserveScroll: true, onFinish: () => (refreshing.value = false) });
@@ -102,13 +113,20 @@ function refresh() {
                 </template>
             </template>
         </v-card-text>
-        <v-card-actions v-if="canSend || (latest && latest.status === 'sent')">
+        <v-card-actions v-if="canSend || latest?.has_uuid" class="flex-wrap">
             <v-btn v-if="canSend" color="primary" prepend-icon="mdi-send-outline" :loading="sending" @click="send">
                 {{ latest ? 'Invia di nuovo' : 'Invia allo SDI' }}
             </v-btn>
-            <v-btn v-if="latest && latest.status === 'sent'" variant="text" prepend-icon="mdi-refresh" :loading="refreshing" @click="refresh">
-                Aggiorna esito
-            </v-btn>
+            <v-btn v-if="latest?.has_uuid" variant="text" prepend-icon="mdi-refresh" :loading="refreshing" @click="refresh">Aggiorna esito</v-btn>
+            <v-menu v-if="latest?.has_uuid && latest.environment === 'test' && can('invoices.issue')">
+                <template #activator="{ props: activator }">
+                    <v-btn v-bind="activator" variant="text" prepend-icon="mdi-flask-outline">Simula esito</v-btn>
+                </template>
+                <v-list density="compact">
+                    <v-list-subheader>Solo in prova</v-list-subheader>
+                    <v-list-item v-for="item in simulations" :key="item.value" :title="item.title" @click="simulate(item.value)" />
+                </v-list>
+            </v-menu>
         </v-card-actions>
     </v-card>
 </template>

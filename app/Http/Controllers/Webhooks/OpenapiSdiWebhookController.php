@@ -15,7 +15,7 @@ use Illuminate\Http\Request;
  */
 class OpenapiSdiWebhookController extends Controller
 {
-    private const EVENTS = ['customer-invoice', 'customer-notification', 'supplier-invoice', 'legal-storage-receipt', 'legal-storage-missing-vat'];
+    private const EVENTS = ['customer-invoice', 'customer-notification', 'supplier-invoice', 'invoice-status-quarantena', 'invoice-status-invoice-error', 'legal-storage-receipt', 'legal-storage-missing-vat'];
 
     public function __invoke(Request $request, Settings $settings): JsonResponse
     {
@@ -25,6 +25,7 @@ class OpenapiSdiWebhookController extends Controller
         abort_if($secret === '' || ! hash_equals($secret, $given), 401);
 
         $payload = $request->json()->all();
+        // Status callbacks carry no "event" key: every callback URL names its event in the query string.
         $name = (string) ($payload['event'] ?? $request->query('event', ''));
 
         if (! in_array($name, self::EVENTS, true)) {
