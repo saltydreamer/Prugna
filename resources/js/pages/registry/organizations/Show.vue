@@ -6,10 +6,12 @@ import PageHeader from '@/components/PageHeader.vue';
 import CustomerPriceList from '@/components/catalog/CustomerPriceList.vue';
 import ContactDialog from '@/components/registry/ContactDialog.vue';
 import LocationDialog from '@/components/registry/LocationDialog.vue';
+import InterventionInvoiceDialog from '@/components/interventions/InterventionInvoiceDialog.vue';
 import { useConfirm } from '@/composables/useConfirm';
 import { useInertiaLink } from '@/composables/useInertiaLink';
 import { usePermissions } from '@/composables/usePermissions';
 import { formatDate, formatDateTime, formatMoney } from '@/utils/format';
+import { formatHours } from '@/utils/duration';
 
 const props = defineProps({
     organization: { type: Object, required: true },
@@ -21,7 +23,11 @@ const props = defineProps({
     /** null when the user can't see the catalog. */
     customerPrices: { type: Array, default: null },
     productOptions: { type: Array, default: null },
+    /** Customers: interventions counters (null without access). */
+    interventions: { type: Object, default: null },
 });
+
+const interventionDialog = ref(false);
 
 const { link } = useInertiaLink();
 const { confirm } = useConfirm();
@@ -311,6 +317,51 @@ function restore() {
                         </v-card>
                     </v-col>
 
+                    <v-col v-if="interventions" cols="12">
+                        <v-card title="Interventi" prepend-icon="mdi-timer-outline">
+                            <template #append>
+                                <div class="d-flex flex-wrap ga-2">
+                                    <v-btn
+                                        v-if="interventions.count"
+                                        variant="text"
+                                        size="small"
+                                        v-bind="link(route('interventions.index', { customer: organization.id }))"
+                                    >
+                                        Vedi tutti
+                                    </v-btn>
+                                    <v-btn
+                                        v-if="can('interventions.manage') && !archived"
+                                        variant="tonal"
+                                        size="small"
+                                        prepend-icon="mdi-plus"
+                                        v-bind="link(route('interventions.create', { organization: organization.id }))"
+                                    >
+                                        Registra
+                                    </v-btn>
+                                    <v-btn
+                                        v-if="can('invoices.manage') && interventions.to_invoice_count"
+                                        color="primary"
+                                        variant="flat"
+                                        size="small"
+                                        prepend-icon="mdi-receipt-text-plus-outline"
+                                        @click="interventionDialog = true"
+                                    >
+                                        Fattura interventi
+                                    </v-btn>
+                                </div>
+                            </template>
+                            <v-card-text>
+                                <span v-if="!interventions.count" class="text-medium-emphasis">Nessun intervento registrato.</span>
+                                <span v-else>
+                                    {{ interventions.count }} interventi registrati ·
+                                    <strong>{{ interventions.to_invoice_count }} da fatturare</strong>
+                                    <template v-if="interventions.to_invoice_count">({{ formatHours(interventions.to_invoice_minutes) }})</template>
+                                    <template v-if="interventions.running">· {{ interventions.running }} in corso</template>
+                                </span>
+                            </v-card-text>
+                        </v-card>
+                    </v-col>
+
                     <v-col v-if="organization.notes" cols="12">
                         <v-card title="Note">
                             <v-card-text class="text-pre-line">{{ organization.notes }}</v-card-text>
@@ -500,6 +551,8 @@ function restore() {
                 </v-card>
             </v-tabs-window-item>
         </v-tabs-window>
+
+        <InterventionInvoiceDialog v-if="interventions" v-model="interventionDialog" :organization-id="organization.id" />
 
         <LocationDialog v-model="locationDialog" :organization-id="organization.id" :location="editingLocation" :types="locationTypes" />
         <ContactDialog v-model="contactDialog" :organization-id="organization.id" :contact="editingContact" :locations="organization.locations" />

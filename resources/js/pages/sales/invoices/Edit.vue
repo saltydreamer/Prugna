@@ -6,6 +6,7 @@ import PageHeader from '@/components/PageHeader.vue';
 import InvoiceTotalsCard from '@/components/sales/InvoiceTotalsCard.vue';
 import QuoteLinesEditor from '@/components/sales/QuoteLinesEditor.vue';
 import CostInvoiceDialog from '@/components/sales/CostInvoiceDialog.vue';
+import InterventionInvoiceDialog from '@/components/interventions/InterventionInvoiceDialog.vue';
 import ContactDialog from '@/components/registry/ContactDialog.vue';
 import QuickOrganizationDialog from '@/components/registry/QuickOrganizationDialog.vue';
 import { useInertiaLink } from '@/composables/useInertiaLink';
@@ -159,6 +160,17 @@ function addCosts(lines) {
     form.lines = [...form.lines, ...lines.map((line) => ({ ...line, key: `cost-${Date.now()}-${costUid++}`, rebill: false, markup_percent: 0 }))];
 }
 
+// --- Interventions billed ----------------------------------------------------------------
+const interventionsDialog = ref(false);
+const billedInterventions = computed(() => [...new Set(form.lines.flatMap((line) => line.interventions ?? []))]);
+
+function addInterventions(lines) {
+    form.lines = [
+        ...form.lines,
+        ...lines.map((line) => ({ ...line, key: `intervention-${Date.now()}-${costUid++}`, rebill: false, markup_percent: 0 })),
+    ];
+}
+
 function submit() {
     // eslint-disable-next-line no-unused-vars
     const clean = ({ key, id, total, vat_rate, vat_nature, is_optional, is_selected, ...line }) => line;
@@ -298,8 +310,20 @@ const backUrl = computed(() => (isNew.value ? route('sales.invoices.index') : ro
                     </v-card>
 
                     <v-card class="mb-6" title="Righe">
-                        <template v-if="can('purchases.view') && form.type !== 'credit_note'" #append>
+                        <template v-if="form.type !== 'credit_note'" #append>
                             <v-btn
+                                v-if="form.type === 'invoice'"
+                                variant="tonal"
+                                color="secondary"
+                                prepend-icon="mdi-timer-outline"
+                                class="mr-2"
+                                :disabled="!form.organization_id"
+                                @click="interventionsDialog = true"
+                            >
+                                Interventi
+                            </v-btn>
+                            <v-btn
+                                v-if="can('purchases.view')"
                                 variant="tonal"
                                 color="secondary"
                                 prepend-icon="mdi-cart-arrow-right"
@@ -426,6 +450,15 @@ const backUrl = computed(() => (isNew.value ? route('sales.invoices.index') : ro
             :order-id="invoice?.order_id ?? null"
             :exclude="rebilledIds"
             @add="addCosts"
+        />
+
+        <InterventionInvoiceDialog
+            v-model="interventionsDialog"
+            mode="add"
+            :organization-id="form.organization_id"
+            :order-id="invoice?.order_id ?? null"
+            :exclude="billedInterventions"
+            @add="addInterventions"
         />
 
         <ContactDialog

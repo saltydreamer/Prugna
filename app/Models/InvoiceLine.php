@@ -7,6 +7,7 @@ use App\Models\Concerns\IsDocumentLine;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
@@ -54,6 +55,16 @@ class InvoiceLine extends Model
     public function costLinks(): HasMany
     {
         return $this->hasMany(InvoiceLineCost::class);
+    }
+
+    /**
+     * Interventions billed by this line (hours, call-out, km, travel or materials).
+     *
+     * @return BelongsToMany<Intervention, $this>
+     */
+    public function interventions(): BelongsToMany
+    {
+        return $this->belongsToMany(Intervention::class, 'invoice_line_interventions')->withTimestamps();
     }
 
     /**

@@ -10,6 +10,8 @@ use App\Http\Controllers\Catalog\CustomerPriceController;
 use App\Http\Controllers\Catalog\ProductController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DocumentImportController;
+use App\Http\Controllers\Interventions\InterventionController;
+use App\Http\Controllers\Interventions\InterventionSettingsController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\Profile\AvatarController;
 use App\Http\Controllers\Profile\BrowserSessionController;
@@ -21,6 +23,7 @@ use App\Http\Controllers\Purchases\PurchaseOrderDocumentController;
 use App\Http\Controllers\Registry\ContactController;
 use App\Http\Controllers\Registry\LocationController;
 use App\Http\Controllers\Registry\OrganizationController;
+use App\Http\Controllers\Sales\InterventionInvoiceController;
 use App\Http\Controllers\Sales\InvoiceController;
 use App\Http\Controllers\Sales\InvoiceDocumentController;
 use App\Http\Controllers\Sales\OrderController;
@@ -146,6 +149,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('invoices/lookup/costs', [InvoiceController::class, 'costs'])->name('invoices.lookup.costs');
         Route::post('invoices/lookup/cost-lines', [InvoiceController::class, 'costLines'])->name('invoices.lookup.cost-lines');
         Route::post('invoices/from-costs', [InvoiceController::class, 'storeFromCosts'])->name('invoices.from-costs');
+        Route::get('invoices/lookup/interventions', [InterventionInvoiceController::class, 'index'])->name('invoices.lookup.interventions');
+        Route::post('invoices/lookup/intervention-lines', [InterventionInvoiceController::class, 'lines'])->name('invoices.lookup.intervention-lines');
+        Route::post('invoices/from-interventions', [InterventionInvoiceController::class, 'store'])->name('invoices.from-interventions');
         Route::resource('invoices', InvoiceController::class);
         Route::controller(InvoiceController::class)->prefix('invoices/{invoice}')->name('invoices.')->group(function () {
             Route::post('issue', 'issue')->name('issue');
@@ -175,6 +181,22 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::post('send', 'send')->middleware('throttle:10,1')->name('send');
         });
     });
+
+    Route::prefix('interventions')->name('interventions.')->group(function () {
+        Route::controller(InterventionSettingsController::class)->prefix('settings')->name('settings.')->group(function () {
+            Route::get('/', 'index')->name('index');
+            Route::put('/', 'update')->name('update');
+            Route::post('categories', 'storeCategory')->name('categories.store');
+            Route::put('categories/{category}', 'updateCategory')->name('categories.update');
+            Route::delete('categories/{category}', 'destroyCategory')->name('categories.destroy');
+        });
+
+        Route::get('start-options', [InterventionController::class, 'startOptions'])->name('start-options');
+        Route::post('start', [InterventionController::class, 'start'])->name('start');
+        Route::get('customers/{organization}', [InterventionController::class, 'customer'])->name('customer');
+        Route::post('{intervention}/stop', [InterventionController::class, 'stop'])->name('stop');
+    });
+    Route::resource('interventions', InterventionController::class);
 
     Route::prefix('settings')->name('settings.')->group(function () {
         Route::controller(SettingsController::class)->group(function () {

@@ -198,7 +198,7 @@ class InvoiceController extends Controller
     {
         $this->authorize('view', $invoice);
 
-        $invoice->load(['lines.costLinks', 'owner', 'contact', 'quote', 'order', 'relatedInvoice', 'creditNotes']);
+        $invoice->load(['lines.costLinks', 'lines.interventions:id,number', 'owner', 'contact', 'quote', 'order', 'relatedInvoice', 'creditNotes']);
 
         return Inertia::render('sales/invoices/Show', [
             'invoice' => InvoiceResource::make($invoice)->resolve(),
@@ -220,7 +220,7 @@ class InvoiceController extends Controller
 
         $this->authorize('update', $invoice);
 
-        $invoice->load(['lines' => fn ($query) => $query->where(fn ($query) => $query->whereNull('system')->orWhere('system', '!=', 'stamp_duty'))->with('costLinks')]);
+        $invoice->load(['lines' => fn ($query) => $query->where(fn ($query) => $query->whereNull('system')->orWhere('system', '!=', 'stamp_duty'))->with(['costLinks', 'interventions:id'])]);
 
         return Inertia::render('sales/invoices/Edit', [
             'invoice' => InvoiceResource::make($invoice)->resolve(),

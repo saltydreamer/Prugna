@@ -1,17 +1,19 @@
 <script setup>
-import { computed, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { router, usePage, usePoll } from '@inertiajs/vue3';
 import { useDisplay, useTheme } from 'vuetify';
 import { route } from 'ziggy-js';
 
 import ConfirmDialog from '@/components/ConfirmDialog.vue';
 import DocumentImportDialog from '@/components/DocumentImportDialog.vue';
+import InterventionStartDialog from '@/components/interventions/InterventionStartDialog.vue';
 import NotificationBell from '@/components/NotificationBell.vue';
 import ToastQueue from '@/components/ToastQueue.vue';
 import UserAvatar from '@/components/UserAvatar.vue';
 import { useInertiaLink } from '@/composables/useInertiaLink';
 import { usePermissions } from '@/composables/usePermissions';
 import { THEME_STORAGE_KEY } from '@/plugins/vuetify';
+import { formatElapsed } from '@/utils/duration';
 
 const page = usePage();
 const theme = useTheme();
@@ -88,6 +90,25 @@ const navigation = computed(() => {
                     route: 'sales.invoices.index',
                     active: 'sales.invoices.*',
                     permission: 'invoices.view',
+                },
+            ],
+        },
+        {
+            title: 'Assistenza',
+            items: [
+                {
+                    title: 'Interventi',
+                    icon: 'mdi-timer-outline',
+                    route: 'interventions.index',
+                    active: () => route().current('interventions.*') && !route().current('interventions.settings.*'),
+                    permission: ['interventions.view', 'interventions.supervise'],
+                },
+                {
+                    title: 'Impostazioni interventi',
+                    icon: 'mdi-timer-cog-outline',
+                    route: 'interventions.settings.index',
+                    active: 'interventions.settings.*',
+                    permission: 'settings.manage',
                 },
             ],
         },
@@ -222,6 +243,21 @@ function setTheme(value) {
 const importDialog = ref(false);
 const canImport = computed(() => can('expenses.manage') || (can('ai.use') && (can('organizations.create') || can('suppliers.create'))));
 
+// --- Intervention timer -------------------------------------------------------------------
+const running = computed(() => page.props.runningIntervention);
+const startDialog = ref(false);
+const now = ref(Date.now());
+let ticker;
+
+onMounted(() => (ticker = setInterval(() => (now.value = Date.now()), 1000)));
+onBeforeUnmount(() => clearInterval(ticker));
+
+const elapsed = computed(() => (running.value ? formatElapsed(running.value.started_at, now.value) : ''));
+
+function stopRunning() {
+    router.post(route('interventions.stop', running.value.id));
+}
+
 const themeIcon = computed(() => themeOptions.find((option) => option.value === selectedTheme.value)?.icon);
 
 function logout() {
@@ -267,6 +303,36 @@ function logout() {
         <v-app-bar flat border="b">
             <v-app-bar-nav-icon @click="toggleDrawer" />
             <v-spacer />
+
+            <template v-if="running">
+                <v-chip
+                    color="info"
+                    variant="tonal"
+                    prepend-icon="mdi-timer-outline"
+                    class="mr-1 font-weight-medium"
+                    :title="`${running.number} · ${running.customer}`"
+                    v-bind="link(route('interventions.show', running.id))"
+                >
+                    <span class="d-none d-sm-inline mr-2 text-truncate" style="max-width: 180px">{{ running.customer }}</span>
+                    <span style="font-variant-numeric: tabular-nums">{{ elapsed }}</span>
+                </v-chip>
+                <v-btn
+                    icon="mdi-stop-circle-outline"
+                    color="error"
+                    variant="text"
+                    title="Termina intervento"
+                    aria-label="Termina intervento"
+                    @click="stopRunning"
+                />
+            </template>
+            <v-btn
+                v-else-if="can('interventions.manage')"
+                icon="mdi-timer-play-outline"
+                variant="text"
+                title="Avvia intervento"
+                aria-label="Avvia intervento"
+                @click="startDialog = true"
+            />
 
             <v-menu location="bottom end">
                 <template #activator="{ props: activator }">
@@ -340,5 +406,6 @@ function logout() {
         <ToastQueue />
         <ConfirmDialog />
         <DocumentImportDialog v-if="canImport" v-model="importDialog" />
+        <InterventionStartDialog v-if="can('interventions.manage')" v-model="startDialog" />
     </v-app>
 </template>

@@ -74,6 +74,7 @@ class SaveInvoice
                 $lines = array_values(array_filter($lines, fn (array $line) => ($line['system'] ?? null) !== InvoiceLine::SYSTEM_STAMP_DUTY));
                 $created = $this->syncLines->handle($invoice->lines(), $lines, ['order_line_id', 'system', 'deducts_invoice_id']);
                 $this->linkCosts($created, $lines);
+                $this->linkInterventions($created, $lines);
             }
 
             $this->syncStampDuty($invoice);
@@ -103,6 +104,23 @@ class SaveInvoice
                     'ex-' => ['expense_line_id' => $id],
                     default => ['purchase_order_line_id' => $id],
                 });
+            }
+        }
+    }
+
+    /**
+     * Interventions billed by each line ("interventions": [3, 4]).
+     *
+     * @param  list<InvoiceLine>  $created
+     * @param  list<array<string, mixed>>  $lines
+     */
+    private function linkInterventions(array $created, array $lines): void
+    {
+        foreach ($lines as $index => $line) {
+            $ids = array_values(array_unique(array_map('intval', (array) ($line['interventions'] ?? []))));
+
+            if ($ids !== []) {
+                $created[$index]->interventions()->sync($ids);
             }
         }
     }

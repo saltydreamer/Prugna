@@ -83,6 +83,7 @@ function duplicate(index) {
         id: undefined,
         order_line_id: null,
         costs: [],
+        interventions: [],
     });
     lines.value = copy;
 }
@@ -223,6 +224,9 @@ function error(index, field) {
                             </v-chip>
                             <v-chip v-if="line.costs?.length" size="small" variant="tonal" color="secondary" prepend-icon="mdi-cart-arrow-right">
                                 {{ line.costs.length > 1 ? `${line.costs.length} costi ribaltati` : 'Costo ribaltato' }}
+                            </v-chip>
+                            <v-chip v-if="line.interventions?.length" size="small" variant="tonal" color="secondary" prepend-icon="mdi-timer-outline">
+                                {{ line.interventions.length > 1 ? `${line.interventions.length} interventi` : 'Intervento' }}
                             </v-chip>
                             <template v-if="rebillable">
                                 <v-checkbox v-model="line.rebill" label="Da ribaltare al cliente" density="compact" hide-details />

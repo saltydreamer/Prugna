@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Enums\Permission;
+use App\Http\Controllers\Interventions\InterventionController;
 use App\Http\Resources\NotificationResource;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -64,6 +65,13 @@ class HandleInertiaRequests extends Middleware
                 'latest' => NotificationResource::collection(
                     $user->notifications()->latest()->limit(6)->get()
                 )->resolve(),
+            ] : null,
+            // Timer of the intervention in progress, shown in the top bar.
+            'runningIntervention' => fn () => ($running = InterventionController::runningFor($user)) ? [
+                'id' => $running->id,
+                'number' => $running->number,
+                'customer' => $running->organization?->name,
+                'started_at' => $running->started_at->toIso8601String(),
             ] : null,
             // Fortify reports outcomes through the "status" session key.
             'status' => fn () => $request->session()->get('status'),

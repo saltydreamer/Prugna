@@ -5,6 +5,7 @@ namespace App\Http\Requests\Sales;
 use App\Actions\Purchases\RebillCosts;
 use App\Enums\InvoiceType;
 use App\Http\Requests\Concerns\ValidatesDocumentLines;
+use App\Models\Intervention;
 use App\Models\Invoice;
 use App\Models\InvoiceLine;
 use App\Models\OrderLine;
@@ -65,6 +66,8 @@ class InvoiceRequest extends FormRequest
             'lines.*.order_line_id' => ['nullable', 'integer'],
             'lines.*.costs' => ['nullable', 'array', 'max:200'],
             'lines.*.costs.*' => ['string', 'regex:/^(po|ex)-\d+$/'],
+            'lines.*.interventions' => ['nullable', 'array', 'max:500'],
+            'lines.*.interventions.*' => ['integer'],
             'lines.*.system' => ['nullable', Rule::in([InvoiceLine::SYSTEM_DEPOSIT_DEDUCTION])],
             'lines.*.deducts_invoice_id' => ['nullable', 'integer', Rule::exists('invoices', 'id')->where('type', InvoiceType::Deposit->value)],
         ];
@@ -79,6 +82,7 @@ class InvoiceRequest extends FormRequest
             fn (Validator $validator) => $this->requireItemLine($validator),
             fn (Validator $validator) => $this->checkOrderQuantities($validator),
             fn (Validator $validator) => $this->checkRebilledCosts($validator),
+            fn (Validator $validator) => $this->checkInterventions($validator),
         ];
     }
 
@@ -152,6 +156,43 @@ class InvoiceRequest extends FormRequest
                 }
 
                 $seen[$key] = true;
+            }
+        }
+    }
+
+    /**
+     * Billed interventions must belong to this customer, be completed and billable, and not be in another invoice.
+     */
+    private function checkInterventions(Validator $validator): void
+    {
+        $lines = collect($this->input('lines', []))->filter(fn ($line) => ! empty($line['interventions']) && is_array($line['interventions']));
+
+        if ($lines->isEmpty()) {
+            return;
+        }
+
+        $invoice = $this->route('invoice');
+        $customerId = (int) $this->input('organization_id');
+        $interventions = Intervention::query()->with('invoiceLines')->whereIn('id', $lines->flatMap(fn ($line) => $line['interventions'])->map(fn ($id) => (int) $id)->unique()->all())->get()->keyBy('id');
+
+        foreach ($lines as $index => $line) {
+            foreach ($line['interventions'] as $id) {
+                $intervention = $interventions->get((int) $id);
+                $elsewhere = $intervention?->invoiceLines->contains(fn (InvoiceLine $other) => ! $invoice instanceof Invoice || $other->invoice_id !== $invoice->id);
+
+                $message = match (true) {
+                    ! $intervention || $intervention->organization_id !== $customerId => __("L'intervento non appartiene a questo cliente."),
+                    $intervention->isRunning() => __("L'intervento :number è ancora in corso.", ['number' => $intervention->number]),
+                    ! $intervention->billable => __("L'intervento :number non è fatturabile.", ['number' => $intervention->number]),
+                    $elsewhere => __("L'intervento :number è già stato fatturato.", ['number' => $intervention->number]),
+                    default => null,
+                };
+
+                if ($message) {
+                    $validator->errors()->add("lines.{$index}.description", $message);
+
+                    break;
+                }
             }
         }
     }
