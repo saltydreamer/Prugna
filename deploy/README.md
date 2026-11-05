@@ -31,7 +31,7 @@ Tutto si trova in `/srv/boilerplate` (utente `deploy`):
 | --- | --- | --- |
 | `VPS_HOST` | secret | IP del VPS |
 | `VPS_USER` | secret | `root`, usato solo da *Provision server* |
-| `VPS_SSH_KEY` | secret | chiave privata dedicata (commento `github-actions-boilerplate`) |
+| `VPS_SSH_KEY` | secret | chiave privata dedicata, senza passphrase (commento `github-actions-prugna`) |
 | `VPS_PORT` | secret, facoltativo | porta SSH se diversa da 22 |
 | `APP_DOMAIN` | variabile, facoltativa | dominio pubblico (default `dev.reimg.it`) |
 | `APP_NAME` | variabile, facoltativa | nome dell'app mostrato nell'interfaccia e nelle email (default `Prugna`), aggiornato nel `.env` del server a ogni deploy |

@@ -47,8 +47,8 @@ id "$DEPLOY_USER" > /dev/null 2>&1 || useradd --create-home --shell /bin/bash "$
 usermod -aG docker "$DEPLOY_USER"
 install -d -m 700 -o "$DEPLOY_USER" -g "$DEPLOY_USER" "/home/$DEPLOY_USER/.ssh"
 # Authorize only the GitHub Actions key (see the README), not every root key.
-if grep -q 'github-actions-boilerplate' /root/.ssh/authorized_keys; then
-    grep 'github-actions-boilerplate' /root/.ssh/authorized_keys > "/home/$DEPLOY_USER/.ssh/authorized_keys"
+if grep -qE 'github-actions-(boilerplate|prugna)' /root/.ssh/authorized_keys; then
+    grep -E 'github-actions-(boilerplate|prugna)' /root/.ssh/authorized_keys > "/home/$DEPLOY_USER/.ssh/authorized_keys"
 else
     cp /root/.ssh/authorized_keys "/home/$DEPLOY_USER/.ssh/authorized_keys"
 fi
