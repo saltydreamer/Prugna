@@ -140,15 +140,19 @@ class SaveInvoice
     }
 
     /**
-     * Regime, withholding and pension fund parameters as configured now.
+     * Regime, withholding and pension fund parameters as configured now. Without VAT (flat-rate
+     * regime) there is nothing to split: split payment applies only to the other regimes.
      */
     private function freezeFiscalData(Invoice $invoice): void
     {
         $pensionRate = $this->settings->get('fiscal.pension_vat_rate_id') ? VatRate::find($this->settings->get('fiscal.pension_vat_rate_id')) : null;
         $pensionRate ??= VatRate::default();
 
+        $regime = (string) $this->settings->get('fiscal.regime');
+
         $invoice->forceFill([
-            'regime' => $this->settings->get('fiscal.regime'),
+            'regime' => $regime,
+            'split_payment' => (bool) $invoice->split_payment && ! in_array($regime, FiscalCodes::VAT_FREE_REGIMES, true),
             'withholding_type' => $this->settings->get('fiscal.withholding_type'),
             'withholding_rate' => $invoice->apply_withholding ? $this->settings->get('fiscal.withholding_rate') : 0,
             'withholding_reason' => $this->settings->get('fiscal.withholding_reason'),

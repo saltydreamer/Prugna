@@ -162,6 +162,37 @@ class FatturaPaXmlTest extends TestCase
         $this->assertSame('802.00', $this->value($xpath, '//ImportoTotaleDocumento'));
     }
 
+    public function test_public_administration_from_the_flat_rate_regime(): void
+    {
+        app(Settings::class)->set(['fiscal.regime' => 'RF19']);
+        $customer = Organization::factory()->withDetails(1, 0)->create([
+            'type' => OrganizationType::PublicBody,
+            'sdi_code' => 'UFX9Z1',
+            // No VAT in the flat-rate regime: split payment is ignored.
+            'split_payment' => true,
+            'tax_code' => '80012345678',
+        ]);
+
+        $invoice = $this->issue($customer, [
+            ['type' => 'item', 'description' => 'Assistenza informatica', 'quantity' => 1, 'unit_price' => 800, 'vat_rate_id' => VatRate::query()->where('nature', 'N2.2')->value('id')],
+        ], ['cig' => 'Z1234ABCDE', 'cup' => 'J11B21000000001']);
+
+        $this->assertFalse($invoice->fresh()->split_payment);
+
+        [, $xpath] = $this->validXml($invoice);
+
+        $this->assertSame('FPA12', $this->value($xpath, '//FormatoTrasmissione'));
+        $this->assertSame('FPA12', $xpath->document->documentElement->getAttribute('versione'));
+        $this->assertSame('UFX9Z1', $this->value($xpath, '//CodiceDestinatario'));
+        $this->assertSame('RF19', $this->value($xpath, '//RegimeFiscale'));
+        $this->assertSame(0, $xpath->query('//EsigibilitaIVA')->length);
+        $this->assertSame('N2.2', $this->value($xpath, '//DettaglioLinee[1]/Natura'));
+        $this->assertSame('SI', $this->value($xpath, '//DatiBollo/BolloVirtuale'));
+        $this->assertSame('Z1234ABCDE', $this->value($xpath, '//DatiOrdineAcquisto/CodiceCIG'));
+        $this->assertSame('J11B21000000001', $this->value($xpath, '//DatiOrdineAcquisto/CodiceCUP'));
+        $this->assertSame('802.00', $this->value($xpath, '//ImportoPagamento'));
+    }
+
     public function test_public_administration_with_split_payment_and_credit_note(): void
     {
         $customer = Organization::factory()->withDetails(1, 0)->create([

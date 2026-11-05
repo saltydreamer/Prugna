@@ -98,7 +98,7 @@ enum SdiStatus: string
             'rejected' => self::Rejected,
             'delivered', 'delivered-pa' => self::Delivered,
             'not-delivered', 'non consegnata', 'not_delivered' => self::NotDelivered,
-            'accepted-pa' => self::Accepted,
+            'accepted-pa', 'accettata-pa' => self::Accepted,
             'rejected-pa' => self::Refused,
             'deadline-terms' => self::Expired,
             default => null,

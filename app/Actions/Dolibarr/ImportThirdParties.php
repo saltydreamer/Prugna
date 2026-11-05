@@ -55,6 +55,9 @@ class ImportThirdParties
 
         if ($this->sdiField) {
             $report->note(__('Codice SDI letto dal campo aggiuntivo «:field» delle terze parti.', ['field' => $this->sdiField]));
+        } elseif ($fields = $this->filledExtraFields()) {
+            // Only names and how many are filled, never the values: to find where the codes are.
+            $report->note(__('Nessun campo aggiuntivo riconosciuto come codice SDI. Campi aggiuntivi delle terze parti compilati: :fields.', ['fields' => $fields]));
         }
 
         if ($this->pecField) {
@@ -68,6 +71,28 @@ class ImportThirdParties
         }
 
         $this->contacts();
+    }
+
+    /**
+     * Extra fields of the third parties with how many are filled ("codice (12), note (3)").
+     */
+    private function filledExtraFields(): ?string
+    {
+        $counts = [];
+
+        foreach ($this->map->source->columns('societe_extrafields') as $column) {
+            if (in_array($column, ['rowid', 'tms', 'fk_object', 'import_key'], true)) {
+                continue;
+            }
+
+            $filled = count(array_filter($this->extraFields, fn (stdClass $row) => trim((string) ($row->{$column} ?? '')) !== ''));
+
+            if ($filled > 0) {
+                $counts[] = "{$column} ({$filled})";
+            }
+        }
+
+        return $counts ? implode(', ', $counts) : null;
     }
 
     /**

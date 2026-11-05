@@ -127,6 +127,18 @@ async function destroy() {
             </template>
         </PageHeader>
 
+        <v-alert
+            v-if="isDraft && invoice.customer?.is_public_administration && !invoice.cig && !invoice.cup"
+            type="info"
+            variant="tonal"
+            class="mb-6"
+            icon="mdi-bank-outline"
+            title="Fattura alla Pubblica Amministrazione"
+        >
+            Indica il CIG (e il CUP, se previsto) della commessa: senza, molte amministrazioni rifiutano la fattura. Lo trovi nell'ordine o nella
+            determina dell'ente; si inserisce modificando la bozza, nella sezione «CIG / CUP».
+        </v-alert>
+
         <v-alert v-if="isDraft && problemList.length" type="warning" variant="tonal" class="mb-6" title="Prima di emettere">
             <ul class="ml-4">
                 <li v-for="(problem, index) in problemList" :key="index">{{ problem }}</li>
