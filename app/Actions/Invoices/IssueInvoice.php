@@ -56,13 +56,18 @@ class IssueInvoice
      */
     /**
      * What prevents sending an issued invoice that never reached the SDI (e.g. imported from
-     * Dolibarr): the same checks of the issue on company, customer and lines.
+     * Dolibarr): the same checks of the issue on company, customer and lines. Before the first
+     * send the customer data are the current ones (SendInvoiceToSdi refreshes them).
      *
      * @return list<string>
      */
     public function sendProblems(Invoice $invoice): array
     {
-        return array_values(array_intersect_key($this->problems($invoice), array_flip(['company', 'customer', 'lines'])));
+        $checked = $invoice->sdiTransmissions()->exists()
+            ? $invoice
+            : (clone $invoice)->forceFill(['customer' => CustomerSnapshot::from(Organization::withTrashed()->findOrFail($invoice->organization_id))]);
+
+        return array_values(array_intersect_key($this->problems($checked), array_flip(['company', 'customer', 'lines'])));
     }
 
     public function problems(Invoice $invoice): array

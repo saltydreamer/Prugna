@@ -28,7 +28,8 @@ class SendInvoiceToSdi
         $current = $invoice->sdiTransmission;
         abort_if($current && ! $current->status->canResend(), 409, __('La fattura è già stata inviata allo SDI.'));
 
-        if ($current?->status === SdiStatus::Rejected) {
+        // Nothing transmitted yet (first send, or after a rejection): the customer data go out as they are now.
+        if (! $current || $current->status === SdiStatus::Rejected) {
             $invoice->forceFill(['customer' => CustomerSnapshot::from(Organization::withTrashed()->findOrFail($invoice->organization_id))])->save();
         }
 

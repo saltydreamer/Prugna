@@ -47,11 +47,20 @@ class InvoiceSdiExternalTest extends TestCase
         $this->assertTrue($this->admin->can('sendToSdi', $invoice->fresh()));
     }
 
+    public function test_before_the_first_send_the_current_customer_data_count(): void
+    {
+        $invoice = app(IssueInvoice::class)->handle(Invoice::factory()->create());
+        // Data copied on the invoice when it was missing, completed since on the customer.
+        $invoice->forceFill(['customer' => [...$invoice->customer, 'vat_number' => null, 'tax_code' => null]])->save();
+
+        $this->assertSame([], app(IssueInvoice::class)->sendProblems($invoice->fresh()));
+    }
+
     public function test_incomplete_data_are_listed_before_sending(): void
     {
         $invoice = app(IssueInvoice::class)->handle(Invoice::factory()->create());
-        // E.g. an invoice imported with customer data that the issue would have refused.
-        $invoice->forceFill(['customer' => [...$invoice->customer, 'address' => null]])->save();
+        // E.g. an invoice imported for a customer whose data the issue would have refused.
+        $invoice->organization->locations()->update(['address' => '']);
 
         $this->actingAs($this->admin)
             ->get("/sales/invoices/{$invoice->id}")
