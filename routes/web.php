@@ -38,6 +38,7 @@ use App\Http\Controllers\Sales\OrderDocumentController;
 use App\Http\Controllers\Sales\QuoteController;
 use App\Http\Controllers\Sales\QuoteDocumentController;
 use App\Http\Controllers\Sales\QuoteLookupController;
+use App\Http\Controllers\Sales\SubscriptionController;
 use App\Http\Controllers\Settings\DolibarrImportController;
 use App\Http\Controllers\Settings\ElectronicInvoicingController;
 use App\Http\Controllers\Settings\PaymentTermController;
@@ -163,6 +164,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::patch('orders/{order}/status', [OrderController::class, 'updateStatus'])->name('orders.status');
         Route::get('orders/{order}/pdf', [OrderDocumentController::class, 'pdf'])->name('orders.pdf');
         Route::post('orders/{order}/invoice', [InvoiceController::class, 'storeFromOrder'])->name('orders.invoice');
+
+        Route::get('subscriptions/due', [SubscriptionController::class, 'due'])->name('subscriptions.due');
+        Route::post('subscriptions/invoices', [SubscriptionController::class, 'generate'])->name('subscriptions.generate');
+        Route::resource('subscriptions', SubscriptionController::class);
 
         Route::get('invoices/lookup/costs', [InvoiceController::class, 'costs'])->name('invoices.lookup.costs');
         Route::post('invoices/lookup/cost-lines', [InvoiceController::class, 'costLines'])->name('invoices.lookup.cost-lines');

@@ -95,6 +95,13 @@ const navigation = computed(() => {
                     permission: 'invoices.view',
                 },
                 {
+                    title: 'Contratti servizi',
+                    icon: 'mdi-autorenew',
+                    route: 'sales.subscriptions.index',
+                    active: 'sales.subscriptions.*',
+                    permission: ['subscriptions.view', 'subscriptions.manage'],
+                },
+                {
                     title: 'Statistiche',
                     icon: 'mdi-chart-bar',
                     route: 'statistics.index',

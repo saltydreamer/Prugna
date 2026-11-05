@@ -22,6 +22,8 @@ const props = defineProps({
     deleteProblems: { type: Array, default: () => [] },
     /** Deleting the issued invoice frees its number for the next one (it's the last of the series). */
     deleteReusesNumber: { type: Boolean, default: false },
+    /** Service contracts whose fees the invoice bills. */
+    subscriptions: { type: Array, default: () => [] },
 });
 
 const { link } = useInertiaLink();
@@ -184,6 +186,11 @@ async function destroy() {
                                     <div v-if="invoice.order">
                                         Ordine
                                         <a v-bind="link(route('sales.orders.show', invoice.order.id))">{{ invoice.order.number }}</a>
+                                    </div>
+                                    <div v-for="subscription in subscriptions" :key="subscription.id">
+                                        Canoni del contratto
+                                        <a v-bind="link(route('sales.subscriptions.show', subscription.id))">{{ subscription.number }}</a>
+                                        ({{ subscription.title }})
                                     </div>
                                     <div v-if="invoice.quote">
                                         Preventivo

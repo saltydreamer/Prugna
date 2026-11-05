@@ -94,6 +94,7 @@ class QuoteLookupController extends Controller
             $user->can('create', Quote::class)
             || $user->can(Permission::OrdersManage->value)
             || $user->can(Permission::InvoicesManage->value)
+            || $user->can(Permission::SubscriptionsManage->value)
             || $user->can(Permission::PurchasesManage->value)
             || $user->can(Permission::InterventionsManage->value),
             403,

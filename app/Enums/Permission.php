@@ -51,6 +51,9 @@ enum Permission: string
     case InvoicesManage = 'invoices.manage';
     case InvoicesIssue = 'invoices.issue';
 
+    case SubscriptionsView = 'subscriptions.view';
+    case SubscriptionsManage = 'subscriptions.manage';
+
     case PurchasesView = 'purchases.view';
     case PurchasesManage = 'purchases.manage';
 
@@ -105,6 +108,8 @@ enum Permission: string
             self::InvoicesView => 'Consultare le fatture',
             self::InvoicesManage => 'Preparare e modificare le bozze di fattura',
             self::InvoicesIssue => 'Emettere fatture e note di credito',
+            self::SubscriptionsView => 'Consultare i contratti servizi',
+            self::SubscriptionsManage => 'Creare e modificare i contratti servizi',
             self::PurchasesView => 'Consultare gli ordini ai fornitori e i costi',
             self::PurchasesManage => 'Creare, inviare e gestire gli ordini ai fornitori',
             self::ExpensesView => 'Consultare spese, fatture fornitore e scadenze',
@@ -132,6 +137,7 @@ enum Permission: string
             self::QuotesView, self::QuotesCreate, self::QuotesUpdate, self::QuotesDelete, self::QuotesSupervise => 'Preventivi',
             self::OrdersView, self::OrdersManage => 'Ordini',
             self::InvoicesView, self::InvoicesManage, self::InvoicesIssue => 'Fatture',
+            self::SubscriptionsView, self::SubscriptionsManage => 'Contratti servizi',
             self::PurchasesView, self::PurchasesManage => 'Acquisti',
             self::ExpensesView, self::ExpensesManage => 'Spese',
             self::InterventionsView, self::InterventionsManage, self::InterventionsSupervise, self::ContractsManage => 'Interventi',

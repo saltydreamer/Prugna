@@ -21,6 +21,8 @@ const props = defineProps({
     /** Supplier orders: prices are costs, lines can be charged back to the customer with a markup. */
     atCost: { type: Boolean, default: false },
     rebillable: { type: Boolean, default: false },
+    /** Service contracts: priced lines only (no headings or free text). */
+    itemsOnly: { type: Boolean, default: false },
 });
 
 let uid = 0;
@@ -293,8 +295,10 @@ function error(index, field) {
             </v-col>
             <v-col cols="12" md="6" class="d-flex flex-wrap ga-2">
                 <v-btn variant="tonal" prepend-icon="mdi-plus" @click="addItem()">Riga libera</v-btn>
-                <v-btn variant="tonal" prepend-icon="mdi-format-header-pound" @click="addSection">Sezione</v-btn>
-                <v-btn variant="tonal" prepend-icon="mdi-text" @click="addText">Testo</v-btn>
+                <template v-if="!itemsOnly">
+                    <v-btn variant="tonal" prepend-icon="mdi-format-header-pound" @click="addSection">Sezione</v-btn>
+                    <v-btn variant="tonal" prepend-icon="mdi-text" @click="addText">Testo</v-btn>
+                </template>
             </v-col>
         </v-row>
     </div>

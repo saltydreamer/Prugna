@@ -26,6 +26,7 @@ use App\Models\PaymentTerm;
 use App\Models\PurchaseOrderLine;
 use App\Models\Quote;
 use App\Models\SdiTransmission;
+use App\Models\Subscription;
 use App\Models\VatRate;
 use App\Support\Fiscal\FiscalCodes;
 use App\Support\Sdi\OpenapiClient;
@@ -212,6 +213,11 @@ class InvoiceController extends Controller
             // Why an issued invoice can't be deleted (sent to the SDI, not the last one...).
             'deleteProblems' => $invoice->isDraft() ? [] : $deleteIssued->problems($invoice),
             'deleteReusesNumber' => $deleteIssued->reusesNumber($invoice),
+            // Service contracts whose fees this invoice bills.
+            'subscriptions' => Subscription::query()
+                ->whereIn('id', $invoice->subscriptionPeriods()->select('subscription_id'))
+                ->orderBy('number')
+                ->get(['id', 'number', 'title']),
             'fiscal' => $this->fiscalLabels($invoice),
             'sdi' => [
                 'enabled' => $sdi->isConfigured(),

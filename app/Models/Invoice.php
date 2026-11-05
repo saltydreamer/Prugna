@@ -137,6 +137,16 @@ class Invoice extends Model
     }
 
     /**
+     * Fees of service contracts billed by this invoice.
+     *
+     * @return HasMany<SubscriptionPeriod, $this>
+     */
+    public function subscriptionPeriods(): HasMany
+    {
+        return $this->hasMany(SubscriptionPeriod::class);
+    }
+
+    /**
      * @return HasMany<Invoice, $this>
      */
     public function creditNotes(): HasMany
