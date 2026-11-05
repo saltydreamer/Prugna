@@ -86,6 +86,41 @@ class OpenapiSdiTest extends TestCase
         return $this->postJson('/webhooks/openapi/sdi', $payload, ['Authorization' => 'Bearer '.$secret]);
     }
 
+    public function test_a_vat_number_changed_after_connecting_blocks_sending_until_connecting_again(): void
+    {
+        // Connected with the old VAT number, then the company data changed.
+        app(Settings::class)->set(['sdi.fiscal_id' => '02101130504']);
+        $this->fakeOpenapi();
+        $invoice = $this->draft();
+
+        $this->actingAs($this->admin)->post("/sales/invoices/{$invoice->id}/issue")->assertRedirect();
+
+        $invoice->refresh();
+        $this->assertNotNull($invoice->number);
+        $this->assertSame(0, $invoice->sdiTransmissions()->count());
+
+        $this->actingAs($this->admin)
+            ->get("/sales/invoices/{$invoice->id}")
+            ->assertInertia(fn (Assert $page) => $page->where('sdi.fiscal_mismatch', ['connected' => '02101130504', 'company' => '01234567897']));
+
+        $this->actingAs($this->admin)->post("/sales/invoices/{$invoice->id}/sdi/send")->assertRedirect();
+        $this->assertSame(0, $invoice->sdiTransmissions()->count());
+        Http::assertNotSent(fn (Request $request) => str_ends_with($request->url(), '/invoices'));
+    }
+
+    public function test_a_vat_number_not_registered_on_openapi_gets_a_clear_message(): void
+    {
+        $this->fakeOpenapi(['test.sdi.openapi.it/invoices' => Http::response(['success' => false, 'message' => 'Missing configuration for fiscal Id: 01234567897'], 403)]);
+        $invoice = $this->draft();
+
+        $this->actingAs($this->admin)->post("/sales/invoices/{$invoice->id}/issue")->assertRedirect();
+
+        $transmission = $invoice->fresh()->sdiTransmission;
+        $this->assertSame(SdiStatus::Error, $transmission->status);
+        $this->assertStringContainsString('non è registrata la partita IVA 01234567897', $transmission->message);
+        $this->assertStringContainsString('Collega', $transmission->message);
+    }
+
     public function test_connecting_registers_the_company_and_the_callbacks(): void
     {
         $this->fakeOpenapi([

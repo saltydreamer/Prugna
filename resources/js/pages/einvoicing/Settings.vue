@@ -11,6 +11,8 @@ const props = defineProps({
     recipientCode: { type: String, required: true },
     webhookUrl: { type: String, required: true },
     prices: { type: Array, required: true },
+    /** { connected, company }: the company VAT number changed after connecting. */
+    fiscalMismatch: { type: Object, default: null },
 });
 
 const { link } = useInertiaLink();
@@ -29,7 +31,9 @@ function save() {
 }
 
 const connecting = ref(false);
-const connected = computed(() => Boolean(props.settings.connected_at) && props.settings.connected_environment === props.settings.environment);
+const connected = computed(
+    () => Boolean(props.settings.connected_at) && props.settings.connected_environment === props.settings.environment && !props.fiscalMismatch,
+);
 
 function connect() {
     connecting.value = true;
@@ -113,10 +117,17 @@ async function copy(text) {
                         <v-chip v-else color="warning" variant="tonal">Da collegare</v-chip>
                     </template>
                     <v-card-text class="text-body-2">
+                        <v-alert v-if="fiscalMismatch" type="warning" variant="tonal" class="mb-3">
+                            La partita IVA dell'azienda (
+                            <strong>{{ fiscalMismatch.company }}</strong>
+                            ) è cambiata dopo il collegamento (era
+                            <strong>{{ fiscalMismatch.connected }}</strong>
+                            ): Openapi rifiuta le fatture finché non premi «Collega».
+                        </v-alert>
                         <p class="mb-2">
                             «Collega» verifica le credenziali, registra la tua azienda su Openapi (P.IVA
-                            {{ settings.fiscal_id ?? 'dalle impostazioni azienda' }}) e imposta l'indirizzo a cui Openapi comunica esiti e fatture
-                            ricevute:
+                            {{ fiscalMismatch?.company ?? settings.fiscal_id ?? 'dalle impostazioni azienda' }}) e imposta l'indirizzo a cui Openapi
+                            comunica esiti e fatture ricevute:
                         </p>
                         <div class="d-flex align-center ga-2 mb-2">
                             <code class="text-caption">{{ webhookUrl }}</code>

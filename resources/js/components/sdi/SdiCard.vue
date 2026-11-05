@@ -24,7 +24,13 @@ const refreshing = ref(false);
 const latest = computed(() => props.sdi.transmissions[0] ?? null);
 const problems = computed(() => props.sdi.problems ?? []);
 const canSend = computed(
-    () => can('invoices.issue') && props.sdi.enabled && !props.sdi.external && !problems.value.length && (!latest.value || latest.value.can_resend),
+    () =>
+        can('invoices.issue') &&
+        props.sdi.enabled &&
+        !props.sdi.external &&
+        !props.sdi.fiscal_mismatch &&
+        !problems.value.length &&
+        (!latest.value || latest.value.can_resend),
 );
 const dateTime = (iso) => (iso ? new Date(iso).toLocaleString('it-IT', { dateStyle: 'short', timeStyle: 'short' }) : '');
 
@@ -79,6 +85,21 @@ function refresh() {
             <v-chip :color="latest.status_color" :prepend-icon="latest.status_icon" variant="tonal">{{ latest.status_label }}</v-chip>
         </template>
         <v-card-text>
+            <v-alert v-if="sdi.fiscal_mismatch && !sdi.external" type="warning" variant="tonal" density="compact" class="mb-3">
+                La partita IVA dell'azienda ({{ sdi.fiscal_mismatch.company }}) non è quella collegata a Openapi ({{
+                    sdi.fiscal_mismatch.connected
+                }}): ricollega in Impostazioni → Fatturazione elettronica, poi invia.
+                <v-btn
+                    v-if="can('settings.manage')"
+                    size="small"
+                    variant="text"
+                    class="mt-1"
+                    prepend-icon="mdi-link-variant"
+                    v-bind="link(route('settings.einvoicing.index'))"
+                >
+                    Vai al collegamento
+                </v-btn>
+            </v-alert>
             <template v-if="sdi.external && !latest">
                 <div class="text-body-2 text-medium-emphasis">
                     Trasmessa allo SDI fuori da Prugna (ad esempio emessa in Dolibarr): Prugna non la invia. Se in realtà non è mai partita, segnala

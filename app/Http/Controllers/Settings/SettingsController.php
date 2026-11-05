@@ -14,6 +14,7 @@ use App\Support\Ai\AiException;
 use App\Support\Ai\DocumentReader;
 use App\Support\Ai\OpenRouterClient;
 use App\Support\Fiscal\FiscalCodes;
+use App\Support\Sdi\OpenapiClient;
 use App\Support\Settings;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -78,7 +79,10 @@ class SettingsController extends Controller
     {
         $this->settings->set(collect($request->validated())->mapWithKeys(fn ($value, $key) => ["company.{$key}" => $value])->all());
 
-        Inertia::flash('toast', ['type' => 'success', 'message' => __('Dati azienda salvati.')]);
+        // Openapi knows the company by its VAT number: a new one must be registered again.
+        Inertia::flash('toast', app(OpenapiClient::class)->fiscalIdMismatch()
+            ? ['type' => 'warning', 'message' => __('Dati azienda salvati. La partita IVA è cambiata: in Impostazioni → Fatturazione elettronica premi «Collega», altrimenti Openapi rifiuta le fatture.')]
+            : ['type' => 'success', 'message' => __('Dati azienda salvati.')]);
 
         return back();
     }

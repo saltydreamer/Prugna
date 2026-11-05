@@ -217,6 +217,8 @@ class InvoiceController extends Controller
                 'enabled' => $sdi->isConfigured(),
                 // Transmitted outside Prugna (e.g. issued in Dolibarr): never sent from here.
                 'external' => $invoice->isSentOutsidePrugna(),
+                // Company VAT number changed after connecting to Openapi: connect again before sending.
+                'fiscal_mismatch' => $sdi->isConfigured() ? $sdi->fiscalIdMismatch() : null,
                 'can_mark_to_send' => $request->user()->can('markToSend', $invoice),
                 'can_mark_sent_outside' => $request->user()->can('markSentOutside', $invoice),
                 // What prevents sending an invoice not yet transmitted (e.g. imported data incomplete).
@@ -308,6 +310,12 @@ class InvoiceController extends Controller
         $message = __(':type :number emessa.', ['type' => $invoice->type->label(), 'number' => $invoice->number]);
 
         // With electronic invoicing connected, the invoice goes straight to the SDI.
+        if ($sdi->isConfigured() && $this->settings->get('sdi.auto_send') && ($mismatch = $sdi->fiscalIdMismatch())) {
+            Inertia::flash('toast', ['type' => 'warning', 'message' => $message.' '.__('Non inviata allo SDI.').' '.InvoiceSdiController::mismatchMessage($mismatch)]);
+
+            return to_route('sales.invoices.show', $invoice);
+        }
+
         if ($sdi->isConfigured() && $this->settings->get('sdi.auto_send')) {
             $transmission = $send->handle($invoice, $request->user());
 

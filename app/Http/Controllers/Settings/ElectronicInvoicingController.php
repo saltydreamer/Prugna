@@ -40,7 +40,7 @@ class ElectronicInvoicingController extends Controller
 
     public function __construct(private Settings $settings) {}
 
-    public function index(): Response
+    public function index(OpenapiClient $client): Response
     {
         Gate::authorize(Permission::SettingsManage->value);
 
@@ -56,6 +56,7 @@ class ElectronicInvoicingController extends Controller
                 'fiscal_id' => $this->settings->get('sdi.fiscal_id'),
             ],
             'recipientCode' => OpenapiClient::RECIPIENT_CODE,
+            'fiscalMismatch' => $client->fiscalIdMismatch(),
             'webhookUrl' => route('webhooks.openapi.sdi'),
             'prices' => collect(self::PRICED_ENDPOINTS)->map(fn (string $label, string $endpoint) => [
                 'endpoint' => $endpoint,

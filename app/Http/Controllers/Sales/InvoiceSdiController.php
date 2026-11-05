@@ -33,6 +33,12 @@ class InvoiceSdiController extends Controller
             return back();
         }
 
+        if ($mismatch = $client->fiscalIdMismatch()) {
+            Inertia::flash('toast', ['type' => 'error', 'message' => self::mismatchMessage($mismatch)]);
+
+            return back();
+        }
+
         if (! $invoice->sdiTransmissions()->exists() && ($problems = $issueInvoice->sendProblems($invoice))) {
             Inertia::flash('toast', ['type' => 'error', 'message' => $problems[0]]);
 
@@ -46,6 +52,14 @@ class InvoiceSdiController extends Controller
             : ['type' => 'success', 'message' => __('Fattura :number inviata allo SDI: lo stato si aggiorna da solo quando arriva l\'esito.', ['number' => $invoice->number])]);
 
         return back();
+    }
+
+    /**
+     * @param  array{connected: string, company: string}  $mismatch
+     */
+    public static function mismatchMessage(array $mismatch): string
+    {
+        return __('La partita IVA dell\'azienda (:company) non è quella collegata a Openapi (:connected): in Impostazioni → Fatturazione elettronica premi «Collega», poi invia.', $mismatch);
     }
 
     /**

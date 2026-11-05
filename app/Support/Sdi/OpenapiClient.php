@@ -30,6 +30,20 @@ class OpenapiClient
 
     public function __construct(private Settings $settings) {}
 
+    /**
+     * The company VAT number differs from the one registered on Openapi (the company data
+     * changed after connecting): Openapi refuses the invoices until connecting again.
+     *
+     * @return array{connected: string, company: string}|null
+     */
+    public function fiscalIdMismatch(): ?array
+    {
+        $connected = (string) $this->settings->get('sdi.fiscal_id');
+        $company = (string) preg_replace('/^IT/i', '', trim((string) $this->settings->get('company.vat_number')));
+
+        return $connected !== '' && $company !== '' && $connected !== $company ? ['connected' => $connected, 'company' => $company] : null;
+    }
+
     public function isConfigured(): bool
     {
         return (bool) $this->settings->get('sdi.enabled')
@@ -364,6 +378,10 @@ class OpenapiClient
 
         $message = $response->json('message') ?? $response->json('error') ?? $response->json('errors.0.message');
         $message = is_string($message) && $message !== '' ? $message : mb_substr(trim(strip_tags($response->body())), 0, 300);
+
+        if (preg_match('/missing configuration for fiscal id:?\s*(\w+)/i', (string) $message, $match)) {
+            return __('Su Openapi non è registrata la partita IVA :vat: in Impostazioni → Fatturazione elettronica premi «Collega», poi invia di nuovo.', ['vat' => $match[1]]);
+        }
 
         return match ($response->status()) {
             401, 403 => __('Openapi ha rifiutato le credenziali (:status): controlla e-mail, API key e servizi attivi. :message', ['status' => $response->status(), 'message' => $message]),
