@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Sales;
 
 use App\Actions\Invoices\BuildInvoice;
+use App\Actions\Invoices\DeleteIssuedInvoice;
 use App\Actions\Invoices\InvoiceCalculator;
 use App\Actions\Invoices\IssueInvoice;
 use App\Actions\Invoices\SaveInvoice;
@@ -198,7 +199,7 @@ class InvoiceController extends Controller
         return $this->created($invoice);
     }
 
-    public function show(Invoice $invoice, IssueInvoice $issueInvoice, InvoiceCalculator $calculator, OpenapiClient $sdi): Response
+    public function show(Invoice $invoice, IssueInvoice $issueInvoice, DeleteIssuedInvoice $deleteIssued, InvoiceCalculator $calculator, OpenapiClient $sdi): Response
     {
         $this->authorize('view', $invoice);
 
@@ -208,6 +209,8 @@ class InvoiceController extends Controller
             'invoice' => InvoiceResource::make($invoice)->resolve(),
             'totals' => $calculator->calculate($invoice, $invoice->lines),
             'problems' => $invoice->isDraft() ? $issueInvoice->problems($invoice) : [],
+            // Why an issued invoice can't be deleted (sent to the SDI, not the last one...).
+            'deleteProblems' => $invoice->isDraft() ? [] : $deleteIssued->problems($invoice),
             'fiscal' => $this->fiscalLabels($invoice),
             'sdi' => [
                 'enabled' => $sdi->isConfigured(),
@@ -265,9 +268,17 @@ class InvoiceController extends Controller
         return to_route('sales.invoices.show', $invoice);
     }
 
-    public function destroy(Invoice $invoice): RedirectResponse
+    public function destroy(Invoice $invoice, DeleteIssuedInvoice $deleteIssued): RedirectResponse
     {
         $this->authorize('delete', $invoice);
+
+        if (! $invoice->isDraft()) {
+            $deleteIssued->handle($invoice);
+
+            Inertia::flash('toast', ['type' => 'success', 'message' => __(':type :number eliminata: il numero verrà riutilizzato dalla prossima emissione.', ['type' => $invoice->type->label(), 'number' => $invoice->number])]);
+
+            return to_route('sales.invoices.index');
+        }
 
         $order = $invoice->order;
 

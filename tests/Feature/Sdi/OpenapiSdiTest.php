@@ -118,7 +118,8 @@ class OpenapiSdiTest extends TestCase
         $transmission = $invoice->sdiTransmission;
         $this->assertSame(SdiStatus::Sent, $invoice->sdi_status);
         $this->assertSame('uuid-1', $transmission->uuid);
-        $this->assertSame('S0001', substr($transmission->progressive, 0, 5));
+        // One progressive per transmission (ids aren't reset between tests on MariaDB).
+        $this->assertSame(FatturaPaXml::transmissionProgressive($transmission->id), $transmission->progressive);
         Http::assertSent(fn (Request $request) => $request->url() === 'https://test.sdi.openapi.it/invoices' && str_contains($request->body(), '<ProgressivoInvio>'.$transmission->progressive.'</ProgressivoInvio>'));
 
         $call = OpenapiCall::query()->where('endpoint', 'POST /invoices')->sole();

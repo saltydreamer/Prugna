@@ -158,8 +158,8 @@ class InvoiceTest extends TestCase
         $this->actingAs($this->admin)->post("/sales/invoices/{$note->id}/issue")->assertRedirect();
         $this->assertSame("NC-{$year}-0001", $note->fresh()->number);
 
-        // Issued documents are final.
-        $this->actingAs($this->admin)->delete("/sales/invoices/{$first->id}")->assertForbidden();
+        // Issued documents are final (deletable only when last and never sent to the SDI: not the case here).
+        $this->actingAs($this->admin)->delete("/sales/invoices/{$first->id}")->assertStatus(409);
         $this->actingAs($this->admin)->put("/sales/invoices/{$first->id}", $this->payloadFrom($first))->assertForbidden();
     }
 

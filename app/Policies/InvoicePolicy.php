@@ -33,9 +33,14 @@ class InvoicePolicy
         return $invoice->isDraft() && $user->can(Permission::InvoicesManage->value);
     }
 
+    /**
+     * Drafts can be deleted by who manages invoices; issued invoices never sent to the SDI also
+     * by who can issue them (the other conditions are in App\Actions\Invoices\DeleteIssuedInvoice).
+     */
     public function delete(User $user, Invoice $invoice): bool
     {
-        return $invoice->isDraft() && $user->can(Permission::InvoicesManage->value);
+        return $user->can(Permission::InvoicesManage->value)
+            && ($invoice->isDraft() || $user->can(Permission::InvoicesIssue->value));
     }
 
     public function issue(User $user, Invoice $invoice): bool

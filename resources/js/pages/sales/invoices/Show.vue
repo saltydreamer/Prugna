@@ -18,6 +18,8 @@ const props = defineProps({
     fiscal: { type: Object, required: true },
     /** SDI transmissions ({ enabled, environment, transmissions }). */
     sdi: { type: Object, default: () => ({ enabled: false, transmissions: [] }) },
+    /** Why an issued invoice can't be deleted (empty: it can). */
+    deleteProblems: { type: Array, default: () => [] },
 });
 
 const { link } = useInertiaLink();
@@ -54,7 +56,17 @@ async function creditNote() {
 }
 
 async function destroy() {
-    if (await confirm({ title: 'Eliminare la bozza?', confirmText: 'Elimina', color: 'error' })) {
+    const confirmed = isDraft.value
+        ? await confirm({ title: 'Eliminare la bozza?', confirmText: 'Elimina', color: 'error' })
+        : await confirm({
+              title: `Eliminare ${props.invoice.number}?`,
+              message:
+                  "Non è stata inviata allo SDI, quindi si può eliminare: il suo numero verrà riutilizzato dalla prossima emissione e ciò che fatturava (ordini, interventi, costi) torna da fatturare. Fallo solo se non l'hai caricata su «Fatture e corrispettivi» e non l'hai già mandata al cliente.",
+              confirmText: 'Elimina',
+              color: 'error',
+          });
+
+    if (confirmed) {
         router.delete(route('sales.invoices.destroy', props.invoice.id));
     }
 }
@@ -101,7 +113,10 @@ async function destroy() {
                             v-if="invoice.can?.delete"
                             prepend-icon="mdi-delete-outline"
                             base-color="error"
-                            title="Elimina bozza"
+                            :title="isDraft ? 'Elimina bozza' : 'Elimina fattura'"
+                            :subtitle="deleteProblems[0]"
+                            :disabled="deleteProblems.length > 0"
+                            class="delete-item"
                             @click="destroy"
                         />
                     </v-list>
@@ -248,3 +263,16 @@ async function destroy() {
         </v-row>
     </div>
 </template>
+
+<style scoped>
+/* The reason why an issued invoice can't be deleted is shown in full under the menu item. */
+.delete-item {
+    max-width: 380px;
+}
+
+.delete-item :deep(.v-list-item-subtitle) {
+    white-space: normal;
+    -webkit-line-clamp: unset;
+    line-clamp: unset;
+}
+</style>
