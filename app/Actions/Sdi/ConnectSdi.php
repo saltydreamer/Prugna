@@ -20,7 +20,7 @@ class ConnectSdi
     public function __construct(private OpenapiClient $client, private Settings $settings) {}
 
     /**
-     * @return array{fiscal_id: string, registry_created: bool, callbacks: int}
+     * @return array{fiscal_id: string, registry_created: bool, callbacks: int, replaced: ?string}
      */
     public function handle(): array
     {
@@ -34,8 +34,24 @@ class ConnectSdi
         $this->client->token(true);
 
         $registryCreated = false;
+        $replaced = null;
+        $registries = $this->client->businessRegistry();
+        $previous = (string) $this->settings->get('sdi.fiscal_id');
 
-        if (! $this->matches($this->client->businessRegistry(), $fiscalId)) {
+        if (! $this->matches($registries, $fiscalId)) {
+            // Registered earlier with another VAT number of the company (changed in Impostazioni →
+            // Azienda): replaced, also because Openapi accepts each email only once.
+            if ($previous !== '' && $previous !== $fiscalId && $this->matches($registries, $previous)) {
+                foreach ($this->rows($this->client->apiConfigurations()) as $configuration) {
+                    if ($this->sameFiscalId($configuration, $previous) && isset($configuration['id'])) {
+                        $this->client->deleteApiConfiguration((string) $configuration['id']);
+                    }
+                }
+
+                $this->client->deleteBusinessRegistry($previous);
+                $replaced = $previous;
+            }
+
             $this->client->createBusinessRegistry([
                 'fiscal_id' => $fiscalId,
                 'name' => (string) ($company['name'] ?? config('app.name')),
@@ -69,7 +85,7 @@ class ConnectSdi
             'sdi.connected_environment' => $this->client->environment(),
         ]);
 
-        return ['fiscal_id' => $fiscalId, 'registry_created' => $registryCreated, 'callbacks' => count($callbacks)];
+        return ['fiscal_id' => $fiscalId, 'registry_created' => $registryCreated, 'callbacks' => count($callbacks), 'replaced' => $replaced];
     }
 
     /**

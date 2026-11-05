@@ -35,6 +35,12 @@ const connected = computed(
     () => Boolean(props.settings.connected_at) && props.settings.connected_environment === props.settings.environment && !props.fiscalMismatch,
 );
 
+const mismatchText = computed(() =>
+    props.fiscalMismatch
+        ? `La partita IVA dell'azienda (${props.fiscalMismatch.company}) è cambiata dopo il collegamento (era ${props.fiscalMismatch.connected}): Openapi rifiuta le fatture finché non premi «Collega», che sostituisce la registrazione con la P.IVA ${props.fiscalMismatch.connected} con quella nuova.`
+        : '',
+);
+
 function connect() {
     connecting.value = true;
     router.post(route('settings.einvoicing.connect'), {}, { preserveScroll: true, onFinish: () => (connecting.value = false) });
@@ -117,13 +123,7 @@ async function copy(text) {
                         <v-chip v-else color="warning" variant="tonal">Da collegare</v-chip>
                     </template>
                     <v-card-text class="text-body-2">
-                        <v-alert v-if="fiscalMismatch" type="warning" variant="tonal" class="mb-3">
-                            La partita IVA dell'azienda (
-                            <strong>{{ fiscalMismatch.company }}</strong>
-                            ) è cambiata dopo il collegamento (era
-                            <strong>{{ fiscalMismatch.connected }}</strong>
-                            ): Openapi rifiuta le fatture finché non premi «Collega».
-                        </v-alert>
+                        <v-alert v-if="fiscalMismatch" type="warning" variant="tonal" class="mb-3">{{ mismatchText }}</v-alert>
                         <p class="mb-2">
                             «Collega» verifica le credenziali, registra la tua azienda su Openapi (P.IVA
                             {{ fiscalMismatch?.company ?? settings.fiscal_id ?? 'dalle impostazioni azienda' }}) e imposta l'indirizzo a cui Openapi

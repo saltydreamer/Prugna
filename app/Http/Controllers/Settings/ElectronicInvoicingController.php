@@ -112,7 +112,9 @@ class ElectronicInvoicingController extends Controller
             return back();
         }
 
-        Inertia::flash('toast', ['type' => 'success', 'message' => __('Collegamento con Openapi completato per la P.IVA :id.', ['id' => $result['fiscal_id']])]);
+        Inertia::flash('toast', ['type' => 'success', 'message' => $result['replaced']
+            ? __('Collegamento con Openapi completato per la P.IVA :id: sostituita la registrazione con la P.IVA :old.', ['id' => $result['fiscal_id'], 'old' => $result['replaced']])
+            : __('Collegamento con Openapi completato per la P.IVA :id.', ['id' => $result['fiscal_id']])]);
 
         return back();
     }

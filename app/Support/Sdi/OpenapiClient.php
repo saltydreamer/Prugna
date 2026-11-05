@@ -176,6 +176,11 @@ class OpenapiClient
         return $this->json('POST', '/business_registry_configurations', fn (PendingRequest $request) => $request->post($this->baseUrl().'/business_registry_configurations', $data));
     }
 
+    public function deleteBusinessRegistry(string $fiscalId): void
+    {
+        $this->call('DELETE', '/business_registry_configurations/'.$fiscalId, fn (PendingRequest $request) => $request->delete($this->baseUrl().'/business_registry_configurations/'.rawurlencode($fiscalId)));
+    }
+
     /**
      * @return array<int|string, mixed>
      */
@@ -378,6 +383,10 @@ class OpenapiClient
 
         $message = $response->json('message') ?? $response->json('error') ?? $response->json('errors.0.message');
         $message = is_string($message) && $message !== '' ? $message : mb_substr(trim(strip_tags($response->body())), 0, 300);
+
+        if (preg_match('/email already exists/i', (string) $message)) {
+            return __('Openapi: l\'email dell\'azienda è già usata da un\'altra registrazione. Se è una tua registrazione precedente, eliminala dalla console di Openapi; altrimenti indica un\'altra email in Impostazioni → Azienda.');
+        }
 
         if (preg_match('/missing configuration for fiscal id:?\s*(\w+)/i', (string) $message, $match)) {
             return __('Su Openapi non è registrata la partita IVA :vat: in Impostazioni → Fatturazione elettronica premi «Collega», poi invia di nuovo.', ['vat' => $match[1]]);

@@ -121,6 +121,30 @@ class OpenapiSdiTest extends TestCase
         $this->assertStringContainsString('Collega', $transmission->message);
     }
 
+    public function test_connecting_after_a_vat_number_change_replaces_the_previous_registration(): void
+    {
+        app(Settings::class)->set(['sdi.fiscal_id' => '02101130504']);
+        $this->fakeOpenapi([
+            'test.sdi.openapi.it/business_registry_configurations/*' => Http::response(['success' => true]),
+            'test.sdi.openapi.it/business_registry_configurations' => Http::sequence()
+                ->push(['data' => [['fiscal_id' => '02101130504', 'email' => 'amministrazione@example.com']]])
+                ->push(['data' => ['fiscal_id' => '01234567897']]),
+            'test.sdi.openapi.it/api_configurations/*' => Http::response(['success' => true]),
+            'test.sdi.openapi.it/api_configurations' => Http::sequence()
+                ->push(['data' => [['id' => 'old-cfg', 'fiscal_id' => '02101130504']]])
+                ->push(['data' => []])
+                ->push(['data' => ['id' => 'cfg1']]),
+        ]);
+
+        $this->actingAs($this->admin)->post('/settings/einvoicing/connect')->assertRedirect();
+
+        Http::assertSent(fn (Request $request) => $request->method() === 'DELETE' && $request->url() === 'https://test.sdi.openapi.it/api_configurations/old-cfg');
+        Http::assertSent(fn (Request $request) => $request->method() === 'DELETE' && $request->url() === 'https://test.sdi.openapi.it/business_registry_configurations/02101130504');
+        Http::assertSent(fn (Request $request) => $request->method() === 'POST' && $request->url() === 'https://test.sdi.openapi.it/business_registry_configurations' && $request['fiscal_id'] === '01234567897');
+        $this->assertSame('01234567897', app(Settings::class)->get('sdi.fiscal_id'));
+        $this->assertNull(app(OpenapiClient::class)->fiscalIdMismatch());
+    }
+
     public function test_connecting_registers_the_company_and_the_callbacks(): void
     {
         $this->fakeOpenapi([
