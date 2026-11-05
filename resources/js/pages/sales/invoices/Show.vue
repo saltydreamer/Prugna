@@ -20,6 +20,8 @@ const props = defineProps({
     sdi: { type: Object, default: () => ({ enabled: false, transmissions: [] }) },
     /** Why an issued invoice can't be deleted (empty: it can). */
     deleteProblems: { type: Array, default: () => [] },
+    /** Deleting the issued invoice frees its number for the next one (it's the last of the series). */
+    deleteReusesNumber: { type: Boolean, default: false },
 });
 
 const { link } = useInertiaLink();
@@ -60,8 +62,9 @@ async function destroy() {
         ? await confirm({ title: 'Eliminare la bozza?', confirmText: 'Elimina', color: 'error' })
         : await confirm({
               title: `Eliminare ${props.invoice.number}?`,
-              message:
-                  "Non è stata inviata allo SDI, quindi si può eliminare: il suo numero verrà riutilizzato dalla prossima emissione e ciò che fatturava (ordini, interventi, costi) torna da fatturare. Fallo solo se non l'hai caricata su «Fatture e corrispettivi» e non l'hai già mandata al cliente.",
+              message: `Non è stata inviata allo SDI, quindi si può eliminare: ${
+                  props.deleteReusesNumber ? 'il suo numero verrà riutilizzato dalla prossima emissione e ' : ''
+              }ciò che fatturava (ordini, interventi, costi) torna da fatturare. Fallo solo se non l'hai caricata su «Fatture e corrispettivi» e non l'hai già mandata al cliente.`,
               confirmText: 'Elimina',
               color: 'error',
           });

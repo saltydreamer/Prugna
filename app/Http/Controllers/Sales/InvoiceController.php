@@ -211,6 +211,7 @@ class InvoiceController extends Controller
             'problems' => $invoice->isDraft() ? $issueInvoice->problems($invoice) : [],
             // Why an issued invoice can't be deleted (sent to the SDI, not the last one...).
             'deleteProblems' => $invoice->isDraft() ? [] : $deleteIssued->problems($invoice),
+            'deleteReusesNumber' => $deleteIssued->reusesNumber($invoice),
             'fiscal' => $this->fiscalLabels($invoice),
             'sdi' => [
                 'enabled' => $sdi->isConfigured(),
@@ -273,9 +274,12 @@ class InvoiceController extends Controller
         $this->authorize('delete', $invoice);
 
         if (! $invoice->isDraft()) {
+            $reused = $deleteIssued->reusesNumber($invoice);
             $deleteIssued->handle($invoice);
 
-            Inertia::flash('toast', ['type' => 'success', 'message' => __(':type :number eliminata: il numero verrà riutilizzato dalla prossima emissione.', ['type' => $invoice->type->label(), 'number' => $invoice->number])]);
+            Inertia::flash('toast', ['type' => 'success', 'message' => $reused
+                ? __(':type :number eliminata: il numero verrà riutilizzato dalla prossima emissione.', ['type' => $invoice->type->label(), 'number' => $invoice->number])
+                : __(':type :number eliminata.', ['type' => $invoice->type->label(), 'number' => $invoice->number])]);
 
             return to_route('sales.invoices.index');
         }

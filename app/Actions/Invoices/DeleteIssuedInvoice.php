@@ -13,8 +13,9 @@ use Illuminate\Support\Facades\DB;
  * mistake: without the transmission it has no fiscal existence. Failed sends and sends to the
  * Openapi sandbox (test environment, never forwarded to the Agenzia delle Entrate) don't count.
  * Only the last one of its series and year can go, so the numbering has no gap and the next
- * invoice reuses the number. What it billed (orders, interventions, costs, contracts) goes
- * back to be invoiced.
+ * invoice reuses the number; test invoices (sent only to the sandbox) are not part of the
+ * fiscal numbering and can go anyway. What it billed (orders, interventions, costs,
+ * contracts) goes back to be invoiced.
  */
 class DeleteIssuedInvoice
 {
@@ -37,14 +38,9 @@ class DeleteIssuedInvoice
             $problems[] = __('È stata inviata allo SDI: per annullarla emetti una nota di credito.');
         }
 
-        $last = Invoice::query()
-            ->where('series', $invoice->series)
-            ->where('year', $invoice->year)
-            ->where('sequence', '>', (int) $invoice->sequence)
-            ->orderByDesc('sequence')
-            ->value('number');
+        $last = $this->laterNumber($invoice);
 
-        if ($last !== null) {
+        if ($last !== null && ! $this->isTestInvoice($invoice)) {
             $problems[] = __('Si può eliminare solo l\'ultima emessa della serie (ora è la :number): altrimenti nella numerazione resterebbe un buco.', ['number' => $last]);
         }
 
@@ -57,6 +53,35 @@ class DeleteIssuedInvoice
         }
 
         return $problems;
+    }
+
+    /**
+     * Whether the next invoice of the series will reuse this number once it is deleted.
+     */
+    public function reusesNumber(Invoice $invoice): bool
+    {
+        return ! $invoice->isDraft() && $this->laterNumber($invoice) === null;
+    }
+
+    /**
+     * Sent only to the Openapi sandbox: a test with no fiscal value.
+     */
+    public function isTestInvoice(Invoice $invoice): bool
+    {
+        return $invoice->sdiTransmissions()->exists() && ! $invoice->sdiTransmissions()->where('environment', '!=', 'test')->exists();
+    }
+
+    /**
+     * Number of the last invoice issued after this one in the same series and year.
+     */
+    private function laterNumber(Invoice $invoice): ?string
+    {
+        return Invoice::query()
+            ->where('series', $invoice->series)
+            ->where('year', $invoice->year)
+            ->where('sequence', '>', (int) $invoice->sequence)
+            ->orderByDesc('sequence')
+            ->value('number');
     }
 
     public function handle(Invoice $invoice): void
