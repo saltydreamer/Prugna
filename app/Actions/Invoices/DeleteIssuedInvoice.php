@@ -10,9 +10,11 @@ use Illuminate\Support\Facades\DB;
 
 /**
  * Deletes an issued invoice (or credit note) that never reached the SDI, e.g. issued by
- * mistake: without the transmission it has no fiscal existence. Only the last one of its
- * series and year can go, so the numbering has no gap and the next invoice reuses the number.
- * What it billed (orders, interventions, costs, contracts) goes back to be invoiced.
+ * mistake: without the transmission it has no fiscal existence. Failed sends and sends to the
+ * Openapi sandbox (test environment, never forwarded to the Agenzia delle Entrate) don't count.
+ * Only the last one of its series and year can go, so the numbering has no gap and the next
+ * invoice reuses the number. What it billed (orders, interventions, costs, contracts) goes
+ * back to be invoiced.
  */
 class DeleteIssuedInvoice
 {
@@ -31,7 +33,7 @@ class DeleteIssuedInvoice
 
         if ($invoice->isImported()) {
             $problems[] = __('È stata importata da Dolibarr ed è già stata trasmessa allo SDI: per annullarla emetti una nota di credito.');
-        } elseif ($invoice->sdiTransmissions()->where('status', '!=', SdiStatus::Error->value)->exists()) {
+        } elseif ($invoice->sdiTransmissions()->where('environment', '!=', 'test')->where('status', '!=', SdiStatus::Error->value)->exists()) {
             $problems[] = __('È stata inviata allo SDI: per annullarla emetti una nota di credito.');
         }
 

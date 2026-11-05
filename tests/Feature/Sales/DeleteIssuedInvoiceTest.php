@@ -80,7 +80,7 @@ class DeleteIssuedInvoiceTest extends TestCase
     public function test_invoices_sent_to_the_sdi_can_not_be_deleted_but_failed_sends_can(): void
     {
         $invoice = $this->issued();
-        $transmission = SdiTransmission::query()->forceCreate(['invoice_id' => $invoice->id, 'environment' => 'test', 'status' => SdiStatus::Error]);
+        $transmission = SdiTransmission::query()->forceCreate(['invoice_id' => $invoice->id, 'environment' => 'production', 'status' => SdiStatus::Error]);
 
         $this->assertSame([], app(DeleteIssuedInvoice::class)->problems($invoice));
 
@@ -88,6 +88,17 @@ class DeleteIssuedInvoiceTest extends TestCase
 
         $this->actingAs($this->admin)->delete("/sales/invoices/{$invoice->id}")->assertStatus(409);
         $this->assertModelExists($invoice);
+    }
+
+    public function test_sends_to_the_sdi_sandbox_do_not_count(): void
+    {
+        $invoice = $this->issued();
+        SdiTransmission::query()->forceCreate(['invoice_id' => $invoice->id, 'environment' => 'test', 'status' => SdiStatus::Delivered]);
+
+        $this->actingAs($this->admin)->delete("/sales/invoices/{$invoice->id}")->assertRedirect('/sales/invoices');
+
+        $this->assertModelMissing($invoice);
+        $this->assertSame(0, SdiTransmission::count());
     }
 
     public function test_invoices_imported_from_dolibarr_can_not_be_deleted(): void
