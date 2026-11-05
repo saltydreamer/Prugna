@@ -54,7 +54,25 @@ class InvoicePolicy
      */
     public function sendToSdi(User $user, Invoice $invoice): bool
     {
-        return ! $invoice->isDraft() && ! $invoice->isImported() && $user->can(Permission::InvoicesIssue->value);
+        return ! $invoice->isDraft() && ! $invoice->isSentOutsidePrugna() && $user->can(Permission::InvoicesIssue->value);
+    }
+
+    /**
+     * An invoice marked as transmitted outside Prugna (e.g. imported from Dolibarr) that in fact
+     * never left: it becomes an invoice to send.
+     */
+    public function markToSend(User $user, Invoice $invoice): bool
+    {
+        return $invoice->isSentOutsidePrugna() && $user->can(Permission::InvoicesIssue->value);
+    }
+
+    /**
+     * An issued invoice transmitted by other means (e.g. uploaded on «Fatture e corrispettivi»):
+     * Prugna won't send it again.
+     */
+    public function markSentOutside(User $user, Invoice $invoice): bool
+    {
+        return ! $invoice->isDraft() && ! $invoice->isSentOutsidePrugna() && ! $invoice->hasReachedSdi() && $user->can(Permission::InvoicesIssue->value);
     }
 
     public function creditNote(User $user, Invoice $invoice): bool

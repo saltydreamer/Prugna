@@ -7,7 +7,6 @@ use App\Actions\Invoices\IssueInvoice;
 use App\Enums\Permission;
 use App\Enums\Role;
 use App\Enums\SdiStatus;
-use App\Models\DolibarrLink;
 use App\Models\Invoice;
 use App\Models\Order;
 use App\Models\Organization;
@@ -113,10 +112,10 @@ class DeleteIssuedInvoiceTest extends TestCase
         $this->assertModelExists($real);
     }
 
-    public function test_invoices_imported_from_dolibarr_can_not_be_deleted(): void
+    public function test_invoices_transmitted_outside_prugna_can_not_be_deleted(): void
     {
         $invoice = $this->issued();
-        DolibarrLink::query()->create(['source' => 'facture', 'source_id' => 80, 'linkable_type' => $invoice->getMorphClass(), 'linkable_id' => $invoice->id, 'reference' => $invoice->number]);
+        $invoice->forceFill(['sdi_external' => true])->save();
 
         $this->actingAs($this->admin)->delete("/sales/invoices/{$invoice->id}")->assertStatus(409);
         $this->assertModelExists($invoice);

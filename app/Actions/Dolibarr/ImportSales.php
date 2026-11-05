@@ -197,8 +197,8 @@ class ImportSales
 
             $invoice = $this->map->linked('facture', (int) $row->rowid, Invoice::class);
 
-            if ($invoice && ! $invoice->isDraft() && $invoice->number !== mb_substr((string) $row->ref, 0, 32)) {
-                // A Dolibarr draft issued in Prugna since the last import: Prugna's invoice is kept.
+            if ($invoice && ! $invoice->isDraft() && ($invoice->number !== mb_substr((string) $row->ref, 0, 32) || $invoice->hasReachedSdi())) {
+                // Issued or sent to the SDI from Prugna since the last import: Prugna's invoice is kept.
                 $report->count('invoices', 'linked');
 
                 continue;
@@ -257,6 +257,12 @@ class ImportSales
                 'total' => Source::amount($sign * (float) ($row->total_ttc ?? 0)),
                 'amount_due' => Source::amount($sign * (float) ($row->total_ttc ?? 0)),
             ];
+
+            // Issued in Dolibarr: already transmitted there. A choice made in Prugna afterwards
+            // ("da inviare allo SDI") is kept when importing again.
+            if (! $invoice || $invoice->isDraft()) {
+                $attributes['sdi_external'] = ! $draft;
+            }
 
             if ($invoice) {
                 $invoice->forceFill($attributes)->save();

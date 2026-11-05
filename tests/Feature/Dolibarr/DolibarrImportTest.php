@@ -15,6 +15,7 @@ use App\Enums\PaymentMethod;
 use App\Enums\PurchaseOrderStatus;
 use App\Enums\QuoteLineType;
 use App\Enums\QuoteStatus;
+use App\Enums\SdiStatus;
 use App\Enums\UnitOfMeasure;
 use App\Models\Contact;
 use App\Models\DolibarrLink;
@@ -191,7 +192,42 @@ class DolibarrImportTest extends TestCase
     {
         $this->import();
 
-        $this->assertFalse($this->admin->can('sendToSdi', Invoice::query()->where('number', 'FA2601-0005')->sole()));
+        $invoice = Invoice::query()->where('number', 'FA2601-0005')->sole();
+        $this->assertTrue($invoice->isSentOutsidePrugna());
+        $this->assertFalse($this->admin->can('sendToSdi', $invoice));
+        $this->assertFalse(Invoice::query()->where('status', InvoiceStatus::Draft->value)->sole()->sdi_external);
+    }
+
+    public function test_an_imported_invoice_never_transmitted_can_be_marked_to_send_and_stays_so(): void
+    {
+        $this->import();
+        $invoice = Invoice::query()->where('number', 'FA2512-0099')->sole();
+        $invoice->forceFill(['customer' => ['name' => 'Vecchio nome']])->save();
+
+        $this->actingAs($this->admin)->put("/sales/invoices/{$invoice->id}/sdi/external", ['external' => false])->assertRedirect();
+
+        $invoice->refresh();
+        $this->assertFalse($invoice->isSentOutsidePrugna());
+        $this->assertTrue($this->admin->can('sendToSdi', $invoice));
+        // Nothing transmitted yet: the customer data are the current ones.
+        $this->assertSame('Comune di Delta', $invoice->customer['name']);
+
+        // Importing again keeps the choice.
+        $this->import();
+        $this->assertFalse($invoice->fresh()->sdi_external);
+    }
+
+    public function test_an_imported_invoice_sent_from_prugna_is_not_overwritten(): void
+    {
+        $this->import();
+        $invoice = Invoice::query()->where('number', 'FA2512-0099')->sole();
+        $invoice->forceFill(['sdi_external' => false, 'notes' => 'Inviata da Prugna'])->save();
+        $invoice->sdiTransmissions()->forceCreate(['environment' => 'production', 'status' => SdiStatus::Delivered]);
+
+        $report = $this->import();
+
+        $this->assertSame('Inviata da Prugna', $invoice->fresh()->notes);
+        $this->assertSame(1, $this->section($report, 'invoices')['linked']);
     }
 
     public function test_purchases_expenses_contracts_and_interventions(): void

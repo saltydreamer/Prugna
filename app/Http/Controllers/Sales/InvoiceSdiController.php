@@ -2,12 +2,15 @@
 
 namespace App\Http\Controllers\Sales;
 
+use App\Actions\Invoices\IssueInvoice;
 use App\Actions\Sdi\SendInvoiceToSdi;
 use App\Enums\SdiStatus;
 use App\Http\Controllers\Controller;
 use App\Jobs\ProcessSdiEvent;
 use App\Models\Invoice;
+use App\Models\Organization;
 use App\Models\SdiEvent;
+use App\Support\CustomerSnapshot;
 use App\Support\Sdi\OpenapiClient;
 use App\Support\Sdi\OpenapiException;
 use Illuminate\Http\RedirectResponse;
@@ -20,7 +23,7 @@ use Inertia\Inertia;
  */
 class InvoiceSdiController extends Controller
 {
-    public function send(Request $request, Invoice $invoice, SendInvoiceToSdi $send, OpenapiClient $client): RedirectResponse
+    public function send(Request $request, Invoice $invoice, SendInvoiceToSdi $send, OpenapiClient $client, IssueInvoice $issueInvoice): RedirectResponse
     {
         $this->authorize('sendToSdi', $invoice);
 
@@ -30,11 +33,39 @@ class InvoiceSdiController extends Controller
             return back();
         }
 
+        if (! $invoice->sdiTransmissions()->exists() && ($problems = $issueInvoice->sendProblems($invoice))) {
+            Inertia::flash('toast', ['type' => 'error', 'message' => $problems[0]]);
+
+            return back();
+        }
+
         $transmission = $send->handle($invoice, $request->user());
 
         Inertia::flash('toast', $transmission->status === SdiStatus::Error
             ? ['type' => 'error', 'message' => __('Invio non riuscito: :error', ['error' => $transmission->message])]
             : ['type' => 'success', 'message' => __('Fattura :number inviata allo SDI: lo stato si aggiorna da solo quando arriva l\'esito.', ['number' => $invoice->number])]);
+
+        return back();
+    }
+
+    /**
+     * Marks an issued invoice as transmitted outside Prugna, or as still to send (e.g. an invoice
+     * imported from Dolibarr that never left): in that case the customer data on the invoice
+     * are refreshed, since nothing has been transmitted yet.
+     */
+    public function external(Request $request, Invoice $invoice): RedirectResponse
+    {
+        $external = (bool) $request->validate(['external' => ['required', 'boolean']])['external'];
+        $this->authorize($external ? 'markSentOutside' : 'markToSend', $invoice);
+
+        $invoice->forceFill([
+            'sdi_external' => $external,
+            ...($external ? [] : ['customer' => CustomerSnapshot::from(Organization::withTrashed()->findOrFail($invoice->organization_id))]),
+        ])->save();
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => $external
+            ? __('Fattura :number segnata come già trasmessa allo SDI: Prugna non la invierà.', ['number' => $invoice->number])
+            : __('Fattura :number segnata come da inviare allo SDI.', ['number' => $invoice->number])]);
 
         return back();
     }

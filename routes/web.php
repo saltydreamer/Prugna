@@ -179,6 +179,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::post('send', 'send')->middleware('throttle:20,1')->name('send');
             Route::post('refresh', 'refresh')->middleware('throttle:20,1')->name('refresh');
             Route::post('simulate', 'simulate')->middleware('throttle:20,1')->name('simulate');
+            Route::put('external', 'external')->name('external');
         });
         Route::controller(InvoiceDocumentController::class)->prefix('invoices/{invoice}')->name('invoices.')->group(function () {
             Route::get('pdf', 'pdf')->name('pdf');

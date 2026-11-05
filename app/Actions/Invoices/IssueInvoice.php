@@ -54,6 +54,17 @@ class IssueInvoice
      *
      * @return array<string, string>
      */
+    /**
+     * What prevents sending an issued invoice that never reached the SDI (e.g. imported from
+     * Dolibarr): the same checks of the issue on company, customer and lines.
+     *
+     * @return list<string>
+     */
+    public function sendProblems(Invoice $invoice): array
+    {
+        return array_values(array_intersect_key($this->problems($invoice), array_flip(['company', 'customer', 'lines'])));
+    }
+
     public function problems(Invoice $invoice): array
     {
         $problems = [];

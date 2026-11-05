@@ -150,7 +150,7 @@ async function destroy() {
             per assegnare il numero.
         </v-alert>
         <v-alert
-            v-else-if="!sdi.enabled && !sdi.imported && !sdi.transmissions.length"
+            v-else-if="!sdi.enabled && !sdi.external && !sdi.transmissions.length"
             type="success"
             variant="tonal"
             class="mb-6"

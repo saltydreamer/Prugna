@@ -2,7 +2,6 @@
 
 namespace App\Actions\Invoices;
 
-use App\Enums\SdiStatus;
 use App\Models\Invoice;
 use App\Models\Order;
 use App\Models\OrderLine;
@@ -32,9 +31,9 @@ class DeleteIssuedInvoice
 
         $problems = [];
 
-        if ($invoice->isImported()) {
-            $problems[] = __('È stata importata da Dolibarr ed è già stata trasmessa allo SDI: per annullarla emetti una nota di credito.');
-        } elseif ($invoice->sdiTransmissions()->where('environment', '!=', 'test')->where('status', '!=', SdiStatus::Error->value)->exists()) {
+        if ($invoice->isSentOutsidePrugna()) {
+            $problems[] = __('È stata trasmessa allo SDI fuori da Prugna: per annullarla emetti una nota di credito.');
+        } elseif ($invoice->hasReachedSdi()) {
             $problems[] = __('È stata inviata allo SDI: per annullarla emetti una nota di credito.');
         }
 

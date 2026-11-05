@@ -199,7 +199,7 @@ class InvoiceController extends Controller
         return $this->created($invoice);
     }
 
-    public function show(Invoice $invoice, IssueInvoice $issueInvoice, DeleteIssuedInvoice $deleteIssued, InvoiceCalculator $calculator, OpenapiClient $sdi): Response
+    public function show(Request $request, Invoice $invoice, IssueInvoice $issueInvoice, DeleteIssuedInvoice $deleteIssued, InvoiceCalculator $calculator, OpenapiClient $sdi): Response
     {
         $this->authorize('view', $invoice);
 
@@ -215,8 +215,12 @@ class InvoiceController extends Controller
             'fiscal' => $this->fiscalLabels($invoice),
             'sdi' => [
                 'enabled' => $sdi->isConfigured(),
-                // Issued in Dolibarr and imported: already sent to the SDI outside Prugna.
-                'imported' => $invoice->isImported(),
+                // Transmitted outside Prugna (e.g. issued in Dolibarr): never sent from here.
+                'external' => $invoice->isSentOutsidePrugna(),
+                'can_mark_to_send' => $request->user()->can('markToSend', $invoice),
+                'can_mark_sent_outside' => $request->user()->can('markSentOutside', $invoice),
+                // What prevents sending an invoice not yet transmitted (e.g. imported data incomplete).
+                'problems' => ! $invoice->isDraft() && ! $invoice->isSentOutsidePrugna() && ! $invoice->sdiTransmissions()->exists() ? $issueInvoice->sendProblems($invoice) : [],
                 'environment' => $sdi->environment(),
                 'transmissions' => $invoice->sdiTransmissions()->with('user:id,name')->get()->map(fn (SdiTransmission $transmission) => [
                     'id' => $transmission->id,

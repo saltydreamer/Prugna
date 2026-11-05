@@ -54,6 +54,7 @@ class Invoice extends Model
             'total' => 'decimal:2',
             'amount_due' => 'decimal:2',
             'sdi_status' => SdiStatus::class,
+            'sdi_external' => 'boolean',
         ];
     }
 
@@ -175,15 +176,20 @@ class Invoice extends Model
     }
 
     /**
-     * Issued in Dolibarr and imported with its number (see App\Actions\Dolibarr\ImportSales):
-     * already sent to the SDI outside Prugna. Drafts imported from Dolibarr and issued in
-     * Prugna get a Prugna number and are sent like any other invoice.
+     * Transmitted to the SDI outside Prugna (issued in Dolibarr and imported, or marked by hand):
+     * never sent from here. Marking it as still to send turns it into a normal issued invoice.
      */
-    public function isImported(): bool
+    public function isSentOutsidePrugna(): bool
     {
-        $reference = $this->number !== null ? $this->dolibarrLink()->value('reference') : null;
+        return ! $this->isDraft() && $this->sdi_external;
+    }
 
-        return $reference !== null && mb_substr($reference, 0, 32) === $this->number;
+    /**
+     * Sent to the real SDI from Prugna (sandbox sends and failed sends don't count).
+     */
+    public function hasReachedSdi(): bool
+    {
+        return $this->sdiTransmissions()->where('environment', '!=', 'test')->where('status', '!=', SdiStatus::Error->value)->exists();
     }
 
     public function displayNumber(): string
