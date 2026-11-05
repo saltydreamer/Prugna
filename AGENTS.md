@@ -103,6 +103,11 @@
 - Issued invoices keep Dolibarr's number; its trailing digits are the sequence of (series, year), so Prugna's numbering continues. Numbers already used by Prugna invoices are blocking errors. `Invoice::isImported()` → never sent to the SDI (policy `sendToSdi`, `SdiCard`).
 - Imported values bypass mass assignment (`forceCreate` / `forceFill`); amounts are kept as Dolibarr computed them (credit notes are stored negative in Dolibarr and turned positive). Tests: `tests/Fixtures/dolibarr/backup.sql`.
 
+## Statistics (Statistiche)
+
+- `statistics.index` (`StatisticsController`, permission `statistics.view`): revenue by year, month and customer from `App\Support\RevenueStatistics` — issued invoices (imported ones too) by invoice date, taxable line totals without the stamp duty charged back, credit notes subtracted. A year in progress is compared with the same period of the previous one.
+- Charts are plain SVG (`resources/js/components/charts/ColumnChart.vue`, no chart library): thin columns, accent for the subject and theme gray for context, tooltip on hover/focus, a table view next to every chart.
+
 ## Frontend
 
 - Pages: `resources/js/pages/**` (lowercase directory, e.g. `admin/users/Index`). Layout is chosen automatically in `resources/js/app.js` (`auth/*` → `AuthLayout`, else `AppLayout`).

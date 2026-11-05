@@ -94,6 +94,13 @@ const navigation = computed(() => {
                     active: 'sales.invoices.*',
                     permission: 'invoices.view',
                 },
+                {
+                    title: 'Statistiche',
+                    icon: 'mdi-chart-bar',
+                    route: 'statistics.index',
+                    active: 'statistics.*',
+                    permission: 'statistics.view',
+                },
             ],
         },
         {

@@ -68,6 +68,8 @@ enum Permission: string
 
     case DolibarrImport = 'dolibarr.import';
 
+    case StatisticsView = 'statistics.view';
+
     public function label(): string
     {
         return match ($this) {
@@ -114,6 +116,7 @@ enum Permission: string
             self::AiUse => "Usare l'AI per leggere i documenti",
             self::SettingsManage => 'Gestire impostazioni (azienda, email, pagamenti)',
             self::DolibarrImport => 'Importare i dati da Dolibarr',
+            self::StatisticsView => 'Vedere le statistiche di fatturato',
         };
     }
 
@@ -134,6 +137,7 @@ enum Permission: string
             self::InterventionsView, self::InterventionsManage, self::InterventionsSupervise, self::ContractsManage => 'Interventi',
             self::AiUse => 'Intelligenza artificiale',
             self::SettingsManage, self::DolibarrImport => 'Impostazioni',
+            self::StatisticsView => 'Statistiche',
         };
     }
 

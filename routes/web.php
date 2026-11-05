@@ -42,6 +42,7 @@ use App\Http\Controllers\Settings\DolibarrImportController;
 use App\Http\Controllers\Settings\ElectronicInvoicingController;
 use App\Http\Controllers\Settings\PaymentTermController;
 use App\Http\Controllers\Settings\SettingsController;
+use App\Http\Controllers\StatisticsController;
 use Illuminate\Routing\RedirectController;
 use Illuminate\Support\Facades\Route;
 
@@ -243,6 +244,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Phone page that works offline: interventions recorded on the device and synced.
     Route::get('field', [FieldController::class, 'index'])->name('field.index');
     Route::post('field/sync', [FieldController::class, 'sync'])->middleware('throttle:120,1')->name('field.sync');
+
+    Route::get('statistics', StatisticsController::class)->name('statistics.index');
 
     Route::prefix('settings')->name('settings.')->group(function () {
         Route::controller(SettingsController::class)->group(function () {
