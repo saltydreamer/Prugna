@@ -1,10 +1,12 @@
 # Production stack. Lives in /srv/boilerplate on the server, next to the .env file
 # created by deploy/scripts/provision.sh. Updated by the "Deploy" GitHub workflow.
+# The project (and folder) keep the name "boilerplate": the database and the uploaded
+# files live in the boilerplate_* volumes, renaming it would start from empty volumes.
 
 name: boilerplate
 
 x-app: &app
-  image: ${APP_IMAGE:-ghcr.io/saltydreamer/boilerplate:latest}
+  image: ${APP_IMAGE:-ghcr.io/saltydreamer/prugna:latest}
   restart: unless-stopped
   env_file: .env
   volumes:

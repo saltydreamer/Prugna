@@ -1,4 +1,4 @@
-# Boilerplate conventions
+# Prugna conventions
 
 ## Stack
 - Laravel 13 + Fortify (headless auth) + Spatie Permission + Inertia v3 + Vue 3 (`<script setup>`, plain JS) + Vuetify 4 + Ziggy. Database: MariaDB (SQLite in-memory for tests).

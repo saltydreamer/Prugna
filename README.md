@@ -1,6 +1,6 @@
-# Boilerplate
+# Prugna
 
-Scheletro applicativo **Laravel 13 + Inertia 3 + Vue 3 + Vuetify 4 + MariaDB** con le funzionalità che servono in quasi ogni progetto:
+Gestionale aziendale (anagrafiche, preventivi, ordini, fatture elettroniche via SDI, acquisti, spese, interventi) in **Laravel 13 + Inertia 3 + Vue 3 + Vuetify 4 + MariaDB**, nato dallo scheletro [Boilerplate](https://github.com/saltydreamer/Boilerplate). In produzione su https://dev.reimg.it.
 
 - **Autenticazione** completa (Laravel Fortify): login, registrazione (disattivabile), recupero password, verifica email, autenticazione a due fattori (TOTP + codici di recupero), conferma password, rate limiting.
 - **Gestione utenti**: elenco con ricerca, filtri per ruolo e stato, ordinamento e paginazione lato server; creazione (con password o con invio del link per sceglierla), modifica, disattivazione, eliminazione, invio del link di reset.

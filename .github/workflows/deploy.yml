@@ -11,6 +11,7 @@ permissions:
 
 env:
   APP_DOMAIN: ${{ vars.APP_DOMAIN || 'dev.reimg.it' }}
+  APP_NAME: ${{ vars.APP_NAME || 'Prugna' }}
 
 jobs:
   tests:
@@ -94,7 +95,7 @@ jobs:
           mkdir -p /tmp/stack
           cp deploy/compose.yaml deploy/scripts/deploy.sh /tmp/stack/
           cat > /tmp/stack/.env <<ENV
-          APP_NAME=Boilerplate
+          APP_NAME=Prugna
           APP_ENV=production
           APP_KEY=base64:$(openssl rand -base64 32)
           APP_DEBUG=false
@@ -205,7 +206,7 @@ jobs:
           REGISTRY_USER: ${{ github.actor }}
         run: |
           printf '%s' "$REGISTRY_TOKEN" | ssh vps "docker login ghcr.io -u '$REGISTRY_USER' --password-stdin > /dev/null"
-          ssh vps "APP_IMAGE='$APP_IMAGE' /srv/boilerplate/deploy.sh" || { ssh vps 'docker logout ghcr.io > /dev/null'; exit 1; }
+          ssh vps "APP_IMAGE='$APP_IMAGE' APP_NAME='$APP_NAME' /srv/boilerplate/deploy.sh" || { ssh vps 'docker logout ghcr.io > /dev/null'; exit 1; }
           ssh vps 'docker logout ghcr.io > /dev/null'
 
       - name: Verify https://${{ env.APP_DOMAIN }}

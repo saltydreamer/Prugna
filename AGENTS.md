@@ -1,7 +1,7 @@
 <laravel-boost-guidelines>
 === .ai/boilerplate rules ===
 
-# Boilerplate conventions
+# Prugna conventions
 
 ## Stack
 

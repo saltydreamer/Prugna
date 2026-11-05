@@ -5,7 +5,7 @@ L'app gira sul VPS in container Docker, aggiornati automaticamente da GitHub Act
 ```
 push / merge su main
   └─ Tests ─ test su MariaDB + stile del codice
-      └─ Build image ─ immagine Docker → ghcr.io/<owner>/boilerplate:<commit>
+      └─ Build image ─ immagine Docker → ghcr.io/<owner>/prugna:<commit>
           └─ Smoke test ─ avvia lo stack completo sul runner e controlla le pagine
               └─ Deploy to VPS ─ scarica l'immagine, migra il database, riavvia i container
 ```
@@ -34,6 +34,7 @@ Tutto si trova in `/srv/boilerplate` (utente `deploy`):
 | `VPS_SSH_KEY` | secret | chiave privata dedicata (commento `github-actions-boilerplate`) |
 | `VPS_PORT` | secret, facoltativo | porta SSH se diversa da 22 |
 | `APP_DOMAIN` | variabile, facoltativa | dominio pubblico (default `dev.reimg.it`) |
+| `APP_NAME` | variabile, facoltativa | nome dell'app mostrato nell'interfaccia e nelle email (default `Prugna`), aggiornato nel `.env` del server a ogni deploy |
 
 Il deploy si collega come utente `deploy`, che può gestire solo Docker. `root` serve solo al workflow di preparazione.
 
@@ -84,7 +85,7 @@ Backup manuale:
 **Rollback** a un commit precedente (l'immagine di ogni commit resta su GHCR). Rilancia il workflow *Deploy* da GitHub su quel commit, oppure sul server:
 
 ```bash
-APP_IMAGE=ghcr.io/saltydreamer/boilerplate:<sha-del-commit> ./deploy.sh
+APP_IMAGE=ghcr.io/saltydreamer/prugna:<sha-del-commit> ./deploy.sh
 ```
 
 Il rollback non annulla le migrazioni del database: se una migrazione ha cambiato lo schema, ripristina anche un backup.

@@ -70,7 +70,7 @@ install -d -m 750 -o "$DEPLOY_USER" -g "$DEPLOY_USER" "$APP_DIR" "$APP_DIR/backu
 
 if [ ! -f "$APP_DIR/.env" ]; then
     cat > "$APP_DIR/.env" <<ENV
-APP_NAME=Boilerplate
+APP_NAME=Prugna
 APP_ENV=production
 APP_KEY=base64:$(openssl rand -base64 32)
 APP_DEBUG=false
@@ -106,7 +106,7 @@ BROADCAST_CONNECTION=log
 # Emails are written to the log until an SMTP server is configured.
 MAIL_MAILER=log
 MAIL_FROM_ADDRESS=noreply@${APP_DOMAIN}
-MAIL_FROM_NAME=Boilerplate
+MAIL_FROM_NAME=Prugna
 
 FORTIFY_REGISTRATION=false
 INERTIA_SSR_ENABLED=false

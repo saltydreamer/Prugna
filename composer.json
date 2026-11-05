@@ -1,14 +1,14 @@
 {
     "$schema": "https://getcomposer.org/schema.json",
-    "name": "app/boilerplate",
+    "name": "app/prugna",
     "type": "project",
-    "description": "Laravel + Inertia + Vue 3 + Vuetify starter: users, roles & permissions, profile, notification center.",
+    "description": "Prugna: business management app (registry, quotes, orders, e-invoicing, purchases, expenses, interventions).",
     "keywords": [
         "laravel",
         "inertia",
         "vue",
         "vuetify",
-        "boilerplate"
+        "erp"
     ],
     "license": "MIT",
     "require": {
