@@ -16,6 +16,7 @@ Gestionale aziendale (anagrafiche, preventivi, ordini, fatture elettroniche via 
 - **Spese e scadenze**: fatture fornitore, ricevute e scontrini con allegato, scadenze, pagamenti, spese scadute, ribaltamento al cliente e margine per ordine.
 - **Lettura documenti con AI (OpenRouter)**: carichi foto, PDF o fattura elettronica XML/.p7m e il modulo (spesa, nuovo cliente o fornitore) si compila da solo; l'XML si legge senza AI. Modello scelto dal catalogo OpenRouter, filtro privacy, costo di ogni lettura registrato.
 - **Impostazioni**: dati e logo dell'azienda, server SMTP con email di prova, testi dei preventivi, condizioni di pagamento (con predefinita per cliente).
+- **Importa da Dolibarr**: carichi il backup del database di Dolibarr e Prugna importa anagrafiche, catalogo, preventivi, ordini, fatture (con il loro numero), acquisti, spese, contratti e interventi; prima una simulazione con il riepilogo, poi l'importazione, ripetibile senza duplicati.
 - Interfaccia in italiano, tema chiaro/scuro/di sistema, layout responsive, pagine d'errore, toast e dialoghi di conferma globali.
 
 ## Stack

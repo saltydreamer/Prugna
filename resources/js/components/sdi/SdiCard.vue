@@ -20,7 +20,7 @@ const sending = ref(false);
 const refreshing = ref(false);
 
 const latest = computed(() => props.sdi.transmissions[0] ?? null);
-const canSend = computed(() => can('invoices.issue') && props.sdi.enabled && (!latest.value || latest.value.can_resend));
+const canSend = computed(() => can('invoices.issue') && props.sdi.enabled && !props.sdi.imported && (!latest.value || latest.value.can_resend));
 const dateTime = (iso) => (iso ? new Date(iso).toLocaleString('it-IT', { dateStyle: 'short', timeStyle: 'short' }) : '');
 
 function send() {
@@ -51,7 +51,13 @@ function refresh() {
             <v-chip :color="latest.status_color" :prepend-icon="latest.status_icon" variant="tonal">{{ latest.status_label }}</v-chip>
         </template>
         <v-card-text>
-            <template v-if="!sdi.enabled && !latest">
+            <template v-if="sdi.imported && !latest">
+                <div class="text-body-2 text-medium-emphasis">
+                    Fattura importata da Dolibarr: è stata trasmessa allo SDI fuori da Prugna e non può essere rinviata.
+                </div>
+            </template>
+
+            <template v-else-if="!sdi.enabled && !latest">
                 <div class="text-body-2 text-medium-emphasis mb-3">
                     L'invio automatico allo SDI non è attivo: scarica l'XML e caricalo su Fatture e Corrispettivi, oppure collega Openapi.
                 </div>

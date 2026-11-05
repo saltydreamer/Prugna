@@ -211,6 +211,8 @@ class InvoiceController extends Controller
             'fiscal' => $this->fiscalLabels($invoice),
             'sdi' => [
                 'enabled' => $sdi->isConfigured(),
+                // Issued in Dolibarr and imported: already sent to the SDI outside Prugna.
+                'imported' => $invoice->isImported(),
                 'environment' => $sdi->environment(),
                 'transmissions' => $invoice->sdiTransmissions()->with('user:id,name')->get()->map(fn (SdiTransmission $transmission) => [
                     'id' => $transmission->id,

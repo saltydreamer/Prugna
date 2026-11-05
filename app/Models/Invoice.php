@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphOne;
 
 #[Fillable([
     'type', 'issue_date', 'organization_id', 'contact_id', 'owner_id', 'quote_id', 'order_id', 'related_invoice_id',
@@ -163,6 +164,26 @@ class Invoice extends Model
     public function isDraft(): bool
     {
         return $this->status === InvoiceStatus::Draft;
+    }
+
+    /**
+     * @return MorphOne<DolibarrLink, $this>
+     */
+    public function dolibarrLink(): MorphOne
+    {
+        return $this->morphOne(DolibarrLink::class, 'linkable')->where('source', 'facture');
+    }
+
+    /**
+     * Issued in Dolibarr and imported with its number (see App\Actions\Dolibarr\ImportSales):
+     * already sent to the SDI outside Prugna. Drafts imported from Dolibarr and issued in
+     * Prugna get a Prugna number and are sent like any other invoice.
+     */
+    public function isImported(): bool
+    {
+        $reference = $this->number !== null ? $this->dolibarrLink()->value('reference') : null;
+
+        return $reference !== null && mb_substr($reference, 0, 32) === $this->number;
     }
 
     public function displayNumber(): string

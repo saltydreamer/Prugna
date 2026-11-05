@@ -38,6 +38,7 @@ use App\Http\Controllers\Sales\OrderDocumentController;
 use App\Http\Controllers\Sales\QuoteController;
 use App\Http\Controllers\Sales\QuoteDocumentController;
 use App\Http\Controllers\Sales\QuoteLookupController;
+use App\Http\Controllers\Settings\DolibarrImportController;
 use App\Http\Controllers\Settings\ElectronicInvoicingController;
 use App\Http\Controllers\Settings\PaymentTermController;
 use App\Http\Controllers\Settings\SettingsController;
@@ -268,6 +269,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
         });
 
         Route::resource('payment-terms', PaymentTermController::class)->only(['store', 'update', 'destroy']);
+
+        Route::controller(DolibarrImportController::class)->prefix('dolibarr')->name('dolibarr.')->group(function () {
+            Route::get('/', 'index')->name('index');
+            Route::post('/', 'store')->middleware('throttle:10,1')->name('store');
+            Route::post('{dolibarrImport}/simulate', 'simulate')->name('simulate');
+            Route::post('{dolibarrImport}/import', 'import')->name('import');
+            Route::delete('{dolibarrImport}', 'destroy')->name('destroy');
+        });
     });
 
     Route::prefix('admin')->name('admin.')->group(function () {

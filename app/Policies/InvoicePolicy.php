@@ -44,11 +44,12 @@ class InvoicePolicy
     }
 
     /**
-     * Send an issued invoice to the SDI (again after a rejection or a failed send).
+     * Send an issued invoice to the SDI (again after a rejection or a failed send). Invoices
+     * imported from Dolibarr were already transmitted outside Prugna.
      */
     public function sendToSdi(User $user, Invoice $invoice): bool
     {
-        return ! $invoice->isDraft() && $user->can(Permission::InvoicesIssue->value);
+        return ! $invoice->isDraft() && ! $invoice->isImported() && $user->can(Permission::InvoicesIssue->value);
     }
 
     public function creditNote(User $user, Invoice $invoice): bool

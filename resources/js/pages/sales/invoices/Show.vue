@@ -119,7 +119,13 @@ async function destroy() {
             <strong>Emetti</strong>
             per assegnare il numero.
         </v-alert>
-        <v-alert v-else-if="!sdi.enabled && !sdi.transmissions.length" type="success" variant="tonal" class="mb-6" icon="mdi-cloud-upload-outline">
+        <v-alert
+            v-else-if="!sdi.enabled && !sdi.imported && !sdi.transmissions.length"
+            type="success"
+            variant="tonal"
+            class="mb-6"
+            icon="mdi-cloud-upload-outline"
+        >
             Scarica l'
             <strong>XML SdI</strong>
             e caricalo su «Fatture e corrispettivi» dell'Agenzia delle Entrate (Fatture elettroniche → Trasmissione → Upload file fattura). Il PDF è

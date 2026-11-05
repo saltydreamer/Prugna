@@ -155,6 +155,8 @@ jobs:
           PHP
           grep -q "PDF OK" /tmp/pdf.txt
           docker compose exec -T app php artisan schedule:list
+          # The Dolibarr import reads backups into a SQLite staging database.
+          docker compose exec -T app php -m | grep -qi pdo_sqlite
 
       - name: Logs on failure
         if: failure()

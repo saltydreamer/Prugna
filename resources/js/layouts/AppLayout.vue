@@ -235,10 +235,18 @@ const navigation = computed(() => {
                     permission: 'settings.manage',
                 },
                 {
+                    title: 'Importa da Dolibarr',
+                    icon: 'mdi-database-import-outline',
+                    route: 'settings.dolibarr.index',
+                    active: 'settings.dolibarr.*',
+                    permission: 'dolibarr.import',
+                },
+                {
                     title: 'Impostazioni',
                     icon: 'mdi-cog-outline',
                     route: 'settings.index',
-                    active: () => route().current('settings.*') && !route().current('settings.einvoicing.*'),
+                    active: () =>
+                        route().current('settings.*') && !route().current('settings.einvoicing.*') && !route().current('settings.dolibarr.*'),
                     permission: 'settings.manage',
                 },
             ],

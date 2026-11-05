@@ -66,6 +66,8 @@ enum Permission: string
 
     case SettingsManage = 'settings.manage';
 
+    case DolibarrImport = 'dolibarr.import';
+
     public function label(): string
     {
         return match ($this) {
@@ -111,6 +113,7 @@ enum Permission: string
             self::ContractsManage => 'Gestire i contratti a monte ore',
             self::AiUse => "Usare l'AI per leggere i documenti",
             self::SettingsManage => 'Gestire impostazioni (azienda, email, pagamenti)',
+            self::DolibarrImport => 'Importare i dati da Dolibarr',
         };
     }
 
@@ -130,7 +133,7 @@ enum Permission: string
             self::ExpensesView, self::ExpensesManage => 'Spese',
             self::InterventionsView, self::InterventionsManage, self::InterventionsSupervise, self::ContractsManage => 'Interventi',
             self::AiUse => 'Intelligenza artificiale',
-            self::SettingsManage => 'Impostazioni',
+            self::SettingsManage, self::DolibarrImport => 'Impostazioni',
         };
     }
 
