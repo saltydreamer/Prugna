@@ -16,6 +16,7 @@ import { THEME_STORAGE_KEY } from '@/plugins/vuetify';
 import { formatElapsed } from '@/utils/duration';
 import { installApp, pwa, tellServiceWorker } from '@/utils/pwa';
 import { fieldQueue, startFieldSync } from '@/utils/fieldQueue';
+import { plumIcon } from '@/utils/icons';
 
 const page = usePage();
 const theme = useTheme();
@@ -312,10 +313,10 @@ function logout() {
 <template>
     <v-app>
         <v-navigation-drawer v-model="drawer" :rail="rail" :temporary="mobile" width="236" class="app-drawer">
-            <v-list-item class="py-3" :prepend-icon="rail ? 'mdi-cube-outline' : undefined" v-bind="link(route('dashboard'))">
+            <v-list-item class="py-3" :prepend-icon="rail ? plumIcon : undefined" v-bind="link(route('dashboard'))">
                 <template v-if="!rail" #prepend>
                     <v-avatar color="primary" rounded="md" size="28">
-                        <v-icon icon="mdi-cube-outline" size="18" />
+                        <v-icon :icon="plumIcon" size="20" />
                     </v-avatar>
                 </template>
                 <v-list-item-title class="text-body-1 font-weight-bold">{{ appName }}</v-list-item-title>
