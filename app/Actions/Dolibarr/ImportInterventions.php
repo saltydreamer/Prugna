@@ -129,6 +129,14 @@ class ImportInterventions
             $invoiceIds = array_values(array_filter(array_map(fn (int $id) => $this->map->linkedId('facture', $id), $invoices[(int) $row->rowid] ?? [])));
             $intervention = $this->map->linked('fichinter', (int) $row->rowid, Intervention::class);
 
+            // Split in Prugna into one intervention per job: importing it again would merge the jobs back.
+            if ($intervention && $intervention->splitParts()->exists()) {
+                $this->map->report->count('interventions', 'linked');
+                $this->map->report->warn(__('Interventi divisi in Prugna: non aggiornati da Dolibarr.'), (string) $row->ref);
+
+                continue;
+            }
+
             $attributes = [
                 'year' => $start->year,
                 'sequence' => $this->map->sequence(Intervention::class, $start->year, $intervention),

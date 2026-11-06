@@ -33,6 +33,7 @@ class InterventionResource extends JsonResource
             'contact' => $this->whenLoaded('contact', fn () => $this->contact ? ['id' => $this->contact->id, 'name' => $this->contact->full_name, 'email' => $this->contact->email, 'phone' => $this->contact->mobile ?: $this->contact->phone] : null),
             'order_id' => $this->order_id,
             'order' => $this->whenLoaded('order', fn () => $this->order?->only(['id', 'number', 'title'])),
+            'split_from' => $this->whenLoaded('splitFrom', fn () => $this->splitFrom?->only(['id', 'number'])),
             'category_id' => $this->category_id,
             'category' => $this->whenLoaded('category', fn () => $this->category?->name),
             'mode' => $this->mode->value,

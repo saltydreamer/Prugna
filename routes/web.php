@@ -232,6 +232,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('start', [InterventionController::class, 'start'])->name('start');
         Route::get('customers/{organization}', [InterventionController::class, 'customer'])->name('customer');
         Route::post('{intervention}/stop', [InterventionController::class, 'stop'])->name('stop');
+        Route::post('{intervention}/split', [InterventionController::class, 'split'])->name('split');
 
         Route::controller(InterventionDocumentController::class)->prefix('{intervention}')->group(function () {
             Route::get('pdf', 'pdf')->name('pdf');

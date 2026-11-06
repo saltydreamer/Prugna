@@ -15,6 +15,8 @@ import { formatElapsed, formatHours, formatMinutes, ROUNDING_LABELS } from '@/ut
 const props = defineProps({
     intervention: { type: Object, required: true },
     rounding: { type: Number, required: true },
+    /** Jobs listed in the description that can become interventions of their own (0: none). */
+    splitCount: { type: Number, default: 0 },
 });
 
 const { link } = useInertiaLink();
@@ -51,6 +53,18 @@ const materialsTotal = computed(() => (item.value.materials ?? []).reduce((sum, 
 
 function stop() {
     router.post(route('interventions.stop', item.value.id));
+}
+
+async function split() {
+    const ok = await confirm({
+        title: `Dividere in ${props.splitCount} interventi?`,
+        message: `Ogni lavoro elencato nella descrizione diventa un intervento con la sua data, durata e descrizione. ${item.value.number} tiene il primo (con uscita, km e materiali); gli altri prendono un nuovo numero.`,
+        confirmText: 'Dividi',
+    });
+
+    if (ok) {
+        router.post(route('interventions.split', item.value.id));
+    }
 }
 
 async function destroy() {
@@ -116,6 +130,16 @@ async function destroy() {
                 <a v-bind="link(route('sales.invoices.show', invoice.id))" class="font-weight-medium">{{ invoice.label }}</a>
             </template>
             : non si può più modificare.
+        </v-alert>
+
+        <v-alert v-if="splitCount" type="info" variant="tonal" class="mb-6" icon="mdi-call-split">
+            <div class="d-flex align-center flex-wrap ga-3">
+                <span class="flex-grow-1">
+                    La descrizione elenca {{ splitCount }} lavori con data e ora (ad esempio un intervento importato da Dolibarr). In Prugna ogni
+                    lavoro è un intervento a sé: dividilo per fatturarli e mandarne i rapportini come gli altri.
+                </span>
+                <v-btn color="primary" variant="flat" prepend-icon="mdi-call-split" @click="split">Dividi in {{ splitCount }} interventi</v-btn>
+            </div>
         </v-alert>
 
         <v-row>
@@ -251,6 +275,13 @@ async function destroy() {
 
                 <v-card title="Dettagli">
                     <v-list density="compact">
+                        <v-list-item
+                            v-if="item.split_from"
+                            prepend-icon="mdi-call-split"
+                            title="Diviso dall'intervento"
+                            :subtitle="item.split_from.number"
+                            v-bind="link(route('interventions.show', item.split_from.id))"
+                        />
                         <v-list-item
                             prepend-icon="mdi-domain"
                             title="Cliente"

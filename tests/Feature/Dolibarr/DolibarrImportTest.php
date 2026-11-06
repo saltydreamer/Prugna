@@ -3,6 +3,7 @@
 namespace Tests\Feature\Dolibarr;
 
 use App\Actions\Dolibarr\ImportDolibarr;
+use App\Actions\Interventions\SplitIntervention;
 use App\Enums\BillingPeriod;
 use App\Enums\ExpenseType;
 use App\Enums\InterventionStatus;
@@ -283,6 +284,21 @@ class DolibarrImportTest extends TestCase
         $this->assertSame(0, $this->section($report, 'invoices')['created']);
         $this->assertSame(4, $this->section($report, 'invoices')['updated']);
         $this->assertSame(InterventionStatus::Invoiced, Intervention::query()->where('number', 'FI2601-0001')->sole()->status());
+    }
+
+    public function test_an_intervention_split_in_prugna_is_not_merged_back(): void
+    {
+        $this->import();
+        $intervention = Intervention::query()->where('number', 'FI2601-0003')->sole();
+        $intervention->forceFill(['description' => "22/01/2026 10:00 · 1 h · Controllo\n23/01/2026 15:00 · 30 min · Verifica backup"])->save();
+        app(SplitIntervention::class)->handle($intervention);
+
+        $report = $this->import();
+
+        $this->assertSame('Controllo', $intervention->fresh()->description);
+        $this->assertSame(60, $intervention->fresh()->duration_minutes);
+        $this->assertSame(1, $intervention->splitParts()->count());
+        $this->assertSame(1, $this->section($report, 'interventions')['linked']);
     }
 
     public function test_a_simulation_changes_nothing(): void

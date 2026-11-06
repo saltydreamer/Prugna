@@ -117,6 +117,26 @@ class Intervention extends Model
     }
 
     /**
+     * Intervention this one was split from (it kept the first part).
+     *
+     * @return BelongsTo<Intervention, $this>
+     */
+    public function splitFrom(): BelongsTo
+    {
+        return $this->belongsTo(Intervention::class, 'split_from_id');
+    }
+
+    /**
+     * Parts split off this intervention.
+     *
+     * @return HasMany<Intervention, $this>
+     */
+    public function splitParts(): HasMany
+    {
+        return $this->hasMany(Intervention::class, 'split_from_id');
+    }
+
+    /**
      * @return HasMany<InterventionMaterial, $this>
      */
     public function materials(): HasMany

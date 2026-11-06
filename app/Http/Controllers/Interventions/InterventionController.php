@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Interventions;
 
 use App\Actions\Interventions\ApplyContract;
 use App\Actions\Interventions\SaveIntervention;
+use App\Actions\Interventions\SplitIntervention;
 use App\Enums\InterventionMode;
 use App\Enums\InterventionStatus;
 use App\Enums\OrganizationRole;
@@ -170,16 +171,32 @@ class InterventionController extends Controller
         return to_route('interventions.show', $intervention);
     }
 
-    public function show(Intervention $intervention): Response
+    public function show(Request $request, Intervention $intervention, SplitIntervention $split): Response
     {
         $this->authorize('view', $intervention);
 
-        $intervention->load(['organization', 'location', 'contact', 'order', 'contract', 'category', 'technician', 'materials', 'invoiceLines.invoice']);
+        $intervention->load(['organization', 'location', 'contact', 'order', 'contract', 'category', 'technician', 'materials', 'invoiceLines.invoice', 'splitFrom:id,number']);
 
         return Inertia::render('interventions/Show', [
             'intervention' => InterventionResource::make($intervention)->resolve(),
             'rounding' => Intervention::rounding(),
+            // Jobs listed in the description (e.g. imported from Dolibarr) that can become interventions of their own.
+            'splitCount' => $request->user()->can('update', $intervention) ? $split->count($intervention) : 0,
         ]);
+    }
+
+    /**
+     * One intervention per job listed in the description.
+     */
+    public function split(Intervention $intervention, SplitIntervention $split): RedirectResponse
+    {
+        $this->authorize('update', $intervention);
+
+        $parts = $split->handle($intervention);
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => __('Intervento diviso in :count interventi.', ['count' => count($parts)])]);
+
+        return to_route('interventions.index', ['customer' => $intervention->organization_id, 'scope' => 'all']);
     }
 
     public function edit(Request $request, Intervention $intervention): Response
