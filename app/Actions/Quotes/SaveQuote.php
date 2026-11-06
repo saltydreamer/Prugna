@@ -5,6 +5,7 @@ namespace App\Actions\Quotes;
 use App\Enums\QuoteLineType;
 use App\Models\Organization;
 use App\Models\PaymentTerm;
+use App\Models\Product;
 use App\Models\Quote;
 use App\Models\VatRate;
 use App\Support\CustomerSnapshot;
@@ -93,12 +94,17 @@ class SaveQuote
         $quote->lines()->delete();
 
         $rates = VatRate::query()->whereIn('id', array_filter(array_column($lines, 'vat_rate_id')))->get()->keyBy('id');
+        $packages = Product::query()->whereIn('id', array_filter(array_column($lines, 'product_id')))->where('hour_package', true)->get()->keyBy('id');
 
         foreach (array_values($lines) as $position => $line) {
             $type = $line['type'] ?? QuoteLineType::Item;
             $type = $type instanceof QuoteLineType ? $type : QuoteLineType::from($type);
             $isItem = $type === QuoteLineType::Item;
             $rate = $isItem ? $rates->get($line['vat_rate_id'] ?? null) : null;
+            // An article sold as "monte ore prepagato" is a package of as many hours as its quantity.
+            $package = $isItem ? $packages->get($line['product_id'] ?? null) : null;
+            $packageHours = $package ? (float) $line['quantity'] : ($isItem && filled($line['package_hours'] ?? null) ? (float) $line['package_hours'] : null);
+            $packageHours = $packageHours > 0 ? $packageHours : null;
 
             $quote->lines()->create([
                 'position' => $position + 1,
@@ -115,8 +121,8 @@ class SaveQuote
                 'vat_nature' => $rate?->nature,
                 'is_optional' => $isItem && ($line['is_optional'] ?? false),
                 'is_selected' => ! ($isItem && ($line['is_optional'] ?? false)) || ($line['is_selected'] ?? false),
-                'package_hours' => $isItem && filled($line['package_hours'] ?? null) ? (float) $line['package_hours'] : null,
-                'package_months' => $isItem && filled($line['package_hours'] ?? null) && filled($line['package_months'] ?? null) ? (int) $line['package_months'] : null,
+                'package_hours' => $packageHours,
+                'package_months' => $packageHours !== null ? ($line['package_months'] ?? $package?->package_months) : null,
             ]);
         }
     }

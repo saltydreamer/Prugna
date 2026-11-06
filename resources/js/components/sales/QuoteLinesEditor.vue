@@ -52,7 +52,20 @@ function addItem(product = null) {
         unit_price: product?.price ?? 0,
         discount_percent: 0,
         vat_rate_id: product?.vat_rate_id ?? props.defaultVatRateId,
+        // An article sold as prepaid hours: the hours are the quantity.
+        ...(props.allowPackages && product?.hour_package ? { package_hours: 1, package_months: product.package_months ?? null } : {}),
     });
+}
+
+/**
+ * A package sold by the hour follows the quantity.
+ */
+function onQuantity(line, quantity) {
+    const hourly = ['h', 'ore', 'ora'].includes(String(line.unit ?? '').toLowerCase());
+
+    if (hourly && line.package_hours !== null && line.package_hours !== undefined) {
+        line.package_hours = Number(quantity) || null;
+    }
 }
 
 function addSection() {
@@ -188,6 +201,7 @@ function error(index, field) {
                                     density="compact"
                                     :error-messages="error(index, 'quantity')"
                                     hide-details="auto"
+                                    @update:model-value="(value) => onQuantity(line, value)"
                                 />
                             </v-col>
                             <v-col cols="4" sm="2">

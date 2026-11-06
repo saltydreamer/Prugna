@@ -46,8 +46,27 @@ const recurring = computed({
     set: (value) => {
         form.value.billing_period = value ? 'monthly' : null;
 
+        if (value) {
+            form.value.hour_package = false;
+            form.value.package_months = null;
+        }
+
         if (value && ['pz', 'h'].includes(form.value.unit)) {
             form.value.unit = 'mese';
+        }
+    },
+});
+
+// Prepaid hours: sold by the hour, each sale becomes a contract a monte ore.
+const hourPackage = computed({
+    get: () => !!form.value.hour_package,
+    set: (value) => {
+        form.value.hour_package = value;
+        form.value.package_months = value ? (form.value.package_months ?? 12) : null;
+
+        if (value) {
+            form.value.billing_period = null;
+            form.value.unit = 'h';
         }
     },
 });
@@ -64,6 +83,8 @@ watch(
 
         if (type !== 'service') {
             form.value.billing_period = null;
+            form.value.hour_package = false;
+            form.value.package_months = null;
         }
     },
 );
@@ -171,7 +192,7 @@ watch(
         </v-row>
 
         <template v-if="isService">
-            <div class="text-subtitle-1 font-weight-medium mt-4 mb-1">Canone</div>
+            <div class="text-subtitle-1 font-weight-medium mt-4 mb-1">Canone e monte ore</div>
             <v-row align="center">
                 <v-col cols="12" md="6">
                     <v-switch
@@ -189,6 +210,31 @@ watch(
                         hint="Il prezzo si intende per ogni periodo"
                         persistent-hint
                         :error-messages="form.errors.billing_period"
+                    />
+                </v-col>
+            </v-row>
+            <v-row align="center">
+                <v-col cols="12" md="6">
+                    <v-switch
+                        v-model="hourPackage"
+                        label="Monte ore prepagato"
+                        hint="Venduto in un ordine o in un preventivo accettato crea il contratto monte ore del cliente: le ore sono la quantità"
+                        persistent-hint
+                        :error-messages="form.errors.hour_package"
+                    />
+                </v-col>
+                <v-col v-if="hourPackage" cols="12" md="6">
+                    <v-text-field
+                        v-model.number="form.package_months"
+                        label="Validità"
+                        type="number"
+                        min="1"
+                        max="120"
+                        suffix="mesi"
+                        clearable
+                        hint="Dalla data dell'ordine; vuota: senza scadenza"
+                        persistent-hint
+                        :error-messages="form.errors.package_months"
                     />
                 </v-col>
             </v-row>

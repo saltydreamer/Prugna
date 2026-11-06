@@ -19,13 +19,20 @@
         .label { font-size: 7.5pt; text-transform: uppercase; color: #888; letter-spacing: 0.3pt; margin-bottom: 1mm; }
         .lines th { background: #3F51B5; color: #fff; font-size: 8pt; font-weight: bold; padding: 2mm 1.5mm; text-align: left; }
         .lines th.right { text-align: right; }
-        .lines td { padding: 2mm 1.5mm; border-bottom: 0.5pt solid #e3e3e3; vertical-align: top; }
+        /* Fixed columns: long words and links in a description wrap instead of widening the table past the margin. */
+        .lines { table-layout: fixed; }
+        .lines td { padding: 2mm 1.5mm; border-bottom: 0.5pt solid #e3e3e3; vertical-align: top; word-wrap: break-word; }
+        .lines .num { white-space: nowrap; }
         .lines tr.section td { background: #eef0fa; font-weight: bold; color: #3F51B5; border-bottom: none; }
         .lines tr.text td { color: #444; }
         .lines tr.optional td { color: #777; font-style: italic; }
         .badge { font-size: 7pt; border: 0.5pt solid #999; border-radius: 1mm; padding: 0 1mm; font-style: normal; }
         .totals td { padding: 1.2mm 2mm; }
         .totals .grand td { font-size: 12pt; font-weight: bold; color: #3F51B5; border-top: 1pt solid #3F51B5; }
+        .options { margin-top: 3mm; border: 0.5pt dashed #3F51B5; border-radius: 2mm; background: #f6f7fd; }
+        .options td { padding: 1.2mm 2mm; }
+        .options td.right { white-space: nowrap; }
+        .options .with-options td { font-weight: bold; color: #3F51B5; border-top: 0.5pt solid #c5cae9; }
         .pre { white-space: pre-line; }
         .description { white-space: pre-line; }
         .notice { border: 0.5pt solid #3F51B5; background: #eef0fa; border-radius: 2mm; padding: 2.5mm 4mm; }

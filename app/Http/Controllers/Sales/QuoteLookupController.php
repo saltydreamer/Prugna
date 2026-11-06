@@ -76,6 +76,8 @@ class QuoteLookupController extends Controller
                     'type' => $product->type->value,
                     'unit' => $product->unit->value,
                     'billing_period_per' => $product->billing_period?->perLabel(),
+                    'hour_package' => $product->hour_package,
+                    'package_months' => $product->package_months,
                     'price' => $price['price'],
                     'list_price' => $price['list_price'],
                     'price_source' => $price['source'],

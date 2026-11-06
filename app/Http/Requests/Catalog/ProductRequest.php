@@ -26,13 +26,18 @@ class ProductRequest extends FormRequest
     }
 
     /**
-     * Codes are uppercase; only services can be recurring.
+     * Codes are uppercase; only services can be recurring or hour packages (never both).
      */
     protected function prepareForValidation(): void
     {
+        $isService = $this->input('type') === ProductType::Service->value;
+        $hourPackage = $isService && $this->boolean('hour_package');
+
         $this->merge([
             'code' => $this->filled('code') ? Str::upper(trim($this->input('code'))) : null,
-            'billing_period' => $this->input('type') === ProductType::Service->value ? ($this->input('billing_period') ?: null) : null,
+            'billing_period' => $isService && ! $hourPackage ? ($this->input('billing_period') ?: null) : null,
+            'hour_package' => $hourPackage,
+            'package_months' => $hourPackage ? ($this->input('package_months') ?: null) : null,
         ]);
     }
 
@@ -53,11 +58,13 @@ class ProductRequest extends FormRequest
             'description' => ['nullable', 'string', 'max:5000'],
             'category_id' => ['nullable', 'integer', Rule::exists('product_categories', 'id')],
             'business_line_id' => ['nullable', 'integer', Rule::exists('business_lines', 'id')],
-            'unit' => ['required', Rule::enum(UnitOfMeasure::class)],
+            'unit' => ['required', Rule::enum(UnitOfMeasure::class), Rule::when($this->boolean('hour_package'), [Rule::in([UnitOfMeasure::Hour->value])])],
             'price' => ['required', 'numeric', 'min:0', 'max:99999999'],
             'cost' => ['nullable', 'numeric', 'min:0', 'max:99999999'],
             'vat_rate_id' => ['required', 'integer', Rule::exists('vat_rates', 'id')->where('is_active', true)],
             'billing_period' => ['nullable', Rule::enum(BillingPeriod::class)],
+            'hour_package' => ['boolean'],
+            'package_months' => ['nullable', 'integer', 'between:1,120'],
             'is_active' => ['boolean'],
             'notes' => ['nullable', 'string', 'max:5000'],
         ];
@@ -70,6 +77,7 @@ class ProductRequest extends FormRequest
     {
         return [
             'code.regex' => __('Il codice può contenere lettere, numeri e i caratteri . _ / -'),
+            'unit.in' => __('Un monte ore si vende a ore: scegli l\'unità di misura «Ore (h)».'),
             'vat_rate_id.exists' => __("Seleziona un'aliquota IVA attiva."),
         ];
     }
@@ -91,6 +99,7 @@ class ProductRequest extends FormRequest
             'cost' => 'costo',
             'vat_rate_id' => 'aliquota IVA',
             'billing_period' => 'periodicità',
+            'package_months' => 'validità del monte ore',
             'notes' => 'note',
         ];
     }

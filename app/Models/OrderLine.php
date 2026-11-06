@@ -11,7 +11,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
     'position', 'type', 'product_id', 'code', 'description', 'unit', 'quantity', 'unit_price', 'discount_percent',
-    'vat_rate_id', 'vat_rate', 'vat_nature', 'total', 'quantity_invoiced',
+    'vat_rate_id', 'vat_rate', 'vat_nature', 'total', 'quantity_invoiced', 'package_hours', 'package_months',
 ])]
 class OrderLine extends Model
 {
@@ -32,6 +32,8 @@ class OrderLine extends Model
             'vat_rate' => 'decimal:2',
             'total' => 'decimal:2',
             'quantity_invoiced' => 'decimal:3',
+            'package_hours' => 'decimal:2',
+            'package_months' => 'integer',
         ];
     }
 
@@ -57,6 +59,26 @@ class OrderLine extends Model
     public function invoiceLines(): HasMany
     {
         return $this->hasMany(InvoiceLine::class);
+    }
+
+    /**
+     * Hours of the package the line sells: set on the line, or the quantity of an article sold as
+     * a "monte ore prepagato" (orders saved before the line carried them, imported ones).
+     */
+    public function packageHours(): ?float
+    {
+        if (! $this->isItem()) {
+            return null;
+        }
+
+        $hours = $this->package_hours !== null ? (float) $this->package_hours : ($this->product?->hour_package ? (float) $this->quantity : null);
+
+        return $hours !== null && $hours > 0 ? $hours : null;
+    }
+
+    public function packageMonths(): ?int
+    {
+        return $this->package_hours !== null ? $this->package_months : $this->product?->package_months;
     }
 
     public function remainingQuantity(): float

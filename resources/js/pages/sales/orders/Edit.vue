@@ -250,6 +250,7 @@ const backUrl = computed(() => (isNew.value ? route('sales.orders.index') : rout
                                 :errors="form.errors"
                                 :default-vat-rate-id="defaultVatRateId"
                                 :allow-optional="false"
+                                allow-packages
                             />
                         </v-card-text>
                     </v-card>

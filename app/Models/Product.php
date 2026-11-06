@@ -13,7 +13,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['type', 'code', 'name', 'description', 'category_id', 'business_line_id', 'unit', 'price', 'cost', 'vat_rate_id', 'billing_period', 'is_active', 'notes'])]
+#[Fillable(['type', 'code', 'name', 'description', 'category_id', 'business_line_id', 'unit', 'price', 'cost', 'vat_rate_id', 'billing_period', 'hour_package', 'package_months', 'is_active', 'notes'])]
 class Product extends Model
 {
     /** @use HasFactory<ProductFactory> */
@@ -30,6 +30,8 @@ class Product extends Model
             'type' => ProductType::class,
             'unit' => UnitOfMeasure::class,
             'billing_period' => BillingPeriod::class,
+            'hour_package' => 'boolean',
+            'package_months' => 'integer',
             'price' => 'decimal:4',
             'cost' => 'decimal:4',
             'is_active' => 'boolean',

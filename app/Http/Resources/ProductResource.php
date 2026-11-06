@@ -37,6 +37,8 @@ class ProductResource extends JsonResource
             'billing_period' => $this->billing_period?->value,
             'billing_period_label' => $this->billing_period?->label(),
             'billing_period_per' => $this->billing_period?->perLabel(),
+            'hour_package' => $this->hour_package,
+            'package_months' => $this->package_months,
             'is_active' => $this->is_active,
             'notes' => $this->notes,
             'customer_prices_count' => $this->whenCounted('customerPrices'),

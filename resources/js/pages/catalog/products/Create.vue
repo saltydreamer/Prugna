@@ -32,6 +32,8 @@ const form = useForm({
     cost: '',
     vat_rate_id: props.defaultVatRateId,
     billing_period: null,
+    hour_package: false,
+    package_months: null,
     is_active: true,
     notes: '',
 });

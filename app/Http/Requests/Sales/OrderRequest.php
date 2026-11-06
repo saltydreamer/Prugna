@@ -63,6 +63,8 @@ class OrderRequest extends FormRequest
             'organization_id' => ['required', 'integer', Rule::exists('organizations', 'id')->whereNull('deleted_at')->where('role', 'customer')],
             ...$header,
             ...$this->lineRules(),
+            'lines.*.package_hours' => ['exclude_unless:lines.*.type,item', 'nullable', 'numeric', 'gt:0', 'max:100000'],
+            'lines.*.package_months' => ['exclude_unless:lines.*.type,item', 'nullable', 'integer', 'between:1,120'],
         ];
     }
 
@@ -94,6 +96,8 @@ class OrderRequest extends FormRequest
             'customer_reference_date' => 'data riferimento',
             'payment_term_id' => 'condizione di pagamento',
             ...$this->lineAttributes(),
+            'lines.*.package_hours' => 'ore del pacchetto',
+            'lines.*.package_months' => 'validità del pacchetto',
         ];
     }
 

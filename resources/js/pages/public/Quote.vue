@@ -17,6 +17,8 @@ const selection = reactive(Object.fromEntries(props.quote.lines.filter((line) =>
 const lines = computed(() => props.quote.lines.map((line) => (line.is_optional && props.quote.is_open ? { ...line, is_selected: !!selection[line.id] } : line)));
 const totals = computed(() => (props.quote.is_open ? quoteTotals(lines.value) : props.quote.totals));
 const hasOptional = computed(() => props.quote.lines.some((line) => line.is_optional));
+// No "+ IVA" when the options carry no VAT (VAT-free regimes).
+const optionalWithVat = computed(() => props.quote.lines.some((line) => line.is_optional && Number(line.vat_rate) > 0));
 
 const acceptDialog = ref(false);
 const rejectDialog = ref(false);
@@ -129,7 +131,7 @@ const statusAlert = computed(() => {
                             {{ vatLabel(group) }}: imponibile {{ formatMoney(group.taxable) }}, imposta {{ formatMoney(group.vat) }}
                         </div>
                         <div v-if="totals.optional_total > 0" class="text-body-2 text-medium-emphasis mt-2">
-                            Voci facoltative non incluse: {{ formatMoney(totals.optional_total) }} + IVA
+                            Voci facoltative non incluse: {{ formatMoney(totals.optional_total) }}{{ optionalWithVat ? ' + IVA' : '' }}
                         </div>
                         <v-alert v-if="hasOptional && quote.is_open" type="info" variant="tonal" density="compact" class="mt-3">
                             Seleziona le voci facoltative che vuoi includere: il totale si aggiorna subito.

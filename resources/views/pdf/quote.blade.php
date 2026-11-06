@@ -3,6 +3,9 @@
     $unitPrice = fn ($value) => '€ ' . number_format((float) $value, (round((float) $value, 2) == (float) $value) ? 2 : 4, ',', '.');
     $qty = fn ($value) => rtrim(rtrim(number_format((float) $value, 3, ',', '.'), '0'), ',');
     $customer = $quote->customer ?? [];
+    // Optional lines left out of the total, with their VAT: the total with every option.
+    $options = $lines->filter(fn ($line) => $line->isItem() && $line->is_optional && ! $line->is_selected);
+    $optionsVat = round($options->sum(fn ($line) => (float) $line->total * (float) $line->vat_rate / 100), 2);
 @endphp
 @extends('pdf.layout')
 
@@ -40,13 +43,13 @@
 <table class="lines">
     <thead>
         <tr>
-            <th style="width: 46%;">Descrizione</th>
-            <th class="right" style="width: 9%;">Q.tà</th>
-            <th style="width: 6%;">U.m.</th>
-            <th class="right" style="width: 13%;">Prezzo</th>
-            <th class="right" style="width: 7%;">Sc.</th>
-            <th class="right" style="width: 6%;">IVA</th>
-            <th class="right" style="width: 13%;">Importo</th>
+            <th style="width: 38%;">Descrizione</th>
+            <th class="right" style="width: 7%;">Q.tà</th>
+            <th style="width: 9%;">U.m.</th>
+            <th class="right" style="width: 14%;">Prezzo</th>
+            <th class="right" style="width: 8%;">Sc.</th>
+            <th class="right" style="width: 8%;">IVA</th>
+            <th class="right" style="width: 16%;">Importo</th>
         </tr>
     </thead>
     <tbody>
@@ -61,18 +64,18 @@
                         @if ($line->code)<span class="muted small">{{ $line->code }}</span><br>@endif
                         <span class="description">{{ $line->description }}</span>
                         @if ($line->is_optional)
-                            <br><span class="badge">{{ $line->is_selected ? 'Opzionale – inclusa' : 'Opzionale' }}</span>
+                            <br><span class="badge">{{ $line->is_selected ? 'Opzionale – inclusa' : 'Opzionale – non inclusa nel totale' }}</span>
                         @endif
                         @if ($line->isHourPackage())
                             <br><span class="muted small">{{ __('Pacchetto di :hours ore prepagate:validity, scalate dagli interventi.', ['hours' => rtrim(rtrim(number_format((float) $line->package_hours, 2, ',', ''), '0'), ','), 'validity' => $line->package_months ? __(' valide :months mesi', ['months' => $line->package_months]) : '']) }}</span>
                         @endif
                     </td>
-                    <td class="right">{{ $qty($line->quantity) }}</td>
-                    <td>{{ $line->unit }}</td>
-                    <td class="right">{{ $unitPrice($line->unit_price) }}</td>
-                    <td class="right">{{ (float) $line->discount_percent > 0 ? rtrim(rtrim(number_format((float) $line->discount_percent, 2, ',', ''), '0'), ',') . '%' : '' }}</td>
-                    <td class="right">{{ $line->vat_nature ?: rtrim(rtrim(number_format((float) $line->vat_rate, 2, ',', ''), '0'), ',') . '%' }}</td>
-                    <td class="right">{{ $money($line->total) }}</td>
+                    <td class="right num">{{ $qty($line->quantity) }}</td>
+                    <td class="num">{{ $line->unit }}</td>
+                    <td class="right num">{{ $unitPrice($line->unit_price) }}</td>
+                    <td class="right num">{{ (float) $line->discount_percent > 0 ? rtrim(rtrim(number_format((float) $line->discount_percent, 2, ',', ''), '0'), ',') . '%' : '' }}</td>
+                    <td class="right num">{{ $line->vat_nature ?: rtrim(rtrim(number_format((float) $line->vat_rate, 2, ',', ''), '0'), ',') . '%' }}</td>
+                    <td class="right num">{{ $money($line->total) }}</td>
                 </tr>
             @endif
         @endforeach
@@ -92,9 +95,6 @@
                     </tr>
                 @endforeach
             </table>
-            @if ($totals['optional_total'] > 0)
-                <p class="small muted" style="margin-top: 3mm;">Voci opzionali non incluse nel totale: {{ $money($totals['optional_total']) }} + IVA.</p>
-            @endif
         </td>
         <td style="width: 45%; vertical-align: top;">
             <table class="totals">
@@ -102,6 +102,15 @@
                 <tr><td>IVA</td><td class="right">{{ $money($totals['vat_total']) }}</td></tr>
                 <tr class="grand"><td>Totale</td><td class="right">{{ $money($totals['total']) }}</td></tr>
             </table>
+            @if ($options->isNotEmpty())
+                <table class="options">
+                    <tr><td>Opzioni non incluse ({{ $options->count() }})</td><td class="right">{{ $money($totals['optional_total']) }}</td></tr>
+                    @if ($optionsVat > 0)
+                        <tr><td>IVA sulle opzioni</td><td class="right">{{ $money($optionsVat) }}</td></tr>
+                    @endif
+                    <tr class="with-options"><td>Totale con le opzioni</td><td class="right">{{ $money($totals['total'] + $totals['optional_total'] + $optionsVat) }}</td></tr>
+                </table>
+            @endif
         </td>
     </tr>
 </table>

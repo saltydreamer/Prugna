@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Sales;
 
 use App\Actions\Orders\SaveOrder;
+use App\Actions\Orders\SyncOrderHourPackages;
 use App\Actions\Purchases\RebillCosts;
 use App\Enums\ExpenseType;
 use App\Enums\InvoiceType;
@@ -135,7 +136,7 @@ class OrderController extends Controller
         return to_route('sales.orders.show', $order);
     }
 
-    public function show(Request $request, Order $order, RebillCosts $rebillCosts): Response
+    public function show(Request $request, Order $order, RebillCosts $rebillCosts, SyncOrderHourPackages $hourPackages): Response
     {
         $this->authorize('view', $order);
 
@@ -151,18 +152,19 @@ class OrderController extends Controller
             'interventions' => $request->user()->can('viewAny', Intervention::class) || $request->user()->can(Permission::InvoicesManage->value)
                 ? Intervention::summary(Intervention::query()->where('order_id', $order->id))
                 : null,
-            'hourPackages' => $request->user()->can('viewAny', ServiceContract::class) ? $this->hourPackages($order) : null,
+            'hourPackages' => $request->user()->can('viewAny', ServiceContract::class) ? $this->hourPackages($order, $hourPackages) : null,
         ]);
     }
 
     /**
-     * Hour packages sold with the order or with its quote, with the hours used.
+     * Hour packages sold with the order or with its quote, with the hours used, and the package
+     * lines still without their contract (orders saved before, imported ones).
      *
-     * @return list<array<string, mixed>>
+     * @return array{contracts: list<array<string, mixed>>, missing: int}
      */
-    private function hourPackages(Order $order): array
+    private function hourPackages(Order $order, SyncOrderHourPackages $hourPackages): array
     {
-        return ServiceContract::query()
+        $contracts = ServiceContract::query()
             ->where(fn ($query) => $query->where('order_id', $order->id)
                 ->when($order->quote_id, fn ($query, int $quoteId) => $query->orWhere('quote_id', $quoteId)))
             ->withSum('interventions as used_minutes', 'contract_minutes')
@@ -181,6 +183,8 @@ class OrderController extends Controller
                 'status_color' => ServiceContract::statusColor($status),
             ])
             ->all();
+
+        return ['contracts' => $contracts, 'missing' => $hourPackages->missing($order)];
     }
 
     /**
@@ -263,23 +267,25 @@ class OrderController extends Controller
         return to_route('sales.orders.show', $order);
     }
 
-    public function updateStatus(Request $request, Order $order): RedirectResponse
+    public function updateStatus(Request $request, Order $order, SyncOrderHourPackages $hourPackages): RedirectResponse
     {
         $this->authorize('update', $order);
 
         $data = $request->validate(['status' => ['required', Rule::enum(OrderStatus::class)]]);
 
         $order->forceFill(['status' => $data['status']])->save();
+        $hourPackages->statusChanged($order);
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Ordine :number: :status.', ['number' => $order->number, 'status' => mb_strtolower($order->status->label())])]);
 
         return back();
     }
 
-    public function destroy(Order $order): RedirectResponse
+    public function destroy(Order $order, SyncOrderHourPackages $hourPackages): RedirectResponse
     {
         $this->authorize('delete', $order);
 
+        $hourPackages->release($order);
         $order->delete();
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Ordine :number eliminato.', ['number' => $order->number])]);

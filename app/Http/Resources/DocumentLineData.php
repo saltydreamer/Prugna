@@ -36,6 +36,8 @@ class DocumentLineData
                 ...$data,
                 'quantity_invoiced' => (float) $line->quantity_invoiced,
                 'quantity_remaining' => $line->remainingQuantity(),
+                'package_hours' => $line->package_hours !== null ? (float) $line->package_hours : null,
+                'package_months' => $line->package_months,
             ];
         }
 

@@ -30,6 +30,8 @@ const form = useForm({
     cost: props.product.cost ?? '',
     vat_rate_id: props.product.vat_rate_id,
     billing_period: props.product.billing_period,
+    hour_package: props.product.hour_package ?? false,
+    package_months: props.product.package_months,
     is_active: props.product.is_active,
     notes: props.product.notes ?? '',
 });
