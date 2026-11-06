@@ -40,6 +40,7 @@ class ServiceContractResource extends JsonResource
             'product_id' => $this->product_id,
             'vat_rate_id' => $this->vat_rate_id,
             'invoice' => $this->whenLoaded('invoice', fn () => $this->invoice ? ['id' => $this->invoice->id, 'label' => $this->invoice->displayNumber(), 'status' => $this->invoice->status->value] : null),
+            'quote' => $this->whenLoaded('quote', fn () => $this->quote ? ['id' => $this->quote->id, 'number' => $this->quote->number] : null),
             'manager_id' => $this->manager_id,
             'manager' => $this->whenLoaded('manager', fn () => $this->manager?->name),
             'is_active' => $this->is_active,

@@ -78,7 +78,7 @@ class SaveQuote
             'valid_until' => today()->addDays($validityDays),
             'lines' => $source->lines->map(fn ($line) => $line->only([
                 'type', 'product_id', 'code', 'description', 'unit', 'quantity', 'unit_price', 'discount_percent',
-                'vat_rate_id', 'is_optional', 'is_selected',
+                'vat_rate_id', 'is_optional', 'is_selected', 'package_hours', 'package_months',
             ]))->all(),
         ];
 
@@ -115,6 +115,8 @@ class SaveQuote
                 'vat_nature' => $rate?->nature,
                 'is_optional' => $isItem && ($line['is_optional'] ?? false),
                 'is_selected' => ! ($isItem && ($line['is_optional'] ?? false)) || ($line['is_selected'] ?? false),
+                'package_hours' => $isItem && filled($line['package_hours'] ?? null) ? (float) $line['package_hours'] : null,
+                'package_months' => $isItem && filled($line['package_hours'] ?? null) && filled($line['package_months'] ?? null) ? (int) $line['package_months'] : null,
             ]);
         }
     }

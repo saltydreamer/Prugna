@@ -113,7 +113,7 @@ class ServiceContractController extends Controller
     {
         $this->authorize('view', $contract);
 
-        $contract->load(['organization', 'manager', 'invoice']);
+        $contract->load(['organization', 'manager', 'invoice', 'quote']);
         $categories = InterventionCategory::query()->whereIn('id', $contract->category_ids ?? [])->pluck('name');
 
         return Inertia::render('interventions/contracts/Show', [
@@ -175,6 +175,7 @@ class ServiceContractController extends Controller
         $this->authorize('create', Invoice::class);
 
         abort_if($contract->invoice_id !== null, 409, __('Il pacchetto è già in fattura.'));
+        abort_if($contract->quote_id !== null, 409, __('Il pacchetto è nel preventivo: si fattura con il preventivo o con il suo ordine.'));
         abort_if((float) $contract->price <= 0, 409, __('Indica il prezzo del pacchetto prima di fatturarlo.'));
 
         $customer = Organization::query()->withTrashed()->findOrFail($contract->organization_id);

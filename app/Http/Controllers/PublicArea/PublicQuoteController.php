@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\PublicArea;
 
+use App\Actions\Quotes\CreateHourPackages;
 use App\Actions\Quotes\QuoteTotals;
 use App\Actions\Quotes\SaveQuote;
 use App\Enums\QuoteStatus;
@@ -66,6 +67,8 @@ class PublicQuoteController extends Controller
                     'vat_nature' => $line->vat_nature,
                     'is_optional' => $line->is_optional,
                     'is_selected' => $line->is_selected,
+                    'package_hours' => $line->package_hours !== null ? (float) $line->package_hours : null,
+                    'package_months' => $line->package_months,
                     'total' => (float) $line->total,
                 ])->values(),
                 'totals' => QuoteTotals::summarize($quote->lines),
@@ -108,6 +111,7 @@ class PublicQuoteController extends Controller
 
             $saveQuote->refreshTotals($quote);
             $quote->decide(true, $data['name'], $data['note'] ?? null, $request->ip());
+            app(CreateHourPackages::class)->handle($quote);
         });
 
         $quote->owner?->notify(new QuoteActivityNotification($quote, QuoteActivityNotification::ACCEPTED));

@@ -50,7 +50,7 @@ async function destroy() {
             <template #actions>
                 <v-btn variant="text" prepend-icon="mdi-arrow-left" v-bind="link(route('interventions.contracts.index'))">Contratti</v-btn>
                 <v-btn
-                    v-if="!contract.invoice && contract.price > 0 && contract.can.update && can('invoices.manage')"
+                    v-if="!contract.invoice && !contract.quote && contract.price > 0 && contract.can.update && can('invoices.manage')"
                     color="primary"
                     variant="flat"
                     prepend-icon="mdi-receipt-text-plus-outline"
@@ -151,6 +151,13 @@ async function destroy() {
                             title="Fattura"
                             :subtitle="contract.invoice.label"
                             v-bind="link(route('sales.invoices.show', contract.invoice.id))"
+                        />
+                        <v-list-item
+                            v-if="contract.quote"
+                            prepend-icon="mdi-file-document-edit-outline"
+                            title="Venduto con il preventivo"
+                            :subtitle="`${contract.quote.number} · si fattura con il preventivo o con il suo ordine`"
+                            v-bind="link(route('sales.quotes.show', contract.quote.id))"
                         />
                         <v-list-item prepend-icon="mdi-account-tie-outline" title="Responsabile" :subtitle="contract.manager ?? '—'" />
                     </v-list>

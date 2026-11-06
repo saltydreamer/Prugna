@@ -63,6 +63,9 @@
                         @if ($line->is_optional)
                             <br><span class="badge">{{ $line->is_selected ? 'Opzionale – inclusa' : 'Opzionale' }}</span>
                         @endif
+                        @if ($line->isHourPackage())
+                            <br><span class="muted small">{{ __('Pacchetto di :hours ore prepagate:validity, scalate dagli interventi.', ['hours' => rtrim(rtrim(number_format((float) $line->package_hours, 2, ',', ''), '0'), ','), 'validity' => $line->package_months ? __(' valide :months mesi', ['months' => $line->package_months]) : '']) }}</span>
+                        @endif
                     </td>
                     <td class="right">{{ $qty($line->quantity) }}</td>
                     <td>{{ $line->unit }}</td>

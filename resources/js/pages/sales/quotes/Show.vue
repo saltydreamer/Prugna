@@ -19,6 +19,8 @@ const props = defineProps({
     /** Order created from the quote (null when none or not visible). */
     order: { type: Object, default: null },
     invoices: { type: Array, default: () => [] },
+    /** Hour contracts created from the packages of the quote. */
+    contracts: { type: Array, default: () => [] },
 });
 
 const { link } = useInertiaLink();
@@ -281,6 +283,18 @@ async function destroy() {
                                             <v-chip v-if="line.is_optional" size="x-small" color="secondary" variant="tonal" class="ml-1">
                                                 {{ line.is_selected ? 'Facoltativa · inclusa' : 'Facoltativa' }}
                                             </v-chip>
+                                            <v-chip
+                                                v-if="line.package_hours"
+                                                size="x-small"
+                                                color="primary"
+                                                variant="tonal"
+                                                prepend-icon="mdi-timer-sand"
+                                                class="ml-1"
+                                            >
+                                                Pacchetto {{ line.package_hours }} ore{{
+                                                    line.package_months ? ` · ${line.package_months} mesi` : ''
+                                                }}
+                                            </v-chip>
                                         </div>
                                     </td>
                                     <td class="text-right text-no-wrap">{{ line.quantity }} {{ line.unit }}</td>
@@ -305,6 +319,18 @@ async function destroy() {
             <v-col cols="12" lg="4">
                 <QuoteTotalsCard :totals="quote.totals" class="mb-6" />
 
+                <v-card v-if="contracts.length" title="Monte ore" subtitle="Creati dai pacchetti all'accettazione" class="mb-6">
+                    <v-list density="compact">
+                        <v-list-item
+                            v-for="contract in contracts"
+                            :key="contract.id"
+                            prepend-icon="mdi-timer-sand-complete"
+                            :title="contract.number"
+                            :subtitle="`${contract.title} · ${contract.hours} ore`"
+                            v-bind="link(route('interventions.contracts.show', contract.id))"
+                        />
+                    </v-list>
+                </v-card>
                 <v-card v-if="invoices.length" title="Fatture" class="mb-6">
                     <v-list density="compact">
                         <v-list-item

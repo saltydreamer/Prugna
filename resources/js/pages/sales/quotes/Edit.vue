@@ -237,6 +237,7 @@ const backUrl = computed(() => (isNew.value ? route('sales.quotes.index') : rout
                                 :organization-id="form.organization_id"
                                 :errors="form.errors"
                                 :default-vat-rate-id="defaultVatRateId"
+                                allow-packages
                             />
                         </v-card-text>
                     </v-card>

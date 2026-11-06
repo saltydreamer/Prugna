@@ -10,7 +10,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 #[Fillable([
     'position', 'type', 'product_id', 'code', 'description', 'unit', 'quantity', 'unit_price', 'discount_percent',
-    'vat_rate_id', 'vat_rate', 'vat_nature', 'is_optional', 'is_selected', 'total',
+    'vat_rate_id', 'vat_rate', 'vat_nature', 'is_optional', 'is_selected', 'total', 'package_hours', 'package_months',
 ])]
 class QuoteLine extends Model
 {
@@ -32,7 +32,17 @@ class QuoteLine extends Model
             'is_optional' => 'boolean',
             'is_selected' => 'boolean',
             'total' => 'decimal:2',
+            'package_hours' => 'decimal:2',
+            'package_months' => 'integer',
         ];
+    }
+
+    /**
+     * Hour package: becomes an hour contract of the customer when the quote is accepted.
+     */
+    public function isHourPackage(): bool
+    {
+        return $this->isItem() && $this->package_hours !== null && (float) $this->package_hours > 0;
     }
 
     /**

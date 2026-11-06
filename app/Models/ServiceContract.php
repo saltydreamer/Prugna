@@ -83,6 +83,24 @@ class ServiceContract extends Model
     }
 
     /**
+     * Quote that sold the package (invoiced with the quote or its order).
+     *
+     * @return BelongsTo<Quote, $this>
+     */
+    public function quote(): BelongsTo
+    {
+        return $this->belongsTo(Quote::class);
+    }
+
+    /**
+     * Invoiced with its own invoice or with the documents of the quote that sold it.
+     */
+    public function isBilled(): bool
+    {
+        return $this->invoice_id !== null || $this->quote_id !== null;
+    }
+
+    /**
      * @return HasMany<Intervention, $this>
      */
     public function interventions(): HasMany

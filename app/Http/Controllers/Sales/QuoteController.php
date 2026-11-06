@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Sales;
 
+use App\Actions\Quotes\CreateHourPackages;
 use App\Actions\Quotes\SaveQuote;
 use App\Enums\OrganizationType;
 use App\Enums\Permission;
@@ -16,6 +17,7 @@ use App\Models\Order;
 use App\Models\Organization;
 use App\Models\PaymentTerm;
 use App\Models\Quote;
+use App\Models\ServiceContract;
 use App\Models\User;
 use App\Models\VatRate;
 use App\Support\Settings;
@@ -130,6 +132,9 @@ class QuoteController extends Controller
                     'subtotal' => (float) $invoice->subtotal,
                 ])
                 : [],
+            // Hour contracts created from the packages of the quote.
+            'contracts' => ServiceContract::query()->where('quote_id', $quote->id)->orderBy('id')->get(['id', 'number', 'title', 'hours'])
+                ->map(fn (ServiceContract $contract) => ['id' => $contract->id, 'number' => $contract->number, 'title' => $contract->title, 'hours' => (float) $contract->hours]),
         ]);
     }
 
@@ -212,7 +217,7 @@ class QuoteController extends Controller
     /**
      * Records an answer received outside the online page.
      */
-    public function decide(Request $request, Quote $quote): RedirectResponse
+    public function decide(Request $request, Quote $quote, CreateHourPackages $packages): RedirectResponse
     {
         $this->authorize('update', $quote);
         abort_unless(in_array($quote->status, [QuoteStatus::Sent, QuoteStatus::Expired], true), 409);
@@ -223,8 +228,13 @@ class QuoteController extends Controller
         ]);
 
         $quote->decide((bool) $data['accepted'], $request->user()->name, $data['note'] ?? null);
+        $contracts = $data['accepted'] ? $packages->handle($quote) : [];
 
-        Inertia::flash('toast', ['type' => 'success', 'message' => $data['accepted'] ? __('Preventivo accettato.') : __('Preventivo rifiutato.')]);
+        Inertia::flash('toast', ['type' => 'success', 'message' => match (true) {
+            ! $data['accepted'] => __('Preventivo rifiutato.'),
+            $contracts !== [] => __('Preventivo accettato: creati i monte ore :numbers.', ['numbers' => collect($contracts)->pluck('number')->implode(', ')]),
+            default => __('Preventivo accettato.'),
+        }]);
 
         return back();
     }

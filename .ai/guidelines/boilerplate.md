@@ -41,6 +41,7 @@
 - `Quote` + `QuoteLine` (types item/section/text, optional lines counted only when selected). Always save through `App\Actions\Quotes\SaveQuote` (numbering PRV-00001, customer snapshot, totals) and compute totals with `QuoteTotals` (mirrored in `resources/js/utils/quoteTotals.js`).
 - Status flow: draft → sent → accepted/rejected; sent quotes past `valid_until` become expired via `quotes:check-expiry` (scheduled daily, also reminds owners 3 days before). Only drafts are editable/deletable; accepted quotes are final.
 - Visibility: owners see their own quotes; `quotes.supervise` sees everyone's (`Quote::visibleTo()`, `QuotePolicy`).
+- Hour packages: a quote item line with `package_hours` (and optional `package_months` of validity; editor `QuoteLinesEditor` with `allow-packages`) becomes an hour contract of the customer when the quote is accepted, by us or online (`App\Actions\Quotes\CreateHourPackages`, once per line: `service_contracts.quote_line_id` unique; only selected lines). The contract has `quote_id`: it is invoiced with the quote or its order, never on its own (`ServiceContract::isBilled()`); the interventions use it up as usual.
 - Customers answer on the public page `/q/{public_token}` (no login, rate limited); the owner gets `QuoteActivityNotification`.
 - PDF: `App\Support\QuotePdf` + `resources/views/pdf/quote.blade.php` (dompdf, DejaVu Sans with font subsetting).
 

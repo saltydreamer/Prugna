@@ -23,6 +23,8 @@ const props = defineProps({
     rebillable: { type: Boolean, default: false },
     /** Service contracts: priced lines only (no headings or free text). */
     itemsOnly: { type: Boolean, default: false },
+    /** Quotes: a line can be an hour package, which becomes an hour contract when the quote is accepted. */
+    allowPackages: { type: Boolean, default: false },
 });
 
 let uid = 0;
@@ -96,6 +98,15 @@ function duplicate(index) {
 function setOptional(line, value) {
     line.is_optional = value;
     line.is_selected = !value;
+}
+
+/**
+ * An hour package starts with the hours of the line when it is sold by the hour.
+ */
+function setPackage(line, value) {
+    const hourly = ['h', 'ore', 'ora'].includes(String(line.unit ?? '').toLowerCase());
+    line.package_hours = value ? (hourly ? Number(line.quantity) || null : null) : null;
+    line.package_months = value ? (line.package_months ?? 12) : null;
 }
 
 function error(index, field) {
@@ -248,6 +259,41 @@ function error(index, field) {
                                 <span v-if="line.rebill" class="text-caption text-medium-emphasis">
                                     al cliente {{ formatMoney(rebillAmount(line)) }}
                                 </span>
+                            </template>
+                            <template v-if="allowPackages">
+                                <v-checkbox
+                                    :model-value="line.package_hours !== null && line.package_hours !== undefined"
+                                    label="Pacchetto ore"
+                                    density="compact"
+                                    hide-details
+                                    @update:model-value="(value) => setPackage(line, value)"
+                                />
+                                <template v-if="line.package_hours !== null && line.package_hours !== undefined">
+                                    <v-text-field
+                                        v-model.number="line.package_hours"
+                                        label="Ore"
+                                        type="number"
+                                        min="0"
+                                        step="0.5"
+                                        suffix="h"
+                                        density="compact"
+                                        hide-details="auto"
+                                        :error-messages="error(index, 'package_hours')"
+                                        style="max-width: 110px"
+                                    />
+                                    <v-text-field
+                                        v-model.number="line.package_months"
+                                        label="Validità"
+                                        type="number"
+                                        min="1"
+                                        suffix="mesi"
+                                        density="compact"
+                                        hide-details="auto"
+                                        clearable
+                                        :error-messages="error(index, 'package_months')"
+                                        style="max-width: 130px"
+                                    />
+                                </template>
                             </template>
                             <v-checkbox
                                 v-if="allowOptional"

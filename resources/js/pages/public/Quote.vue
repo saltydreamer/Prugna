@@ -110,6 +110,10 @@ const statusAlert = computed(() => {
                                     · {{ line.vat_nature ?? `IVA ${line.vat_rate}%` }}
                                 </div>
                                 <v-chip v-if="line.is_optional" size="x-small" color="secondary" variant="tonal" class="mt-1">Facoltativa</v-chip>
+                                <div v-if="line.package_hours" class="text-caption mt-1">
+                                    Pacchetto di {{ line.package_hours }} ore prepagate{{ line.package_months ? `, valide ${line.package_months} mesi` : '' }},
+                                    scalate dagli interventi.
+                                </div>
                             </div>
                             <div class="font-weight-medium text-no-wrap">{{ formatMoney(line.total) }}</div>
                         </div>
