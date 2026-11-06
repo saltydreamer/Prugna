@@ -134,6 +134,51 @@ class OpenRouterClient
     }
 
     /**
+     * Answers from text only (e.g. a web page, or data to write about) with data matching the JSON schema.
+     *
+     * @param  array<string, mixed>  $schema
+     * @return array{data: array<string, mixed>, model: string, cost: float|null, prompt_tokens: int|null, completion_tokens: int|null}
+     */
+    public function structured(string $instructions, string $schemaName, array $schema, string $text, ?string $model = null): array
+    {
+        $model ??= (string) $this->settings->get('ai.model');
+
+        try {
+            $response = $this->request()->timeout(90)->post(self::BASE_URL.'/chat/completions', [
+                'model' => $model,
+                'messages' => [
+                    ['role' => 'system', 'content' => $instructions],
+                    ['role' => 'user', 'content' => $text],
+                ],
+                'response_format' => [
+                    'type' => 'json_schema',
+                    'json_schema' => ['name' => $schemaName, 'strict' => true, 'schema' => $schema],
+                ],
+                'provider' => $this->providerPreferences(),
+                'max_tokens' => 4000,
+            ]);
+        } catch (ConnectionException) {
+            throw new AiException(__('OpenRouter non ha risposto in tempo. Riprova tra poco.'));
+        }
+
+        $this->throwOnError($response);
+
+        $content = $response->json('choices.0.message.content');
+
+        if (is_array($content)) {
+            $content = collect($content)->pluck('text')->implode('');
+        }
+
+        return [
+            'data' => $this->decodeJson((string) $content),
+            'model' => (string) ($response->json('model') ?? $model),
+            'cost' => $response->json('usage.cost') !== null ? (float) $response->json('usage.cost') : null,
+            'prompt_tokens' => $response->json('usage.prompt_tokens'),
+            'completion_tokens' => $response->json('usage.completion_tokens'),
+        ];
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function providerPreferences(): array

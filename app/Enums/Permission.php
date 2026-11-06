@@ -76,6 +76,8 @@ enum Permission: string
     case AccountingView = 'accounting.view';
     case AccountingManage = 'accounting.manage';
 
+    case EstimatesManage = 'estimates.manage';
+
     public function label(): string
     {
         return match ($this) {
@@ -127,6 +129,7 @@ enum Permission: string
             self::StatisticsView => 'Vedere le statistiche di fatturato',
             self::AccountingView => 'Consultare conto economico, conti e stima delle tasse',
             self::AccountingManage => 'Registrare incassi e movimenti, gestire conti, categorie e parametri',
+            self::EstimatesManage => 'Usare il preventivatore (sperimentale)',
         };
     }
 
@@ -150,6 +153,7 @@ enum Permission: string
             self::SettingsManage, self::DolibarrImport => 'Impostazioni',
             self::StatisticsView => 'Statistiche',
             self::AccountingView, self::AccountingManage => 'Contabilità',
+            self::EstimatesManage => 'Preventivatore',
         };
     }
 

@@ -95,6 +95,13 @@ const navigation = computed(() => {
                     permission: 'invoices.view',
                 },
                 {
+                    title: 'Preventivatore (beta)',
+                    icon: 'mdi-calculator-variant-outline',
+                    route: 'sales.estimates.index',
+                    active: 'sales.estimates.*',
+                    permission: 'estimates.manage',
+                },
+                {
                     title: 'Contratti servizi',
                     icon: 'mdi-autorenew',
                     route: 'sales.subscriptions.index',

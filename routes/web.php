@@ -33,6 +33,7 @@ use App\Http\Controllers\Pwa\PwaController;
 use App\Http\Controllers\Registry\ContactController;
 use App\Http\Controllers\Registry\LocationController;
 use App\Http\Controllers\Registry\OrganizationController;
+use App\Http\Controllers\Sales\EstimateController;
 use App\Http\Controllers\Sales\InterventionInvoiceController;
 use App\Http\Controllers\Sales\InvoiceController;
 use App\Http\Controllers\Sales\InvoiceDocumentController;
@@ -168,6 +169,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::patch('orders/{order}/status', [OrderController::class, 'updateStatus'])->name('orders.status');
         Route::get('orders/{order}/pdf', [OrderDocumentController::class, 'pdf'])->name('orders.pdf');
         Route::post('orders/{order}/invoice', [InvoiceController::class, 'storeFromOrder'])->name('orders.invoice');
+
+        Route::post('estimates/read-link', [EstimateController::class, 'readLink'])->middleware('throttle:20,1')->name('estimates.read-link');
+        Route::post('estimates/{estimate}/advantages', [EstimateController::class, 'advantages'])->middleware('throttle:10,1')->name('estimates.advantages');
+        Route::get('estimates/{estimate}/pdf', [EstimateController::class, 'pdf'])->name('estimates.pdf');
+        Route::post('estimates/{estimate}/accept', [EstimateController::class, 'accept'])->name('estimates.accept');
+        Route::resource('estimates', EstimateController::class)->except(['edit']);
 
         Route::get('subscriptions/due', [SubscriptionController::class, 'due'])->name('subscriptions.due');
         Route::post('subscriptions/invoices', [SubscriptionController::class, 'generate'])->name('subscriptions.generate');
