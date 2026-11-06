@@ -13,19 +13,19 @@ html {
 
 :root {
     --app-font: 'Inter Variable', 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-    --app-scrollbar: #d6b8d6;
-    --app-scrollbar-hover: #b48ab4;
+    --app-scrollbar: #eae9fc;
+    --app-scrollbar-hover: #d3d1f7;
     --app-overscroll: #f6eff6;
 }
 
 /* The theme class sits on the app root: the page scrollbar and overscroll belong to <html>. */
 :root:has(.v-application.v-theme--dark) {
-    --app-scrollbar: #5c3f5c;
-    --app-scrollbar-hover: #7b557b;
+    --app-scrollbar: #2f2d4d;
+    --app-scrollbar-hover: #423f69;
     --app-overscroll: #16111a;
 }
 
-/* Scrollbars: thin, no track, light plum thumb. */
+/* Scrollbars: thin, no track, pale indigo thumb (darker on hover). */
 * {
     scrollbar-width: thin;
     scrollbar-color: var(--app-scrollbar) transparent;
