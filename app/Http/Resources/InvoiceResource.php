@@ -83,6 +83,15 @@ class InvoiceResource extends JsonResource
             'vat_total' => (float) $this->vat_total,
             'total' => (float) $this->total,
             'amount_due' => (float) $this->amount_due,
+            // Collection: only with the credit notes loaded (the list loads them), to avoid a query per invoice.
+            $this->mergeWhen($this->relationLoaded('creditNotes'), fn () => [
+                'paid_amount' => (float) $this->paid_amount,
+                'paid_at' => $this->paid_at?->toDateString(),
+                'outstanding' => $this->outstanding(),
+                'payment_status' => $this->paymentStatus()?->value,
+                'payment_status_label' => $this->paymentStatus()?->label(),
+                'payment_status_color' => $this->paymentStatus()?->color(),
+            ]),
             'created_at' => $this->created_at?->toIso8601String(),
             'owner' => $this->whenLoaded('owner', fn () => $this->owner?->only(['id', 'name'])),
             'contact' => $this->whenLoaded('contact', fn () => $this->contact ? [

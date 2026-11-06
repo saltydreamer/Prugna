@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\InvoicePaymentStatus;
 use App\Enums\InvoiceStatus;
 use App\Enums\InvoiceType;
 use App\Enums\SdiStatus;
@@ -21,6 +22,9 @@ use Illuminate\Database\Eloquent\Relations\MorphOne;
 ])]
 class Invoice extends Model
 {
+    /** Amount due minus collections and issued credit notes, as outstanding() computes it. */
+    private const OUTSTANDING_SQL = "(invoices.amount_due - invoices.paid_amount - (select coalesce(sum(credit_notes.amount_due), 0) from invoices as credit_notes where credit_notes.related_invoice_id = invoices.id and credit_notes.status = 'issued'))";
+
     /**
      * The stamp duty is charged back to the customer unless turned off on the invoice.
      *
@@ -187,6 +191,34 @@ class Invoice extends Model
     }
 
     /**
+     * Something is still to collect and the due date has passed (due today is not overdue yet).
+     */
+    public function isOverdue(): bool
+    {
+        return $this->due_date !== null && $this->due_date->lt(today()) && $this->outstanding() > 0;
+    }
+
+    /**
+     * Collection of an issued invoice; null for drafts and credit notes.
+     */
+    public function paymentStatus(): ?InvoicePaymentStatus
+    {
+        if ($this->isDraft() || $this->type === InvoiceType::CreditNote) {
+            return null;
+        }
+
+        if ($this->outstanding() <= 0) {
+            return (float) $this->paid_amount <= 0 && $this->creditedAmount() > 0 ? InvoicePaymentStatus::Credited : InvoicePaymentStatus::Paid;
+        }
+
+        return match (true) {
+            $this->isOverdue() => InvoicePaymentStatus::Overdue,
+            (float) $this->paid_amount > 0 => InvoicePaymentStatus::Partial,
+            default => InvoicePaymentStatus::Unpaid,
+        };
+    }
+
+    /**
      * Amount collected and day of the full collection, from the movements. Credit notes are
      * refunded: their movements are negative.
      */
@@ -269,6 +301,46 @@ class Invoice extends Model
     public function displayNumber(): string
     {
         return $this->number ?? __('Bozza n. :id', ['id' => $this->id]);
+    }
+
+    /**
+     * Issued invoices with something still to collect (as outstanding(): collections and issued credit notes subtracted).
+     *
+     * @param  Builder<Invoice>  $query
+     */
+    public function scopeToCollect(Builder $query): void
+    {
+        $query->collectable()->whereRaw(self::OUTSTANDING_SQL.' > 0.005');
+    }
+
+    /**
+     * Issued invoices collected in full (or cancelled by credit notes).
+     *
+     * @param  Builder<Invoice>  $query
+     */
+    public function scopeCollected(Builder $query): void
+    {
+        $query->collectable()->whereRaw(self::OUTSTANDING_SQL.' <= 0.005');
+    }
+
+    /**
+     * Still to collect after the due date.
+     *
+     * @param  Builder<Invoice>  $query
+     */
+    public function scopeOverdue(Builder $query): void
+    {
+        $query->toCollect()->whereNotNull('due_date')->where('due_date', '<', today()->toDateString());
+    }
+
+    /**
+     * Issued invoices and deposits: the documents a customer pays.
+     *
+     * @param  Builder<Invoice>  $query
+     */
+    public function scopeCollectable(Builder $query): void
+    {
+        $query->where('invoices.status', InvoiceStatus::Issued->value)->where('invoices.type', '!=', InvoiceType::CreditNote->value);
     }
 
     /**
