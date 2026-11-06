@@ -1,5 +1,5 @@
 name: Configure SSH
-description: Writes the deploy key and the server host key so that `ssh vps` works.
+description: Writes the deploy key and the server host key so that `ssh vps` works (with `-F "$HOME/.ssh/config"` when HOME is not the user's home).
 
 inputs:
   host:
@@ -37,12 +37,14 @@ runs:
         ssh-keygen -y -f ~/.ssh/id_deploy > /dev/null || { echo "::error::VPS_SSH_KEY non è una chiave privata valida"; exit 1; }
         ssh-keyscan -T 15 -p "$port" "$VPS_HOST" >> ~/.ssh/known_hosts 2> /dev/null
         test -s ~/.ssh/known_hosts || { echo "::error::Il server non risponde su SSH (porta $port)"; exit 1; }
+        # Absolute paths: OpenSSH expands ~ to the user's home, not $HOME (the transfer job moves it).
         cat > ~/.ssh/config <<CONFIG
         Host vps
           HostName $VPS_HOST
           Port $port
           User $VPS_USER
-          IdentityFile ~/.ssh/id_deploy
+          IdentityFile $HOME/.ssh/id_deploy
+          UserKnownHostsFile $HOME/.ssh/known_hosts
           BatchMode yes
           ConnectTimeout 15
           ServerAliveInterval 30
