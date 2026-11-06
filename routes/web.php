@@ -176,6 +176,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::delete('orders/{order}/past-costs/{expense}', [OrderPastCostsController::class, 'destroy'])->name('orders.past-costs.destroy');
 
         Route::post('estimates/read-link', [EstimateController::class, 'readLink'])->middleware('throttle:20,1')->name('estimates.read-link');
+        Route::post('estimates/read-image', [EstimateController::class, 'readImage'])->middleware('throttle:20,1')->name('estimates.read-image');
         Route::post('estimates/{estimate}/advantages', [EstimateController::class, 'advantages'])->middleware('throttle:10,1')->name('estimates.advantages');
         Route::get('estimates/{estimate}/pdf', [EstimateController::class, 'pdf'])->name('estimates.pdf');
         Route::post('estimates/{estimate}/accept', [EstimateController::class, 'accept'])->name('estimates.accept');

@@ -10,16 +10,28 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 
 /**
- * Reads the price of a product from its web page (preventivatore): the page is downloaded by the
- * server (public addresses only), the product data published by the shop (JSON-LD, meta tags) and
- * the visible text go to the AI, which returns name and price. The cost follows the regime: VAT
- * included where it can't be deducted (flat-rate), excluded otherwise.
+ * Reads the price of a product (preventivatore) from its web page or from a screenshot of it.
+ * Link: the page is downloaded by the server (public addresses only), the product data published
+ * by the shop (JSON-LD, meta tags) and the visible text go to the AI. Screenshot: for the shops that
+ * block automatic reading (Amazon) or show the user's own prices once logged in, the AI reads the
+ * image. Either way the AI returns name and price; the cost follows the regime: VAT included where
+ * it can't be deducted (flat-rate), excluded otherwise.
  */
 class LinkReader
 {
     private const MAX_BYTES = 3_000_000;
 
     private const MAX_TEXT = 15000;
+
+    /**
+     * Screenshots keep more pixels than phone photos: prices are small text on a wide page.
+     */
+    private const MAX_SCREENSHOT_SIDE = 2400;
+
+    /**
+     * Shops that always refuse automatic reading: no point in trying, the screenshot works.
+     */
+    private const BLOCKING_HOSTS = '/(^|\.)(amazon\.[a-z.]+|amzn\.[a-z]+|a\.co)$/i';
 
     public function __construct(private OpenRouterClient $ai, private Settings $settings) {}
 
@@ -28,6 +40,10 @@ class LinkReader
      */
     public function read(string $url): array
     {
+        if (preg_match(self::BLOCKING_HOSTS, (string) parse_url($url, PHP_URL_HOST))) {
+            throw new AiException(__('Amazon non permette la lettura automatica delle sue pagine: usa «Screenshot» (cattura la parte con nome e prezzo) o inserisci il costo a mano.'));
+        }
+
         $this->guard($url);
 
         try {
@@ -44,7 +60,7 @@ class LinkReader
         }
 
         if (! $response->successful()) {
-            throw new AiException(__('Il sito ha risposto :status (alcuni negozi bloccano la lettura automatica): inserisci il costo a mano.', ['status' => $response->status()]));
+            throw new AiException(__('Il sito ha risposto :status (alcuni negozi bloccano la lettura automatica): usa «Screenshot» o inserisci il costo a mano.', ['status' => $response->status()]));
         }
 
         $html = substr($response->body(), 0, self::MAX_BYTES);
@@ -56,7 +72,7 @@ class LinkReader
                 throw new AiException(__('Il sito non pubblica il prezzo in modo leggibile e l\'AI non è attiva: inserisci il costo a mano.'));
             }
 
-            return $this->result($structured['name'] ?? $title ?? $url, (float) $structured['price'], true, __('Prezzo pubblicato dal sito, IVA inclusa presunta.'));
+            return $this->result($structured['name'] ?? $title ?? $url, (float) $structured['price'], true, __('Prezzo pubblicato dal sito, IVA inclusa presunta.'), __('Letto dal sito'));
         }
 
         $text = implode("\n\n", array_filter([
@@ -68,22 +84,55 @@ class LinkReader
 
         $data = $this->ai->structured($this->instructions(), 'product_price', $this->schema(), $text)['data'];
 
+        return $this->fromAi($data, $title ?? $url, __('Letto dal sito'));
+    }
+
+    /**
+     * Name and cost read by the AI from a screenshot of the product page (PNG, JPEG or WebP).
+     *
+     * @return array{description: string, unit_cost: float|null, note: string}
+     */
+    public function readScreenshot(string $contents, string $mimeType): array
+    {
+        if (! in_array($mimeType, ['image/png', 'image/jpeg', 'image/webp'], true)) {
+            throw new AiException(__('Serve un\'immagine PNG, JPG o WebP.'));
+        }
+
+        if (! $this->ai->isConfigured()) {
+            throw new AiException(__("La lettura con l'AI non è configurata: attivala in Impostazioni → AI."));
+        }
+
+        set_time_limit(120);
+        [$contents, $mimeType] = DocumentReader::shrink($contents, $mimeType, self::MAX_SCREENSHOT_SIDE);
+
+        $data = $this->ai->extract($this->instructions(), 'product_price', $this->schema(), $contents, $mimeType, 'screenshot')['data'];
+
+        return $this->fromAi($data, __('Articolo'), __('Letto dallo screenshot'));
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return array{description: string, unit_cost: float, note: string}
+     */
+    private function fromAi(array $data, string $fallbackName, string $source): array
+    {
         if (! ($data['found'] ?? false) || ($data['price'] ?? null) === null) {
-            throw new AiException(__('Non ho trovato il prezzo nella pagina: inserisci il costo a mano.').(filled($data['note'] ?? null) ? ' ('.$data['note'].')' : ''));
+            throw new AiException(__('Non ho trovato il prezzo: inserisci il costo a mano.').(filled($data['note'] ?? null) ? ' ('.$data['note'].')' : ''));
         }
 
         return $this->result(
-            (string) ($data['name'] ?: ($title ?? $url)),
+            (string) (($data['name'] ?? '') ?: $fallbackName),
             (float) $data['price'],
             (bool) $data['vat_included'],
             trim((string) ($data['note'] ?? '')),
+            $source,
         );
     }
 
     /**
      * @return array{description: string, unit_cost: float, note: string}
      */
-    private function result(string $name, float $price, bool $vatIncluded, string $note): array
+    private function result(string $name, float $price, bool $vatIncluded, string $note, string $source): array
     {
         $vat = (float) (VatRate::query()->where('is_default', true)->value('rate') ?? 22);
         $vatFree = in_array((string) $this->settings->get('fiscal.regime'), FiscalCodes::VAT_FREE_REGIMES, true);
@@ -95,7 +144,8 @@ class LinkReader
             default => $price,
         };
 
-        $read = __('Letto dal sito: :price :vat.', [
+        $read = __(':source: :price :vat.', [
+            'source' => $source,
             'price' => number_format($price, 2, ',', '.').' €',
             'vat' => $vatIncluded ? __('IVA inclusa') : __('IVA esclusa'),
         ]);
@@ -197,11 +247,12 @@ class LinkReader
     private function instructions(): string
     {
         return <<<'TXT'
-            Sei un assistente che legge pagine di negozi online per preparare un preventivo.
+            Sei un assistente che legge pagine di negozi online (testo della pagina o screenshot) per preparare un preventivo.
             Dalla pagina trova il prodotto principale e il suo prezzo di vendita attuale (quello da pagare, non il prezzo barrato).
+            In uno screenshot ignora prodotti consigliati, sponsorizzati, accessori e offerte di altri venditori: leggi il prezzo del prodotto principale.
             - name: nome commerciale del prodotto, conciso (marca, modello, caratteristiche chiave).
             - price: prezzo unitario in euro come numero (es. 1234.5). Se la pagina usa un'altra valuta, convertilo in euro solo se il tasso è indicato, altrimenti found=false.
-            - vat_included: true se il prezzo include l'IVA (tipico dei negozi per privati), false se è indicato "IVA esclusa" / "+IVA" / prezzo per aziende.
+            - vat_included: true se il prezzo include l'IVA (tipico dei negozi per privati), false se è indicato "IVA esclusa" / "+IVA" / prezzo per aziende. Se la pagina mostra entrambi (es. Amazon Business), usa il prezzo IVA esclusa con vat_included=false.
             - found: false se non c'è un prodotto con prezzo chiaro (pagina di categoria, prezzo su richiesta, prodotto non disponibile senza prezzo).
             - note: una frase breve in italiano su cosa hai trovato (es. "Prezzo in offerta", "Più varianti: preso il modello base"); stringa vuota se non serve.
             Rispondi solo con i dati richiesti.

@@ -7,7 +7,7 @@ import { useConfirm } from '@/composables/useConfirm';
 import { useInertiaLink } from '@/composables/useInertiaLink';
 import { estimateTotals, itemCost, markupFor } from '@/utils/estimateTotals';
 import { formatMoney, formatPercent } from '@/utils/format';
-import { http } from '@/utils/http';
+import { http, upload } from '@/utils/http';
 
 const props = defineProps({
     estimate: { type: Object, default: null },
@@ -100,30 +100,105 @@ function submit() {
     }
 }
 
-// Item from a link: the AI reads name and price of the product page.
+// Item from a link or a screenshot: the AI reads name and price of the product page.
+// Screenshots work with the shops that block automatic reading (Amazon) and with logged-in prices.
 const linkDialog = ref(false);
+const linkMode = ref('link');
 const linkForm = ref({ url: '', category: null, quantity: 1 });
 const linkResult = ref(null);
 const linkLoading = ref(false);
 const linkError = ref('');
+const linkImage = ref(null);
+const linkPreview = ref(null);
+const imageInput = ref(null);
+const dragging = ref(false);
 
-function openLink() {
+function openLink(mode = 'link') {
     linkForm.value = { url: '', category: form.items.at(-1)?.category ?? null, quantity: 1 };
+    linkMode.value = mode;
+    setImage(null);
+    resetLinkResult();
+    linkDialog.value = true;
+}
+
+function resetLinkResult() {
     linkResult.value = null;
     linkError.value = '';
-    linkDialog.value = true;
+}
+
+function setImage(file) {
+    if (linkPreview.value) {
+        URL.revokeObjectURL(linkPreview.value);
+    }
+
+    linkImage.value = file;
+    linkPreview.value = file ? URL.createObjectURL(file) : null;
+    resetLinkResult();
+}
+
+function pickImage(files) {
+    const file = [...(files ?? [])].find((item) => item.type.startsWith('image/'));
+
+    if (!file) {
+        return false;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+        linkError.value = "L'immagine supera 10 MB: cattura solo la parte con nome e prezzo.";
+
+        return true;
+    }
+
+    linkMode.value = 'image';
+    setImage(file);
+
+    return true;
+}
+
+// Ctrl+V anywhere in the dialog: an image in the clipboard goes to the screenshot tab.
+function onPaste(event) {
+    if (props.canUseAi && pickImage(event.clipboardData?.files)) {
+        event.preventDefault();
+    }
+}
+
+function onDrop(event) {
+    dragging.value = false;
+    pickImage(event.dataTransfer?.files);
 }
 
 async function readLink() {
     linkLoading.value = true;
-    linkError.value = '';
-    linkResult.value = null;
+    resetLinkResult();
 
     try {
         const { data } = await http.post(route('sales.estimates.read-link'), { url: linkForm.value.url });
         linkResult.value = data;
     } catch (exception) {
         linkError.value = exception.errors?.url?.[0] ?? exception.message;
+    } finally {
+        linkLoading.value = false;
+    }
+}
+
+async function readImage() {
+    linkLoading.value = true;
+    resetLinkResult();
+
+    const data = new FormData();
+    data.append('image', linkImage.value, linkImage.value.name || 'screenshot.png');
+
+    if (linkForm.value.url) {
+        data.append('url', linkForm.value.url);
+    }
+
+    try {
+        linkResult.value = (await upload(route('sales.estimates.read-image'), data)).data;
+    } catch (exception) {
+        linkError.value =
+            exception.errors?.image?.[0] ??
+            exception.errors?.url?.[0] ??
+            (exception.status === 413 ? "L'immagine è troppo grande." : exception.message);
     } finally {
         linkLoading.value = false;
     }
@@ -139,6 +214,7 @@ function addFromLink() {
         note: linkResult.value.note,
     });
     linkDialog.value = false;
+    setImage(null);
 }
 
 // Advantages drafted by the AI from the saved proposal.
@@ -385,7 +461,10 @@ async function destroy() {
 
                         <v-card-actions v-if="!accepted">
                             <v-btn variant="tonal" prepend-icon="mdi-plus" @click="addItem()">Articolo</v-btn>
-                            <v-btn variant="tonal" prepend-icon="mdi-link-variant" @click="openLink">Da link</v-btn>
+                            <v-btn variant="tonal" prepend-icon="mdi-link-variant" @click="openLink('link')">Da link</v-btn>
+                            <v-btn v-if="canUseAi" variant="tonal" prepend-icon="mdi-monitor-screenshot" @click="openLink('image')">
+                                Da screenshot
+                            </v-btn>
                         </v-card-actions>
                     </v-card>
 
@@ -510,21 +589,83 @@ async function destroy() {
             </v-row>
         </v-form>
 
-        <v-dialog v-model="linkDialog" max-width="560">
-            <v-card title="Articolo da link" subtitle="Incolla la pagina del prodotto: nome e prezzo li legge l'IA">
+        <v-dialog v-model="linkDialog" max-width="600">
+            <v-card title="Articolo dal negozio" subtitle="Nome e prezzo del prodotto li legge l'IA" @paste="onPaste">
+                <v-tabs v-model="linkMode" density="compact" class="px-4" @update:model-value="resetLinkResult">
+                    <v-tab value="link" prepend-icon="mdi-link-variant">Link</v-tab>
+                    <v-tab value="image" prepend-icon="mdi-monitor-screenshot">Screenshot</v-tab>
+                </v-tabs>
                 <v-card-text>
-                    <v-text-field
-                        v-model="linkForm.url"
-                        label="Link"
-                        placeholder="https://"
-                        prepend-inner-icon="mdi-link-variant"
-                        :error-messages="linkError"
-                        autofocus
-                        @keydown.enter.prevent="readLink"
-                    />
-                    <div v-if="!canUseAi" class="text-caption text-medium-emphasis mb-2">
-                        L'IA non è attiva: leggo solo i prezzi che il sito pubblica in modo strutturato.
-                    </div>
+                    <template v-if="linkMode === 'link'">
+                        <v-text-field
+                            v-model="linkForm.url"
+                            label="Link"
+                            placeholder="https://"
+                            prepend-inner-icon="mdi-link-variant"
+                            :error-messages="linkError"
+                            autofocus
+                            @keydown.enter.prevent="readLink"
+                        />
+                        <div v-if="linkError && canUseAi" class="mb-3">
+                            <v-btn size="small" variant="tonal" prepend-icon="mdi-monitor-screenshot" @click="linkMode = 'image'">
+                                Usa uno screenshot
+                            </v-btn>
+                        </div>
+                        <div v-if="!canUseAi" class="text-caption text-medium-emphasis mb-2">
+                            L'IA non è attiva: leggo solo i prezzi che il sito pubblica in modo strutturato.
+                        </div>
+                    </template>
+                    <template v-else>
+                        <v-alert v-if="!canUseAi" type="info" variant="tonal" density="compact" class="mb-3">
+                            Per leggere gli screenshot serve l'IA attiva (Impostazioni → AI).
+                        </v-alert>
+                        <template v-else>
+                            <div
+                                class="paste-zone mb-3"
+                                :class="{ 'paste-zone--active': dragging }"
+                                role="button"
+                                tabindex="0"
+                                @click="imageInput.click()"
+                                @keydown.enter.prevent="imageInput.click()"
+                                @dragover.prevent="dragging = true"
+                                @dragleave="dragging = false"
+                                @drop.prevent="onDrop"
+                            >
+                                <img v-if="linkPreview" :src="linkPreview" alt="Screenshot del prodotto" class="paste-zone__image" />
+                                <div v-else class="text-center pa-6">
+                                    <v-icon icon="mdi-monitor-screenshot" size="32" class="mb-2 text-medium-emphasis" />
+                                    <div class="text-body-2">
+                                        Incolla lo screenshot con
+                                        <strong>Ctrl+V</strong>
+                                        , trascinalo qui o clicca per sceglierlo
+                                    </div>
+                                    <div class="text-caption text-medium-emphasis mt-1">
+                                        Cattura la parte della pagina con nome e prezzo: su Windows Win+Maiusc+S, su Mac Cmd+Ctrl+Maiusc+4.
+                                    </div>
+                                </div>
+                            </div>
+                            <input
+                                ref="imageInput"
+                                type="file"
+                                accept="image/png,image/jpeg,image/webp"
+                                hidden
+                                @change="
+                                    pickImage($event.target.files);
+                                    $event.target.value = '';
+                                "
+                            />
+                            <v-alert v-if="linkError" type="error" variant="tonal" density="compact" class="mb-3">{{ linkError }}</v-alert>
+                            <v-text-field
+                                v-model="linkForm.url"
+                                label="Link al prodotto (facoltativo)"
+                                placeholder="https://"
+                                prepend-inner-icon="mdi-link-variant"
+                                hint="Resta sull'articolo, comodo per riordinarlo"
+                                persistent-hint
+                                class="mb-2"
+                            />
+                        </template>
+                    </template>
                     <v-row dense>
                         <v-col cols="8">
                             <v-combobox v-model="linkForm.category" :items="categoryNames" label="Categoria" clearable />
@@ -543,9 +684,21 @@ async function destroy() {
                 <v-card-actions>
                     <v-spacer />
                     <v-btn variant="text" @click="linkDialog = false">Annulla</v-btn>
-                    <v-btn v-if="!linkResult" color="primary" variant="flat" :loading="linkLoading" :disabled="!linkForm.url" @click="readLink">
-                        Leggi la pagina
-                    </v-btn>
+                    <template v-if="!linkResult">
+                        <v-btn
+                            v-if="linkMode === 'link'"
+                            color="primary"
+                            variant="flat"
+                            :loading="linkLoading"
+                            :disabled="!linkForm.url"
+                            @click="readLink"
+                        >
+                            Leggi la pagina
+                        </v-btn>
+                        <v-btn v-else color="primary" variant="flat" :loading="linkLoading" :disabled="!linkImage || !canUseAi" @click="readImage">
+                            Leggi lo screenshot
+                        </v-btn>
+                    </template>
                     <v-btn v-else color="primary" variant="flat" prepend-icon="mdi-plus" @click="addFromLink">Aggiungi</v-btn>
                 </v-card-actions>
             </v-card>
@@ -554,6 +707,26 @@ async function destroy() {
 </template>
 
 <style scoped>
+.paste-zone {
+    border: 1px dashed rgba(var(--v-border-color), 0.4);
+    border-radius: 6px;
+    cursor: pointer;
+    max-height: 320px;
+    overflow: auto;
+}
+
+.paste-zone--active,
+.paste-zone:focus-visible {
+    border-color: rgb(var(--v-theme-primary));
+    background: rgba(var(--v-theme-primary), 0.04);
+    outline: none;
+}
+
+.paste-zone__image {
+    display: block;
+    max-width: 100%;
+}
+
 .estimate-group__header {
     background: rgba(var(--v-theme-primary), 0.04);
     border-top: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));

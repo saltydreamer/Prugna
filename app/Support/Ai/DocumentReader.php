@@ -78,7 +78,7 @@ class DocumentReader
         set_time_limit(180);
 
         if (str_starts_with($mimeType, 'image/')) {
-            [$contents, $mimeType] = $this->shrink($contents, $mimeType);
+            [$contents, $mimeType] = self::shrink($contents, $mimeType);
         }
 
         $definition = $kind === AiExtraction::KIND_ORGANIZATION ? DocumentSchemas::organization() : DocumentSchemas::expense();
@@ -98,7 +98,7 @@ class DocumentReader
      *
      * @return array{0: string, 1: string}
      */
-    private function shrink(string $contents, string $mimeType): array
+    public static function shrink(string $contents, string $mimeType, int $maxSide = self::MAX_IMAGE_SIDE): array
     {
         if (! function_exists('imagecreatefromstring') || ! ($image = @imagecreatefromstring($contents))) {
             return [$contents, $mimeType];
@@ -106,7 +106,7 @@ class DocumentReader
 
         $width = imagesx($image);
         $height = imagesy($image);
-        $scale = min(1, self::MAX_IMAGE_SIDE / max($width, $height));
+        $scale = min(1, $maxSide / max($width, $height));
 
         if ($scale === 1 && strlen($contents) < 3_000_000) {
             imagedestroy($image);

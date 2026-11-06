@@ -146,6 +146,30 @@ class EstimateController extends Controller
     }
 
     /**
+     * Name and cost of a product read by the AI from a screenshot of its page (shops that block
+     * automatic reading, prices seen only when logged in). The link, if given, is kept on the item.
+     */
+    public function readImage(Request $request, LinkReader $reader): JsonResponse
+    {
+        $this->authorize(Permission::EstimatesManage->value);
+        $this->authorize(Permission::AiUse->value);
+
+        $data = $request->validate([
+            'image' => ['required', 'file', 'mimes:png,jpg,jpeg,webp', 'max:10240'],
+            'url' => ['nullable', 'url:http,https', 'max:2000'],
+        ], [], ['image' => 'screenshot', 'url' => 'link']);
+
+        try {
+            return response()->json(['data' => [
+                ...$reader->readScreenshot((string) $data['image']->get(), (string) $data['image']->getMimeType()),
+                'url' => $data['url'] ?? null,
+            ]]);
+        } catch (AiException $exception) {
+            throw ValidationException::withMessages(['image' => $exception->getMessage()]);
+        }
+    }
+
+    /**
      * Advantages of the solution drafted by the AI (saved data: save the proposal first).
      */
     public function advantages(Estimate $estimate, GenerateAdvantages $generate): JsonResponse

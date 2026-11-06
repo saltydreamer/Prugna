@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Support\Estimates\EstimateCalculator;
 use App\Support\Settings;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
@@ -85,6 +86,44 @@ class EstimateTest extends TestCase
         $this->assertSame('Switch XS-24 24 porte', $response->json('data.description'));
         $this->assertEquals(148.84, $response->json('data.unit_cost'));
         Http::assertSent(fn ($request) => str_contains($request->url(), 'openrouter.ai') && str_contains($request['messages'][1]['content'], '"price":122'));
+    }
+
+    public function test_the_ai_reads_name_and_price_from_a_screenshot(): void
+    {
+        app(Settings::class)->set(['ai.enabled' => true, 'ai.api_key' => 'sk-or-test', 'ai.model' => 'anthropic/claude-test']);
+        Http::fake(['openrouter.ai/api/v1/chat/completions' => Http::response([
+            'model' => 'anthropic/claude-test',
+            'choices' => [['message' => ['content' => json_encode(['found' => true, 'name' => 'Monitor 27" QHD', 'price' => 249.9, 'vat_included' => true, 'note' => 'Prezzo Amazon Business'])]]],
+        ])]);
+
+        $response = $this->actingAs($this->admin)->post('/sales/estimates/read-image', [
+            'image' => UploadedFile::fake()->image('screenshot.png', 1600, 900),
+            'url' => 'https://www.amazon.it/dp/B0TEST',
+        ], ['Accept' => 'application/json'])->assertOk();
+
+        // Flat-rate regime: the VAT included stays in the cost.
+        $this->assertSame('Monitor 27" QHD', $response->json('data.description'));
+        $this->assertEquals(249.9, $response->json('data.unit_cost'));
+        $this->assertSame('https://www.amazon.it/dp/B0TEST', $response->json('data.url'));
+        $this->assertStringStartsWith('Letto dallo screenshot', $response->json('data.note'));
+        Http::assertSent(fn ($request) => str_starts_with($request['messages'][1]['content'][0]['image_url']['url'], 'data:image/png;base64,'));
+
+        // Without the AI there is nothing to read the image with.
+        app(Settings::class)->set(['ai.enabled' => false]);
+        $this->actingAs($this->admin)->post('/sales/estimates/read-image', ['image' => UploadedFile::fake()->image('screenshot.png')], ['Accept' => 'application/json'])
+            ->assertJsonValidationErrors('image');
+        $this->actingAs($this->admin)->post('/sales/estimates/read-image', ['image' => UploadedFile::fake()->create('page.pdf', 10, 'application/pdf')], ['Accept' => 'application/json'])
+            ->assertJsonValidationErrors('image');
+    }
+
+    public function test_amazon_links_suggest_the_screenshot_without_downloading(): void
+    {
+        Http::fake();
+
+        $this->actingAs($this->admin)->postJson('/sales/estimates/read-link', ['url' => 'https://www.amazon.it/dp/B0TEST'])
+            ->assertJsonValidationErrors(['url' => 'Amazon non permette la lettura automatica delle sue pagine: usa «Screenshot» (cattura la parte con nome e prezzo) o inserisci il costo a mano.']);
+        $this->actingAs($this->admin)->postJson('/sales/estimates/read-link', ['url' => 'https://amzn.eu/d/abc'])->assertJsonValidationErrors('url');
+        Http::assertNothingSent();
     }
 
     public function test_only_public_addresses_are_read(): void
