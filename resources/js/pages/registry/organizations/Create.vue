@@ -6,7 +6,10 @@ import DocumentImportDialog from '@/components/DocumentImportDialog.vue';
 import PageHeader from '@/components/PageHeader.vue';
 import OrganizationForm from '@/components/registry/OrganizationForm.vue';
 import { useInertiaLink } from '@/composables/useInertiaLink';
+import { useToast } from '@/composables/useToast';
 import { countries } from '@/utils/countries';
+import { formatDate } from '@/utils/format';
+import { http } from '@/utils/http';
 
 const props = defineProps({
     /** { value, label, plural, index_route, create_route } */
@@ -17,6 +20,8 @@ const props = defineProps({
     defaults: { type: Object, default: null },
     review: { type: Object, default: null },
     canUseAi: { type: Boolean, default: false },
+    /** «Compila» from the Registro Imprese (Openapi "Company" service switched on). */
+    companyLookup: { type: Boolean, default: false },
 });
 
 const { link } = useInertiaLink();
@@ -49,6 +54,46 @@ const italian = computed(() => form.location.country === 'IT');
 function submit() {
     form.post(route('registry.organizations.store'));
 }
+
+// --- Registro Imprese -------------------------------------------------------------------------
+const toast = useToast();
+const lookupLoading = ref(false);
+/** { company, existing } of the last lookup. */
+const registry = ref(null);
+
+async function lookupCompany() {
+    lookupLoading.value = true;
+
+    try {
+        const data = await http.get(route('registry.company-lookup', { role: props.role.value, code: form.vat_number || form.tax_code }));
+        const { company } = data;
+
+        for (const field of ['name', 'vat_number', 'tax_code', 'sdi_code', 'pec']) {
+            if (company[field] && !(field === 'sdi_code' && form.type === 'public_body')) {
+                form[field] = company[field];
+            }
+        }
+
+        if (company.location?.address) {
+            const { address, postal_code, city, province, country } = company.location;
+            form.location = { ...form.location, address, postal_code: postal_code ?? '', city: city ?? '', province: province ?? '', country };
+        }
+
+        registry.value = data;
+    } catch (error) {
+        toast.error(error.errors?.code?.[0] ?? error.message);
+    } finally {
+        lookupLoading.value = false;
+    }
+}
+
+const registryDetails = computed(() => {
+    const company = registry.value?.company;
+
+    return company
+        ? [company.legal_form, company.rea && `REA ${company.rea}`, company.ateco && `ATECO ${company.ateco}`].filter(Boolean).join(' · ')
+        : '';
+});
 </script>
 
 <template>
@@ -90,12 +135,42 @@ function submit() {
             </ul>
         </v-alert>
 
+        <v-alert
+            v-if="registry"
+            :type="registry.company.ceased || registry.existing ? 'warning' : 'success'"
+            variant="tonal"
+            class="mb-6"
+            title="Dati compilati dal Registro Imprese"
+            closable
+            @click:close="registry = null"
+        >
+            <div class="text-body-2">{{ registryDetails }}</div>
+            <div v-if="registry.company.ceased" class="text-body-2 mt-2">
+                L'azienda risulta cessata{{ registry.company.ceased_on ? ` dal ${formatDate(registry.company.ceased_on)}` : '' }}.
+            </div>
+            <div v-else-if="registry.company.status && registry.company.status !== 'ATTIVA'" class="text-body-2 mt-2">
+                Stato: {{ registry.company.status_label }}.
+            </div>
+            <div v-if="registry.existing" class="text-body-2 mt-2">
+                Con questa partita IVA o codice fiscale esiste già
+                <a v-bind="link(route('registry.organizations.show', registry.existing.id))">{{ registry.existing.name }}</a>
+                ({{ registry.existing.role }}).
+            </div>
+        </v-alert>
+
         <v-row>
             <v-col cols="12" :lg="review?.file_url ? 8 : 12">
                 <v-card>
                     <v-form @submit.prevent="submit">
                         <v-card-text>
-                            <OrganizationForm v-model:form="form" :types="types" :payment-terms="paymentTerms" />
+                            <OrganizationForm
+                                v-model:form="form"
+                                :types="types"
+                                :payment-terms="paymentTerms"
+                                :lookup="companyLookup"
+                                :lookup-loading="lookupLoading"
+                                @lookup="lookupCompany"
+                            />
 
                             <div class="text-subtitle-1 font-weight-medium mt-6 mb-3">Sede principale</div>
                             <v-row dense>

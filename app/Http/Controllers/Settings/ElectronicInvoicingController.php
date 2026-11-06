@@ -36,6 +36,7 @@ class ElectronicInvoicingController extends Controller
         'POST /api_configurations' => 'Configurazione webhook',
         'GET /api_configurations' => 'Verifica webhook',
         'DELETE /api_configurations/{id}' => 'Rimozione webhook',
+        'GET /IT-advanced/{id}' => 'Dati di un\'azienda dal Registro Imprese (servizio Company)',
     ];
 
     public function __construct(private Settings $settings) {}
@@ -51,6 +52,7 @@ class ElectronicInvoicingController extends Controller
                 'username' => $this->settings->get('sdi.username'),
                 'has_api_key' => $this->settings->has('sdi.api_key'),
                 'auto_send' => (bool) $this->settings->get('sdi.auto_send'),
+                'company_enabled' => (bool) $this->settings->get('sdi.company_enabled'),
                 'connected_at' => $this->settings->get('sdi.connected_at'),
                 'connected_environment' => $this->settings->get('sdi.connected_environment'),
                 'fiscal_id' => $this->settings->get('sdi.fiscal_id'),
@@ -73,24 +75,25 @@ class ElectronicInvoicingController extends Controller
         $data = $request->validate([
             'enabled' => ['boolean'],
             'environment' => ['required', Rule::in(['test', 'production'])],
-            'username' => ['nullable', 'required_if:enabled,true', 'email', 'max:255'],
+            'username' => ['nullable', 'required_if:enabled,true', 'required_if:company_enabled,true', 'email', 'max:255'],
             'api_key' => ['nullable', 'string', 'max:255'],
             'auto_send' => ['boolean'],
+            'company_enabled' => ['boolean'],
         ], [], ['username' => 'e-mail dell\'account Openapi', 'api_key' => 'API key', 'environment' => 'ambiente']);
 
         if (blank($data['api_key'] ?? null)) {
             unset($data['api_key']);
         } else {
-            // New credentials: the cached token is no longer valid.
-            $this->settings->set(['sdi.token' => null, 'sdi.token_expires_at' => null]);
+            // New credentials: the cached tokens are no longer valid.
+            $this->settings->set(['sdi.token' => null, 'sdi.token_expires_at' => null, 'sdi.company_token' => null, 'sdi.company_token_expires_at' => null]);
         }
 
-        if ($request->boolean('enabled') && ! isset($data['api_key']) && ! $this->settings->has('sdi.api_key')) {
+        if (($request->boolean('enabled') || $request->boolean('company_enabled')) && ! isset($data['api_key']) && ! $this->settings->has('sdi.api_key')) {
             return back()->withErrors(['api_key' => __("Inserisci l'API key di Openapi.")]);
         }
 
         if ($data['environment'] !== $this->settings->get('sdi.environment')) {
-            $this->settings->set(['sdi.token' => null, 'sdi.token_expires_at' => null, 'sdi.connected_at' => null]);
+            $this->settings->set(['sdi.token' => null, 'sdi.token_expires_at' => null, 'sdi.company_token' => null, 'sdi.company_token_expires_at' => null, 'sdi.connected_at' => null]);
         }
 
         $this->settings->set(collect($data)->mapWithKeys(fn ($value, $key) => ["sdi.{$key}" => $value])->all());

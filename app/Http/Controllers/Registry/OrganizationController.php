@@ -20,6 +20,7 @@ use App\Models\PaymentTerm;
 use App\Models\Product;
 use App\Models\PurchaseOrder;
 use App\Models\ServiceContract;
+use App\Support\Sdi\OpenapiClient;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
@@ -77,7 +78,7 @@ class OrganizationController extends Controller
         ]);
     }
 
-    public function create(Request $request, string $role, OrganizationDraft $draft): Response
+    public function create(Request $request, string $role, OrganizationDraft $draft, OpenapiClient $openapi): Response
     {
         $role = OrganizationRole::from($role);
         $this->authorize('create', [Organization::class, $role]);
@@ -92,6 +93,7 @@ class OrganizationController extends Controller
             'defaults' => $prefill['defaults'] ?? null,
             'review' => $prefill['review'] ?? null,
             'canUseAi' => $request->user()->can(Permission::AiUse->value),
+            'companyLookup' => $openapi->companyEnabled(),
         ]);
     }
 
@@ -129,7 +131,7 @@ class OrganizationController extends Controller
         return back();
     }
 
-    public function show(Request $request, Organization $organization): Response
+    public function show(Request $request, Organization $organization, OpenapiClient $openapi): Response
     {
         $this->authorize('view', $organization);
 
@@ -147,6 +149,8 @@ class OrganizationController extends Controller
             'organization' => OrganizationResource::make($organization)->resolve(),
             'role' => $this->roleData($organization->role),
             'locationTypes' => LocationType::options(),
+            // «Aggiorna dal Registro Imprese» (Openapi "Company").
+            'companyLookup' => $openapi->companyEnabled(),
             'purchaseOrders' => $isSupplier && $request->user()->can('viewAny', PurchaseOrder::class)
                 ? PurchaseOrder::query()->where('supplier_id', $organization->id)->latest('id')->limit(10)->get()
                     ->map(fn (PurchaseOrder $purchaseOrder) => [

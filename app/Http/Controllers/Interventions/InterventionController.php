@@ -12,6 +12,7 @@ use App\Enums\Permission;
 use App\Enums\UnitOfMeasure;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Sales\ProvidesDocumentEditorOptions;
+use App\Http\Requests\Interventions\InterventionFilterRequest;
 use App\Http\Requests\Interventions\InterventionRequest;
 use App\Http\Resources\InterventionResource;
 use App\Http\Resources\VatRateResource;
@@ -28,7 +29,6 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -41,47 +41,15 @@ class InterventionController extends Controller
 {
     use ProvidesDocumentEditorOptions;
 
-    private const SORTABLE = ['started_at', 'duration_minutes', 'number'];
-
-    public function index(Request $request): Response
+    public function index(InterventionFilterRequest $request): Response
     {
-        $this->authorize('viewAny', Intervention::class);
-
         $user = $request->user();
-        $supervisor = $user->can(Permission::InterventionsSupervise->value);
+        $supervisor = $request->isSupervisor();
+        $filters = $request->validated();
+        $scope = $request->scope();
 
-        $filters = $request->validate([
-            'search' => ['nullable', 'string', 'max:100'],
-            'scope' => ['nullable', Rule::in(['mine', 'all'])],
-            'technician' => ['nullable', 'integer'],
-            'customer' => ['nullable', 'integer'],
-            'order' => ['nullable', 'integer'],
-            'category' => ['nullable', 'integer'],
-            'mode' => ['nullable', Rule::enum(InterventionMode::class)],
-            'status' => ['nullable', Rule::enum(InterventionStatus::class)],
-            'from' => ['nullable', 'date'],
-            'to' => ['nullable', 'date'],
-            'sort_by' => ['nullable', Rule::in(self::SORTABLE)],
-            'sort_dir' => ['nullable', Rule::in(['asc', 'desc'])],
-            'per_page' => ['nullable', 'integer', Rule::in([10, 25, 50, 100])],
-        ]);
-
-        $scope = $supervisor ? ($filters['scope'] ?? 'all') : 'mine';
-
-        $base = Intervention::query()
-            ->visibleTo($user)
-            ->when($scope === 'mine', fn (Builder $query) => $query->where('technician_id', $user->id))
-            ->when($supervisor && ($filters['technician'] ?? null), fn (Builder $query) => $query->where('technician_id', $filters['technician']))
-            ->when($filters['customer'] ?? null, fn (Builder $query, int $id) => $query->where('organization_id', $id))
-            ->when($filters['order'] ?? null, fn (Builder $query, int $id) => $query->where('order_id', $id))
-            ->when($filters['category'] ?? null, fn (Builder $query, int $id) => $query->where('category_id', $id))
-            ->when($filters['mode'] ?? null, fn (Builder $query, string $mode) => $query->where('mode', $mode))
-            // Dates are local days, times are stored in UTC.
-            ->when($filters['from'] ?? null, fn (Builder $query, string $date) => $query->where('started_at', '>=', Carbon::parse($date, config('app.display_timezone'))->startOfDay()->utc()))
-            ->when($filters['to'] ?? null, fn (Builder $query, string $date) => $query->where('started_at', '<=', Carbon::parse($date, config('app.display_timezone'))->endOfDay()->utc()))
-            ->search($filters['search'] ?? null);
-
-        $listed = (clone $base)->withStatus($filters['status'] ?? null);
+        $base = $request->baseQuery();
+        $listed = $request->listedQuery();
 
         $interventions = (clone $listed)
             ->with(['organization', 'category', 'technician:id,name', 'order:id,number,title', 'invoiceLines.invoice'])

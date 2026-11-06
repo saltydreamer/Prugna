@@ -24,6 +24,7 @@ const form = useForm({
     username: props.settings.username ?? '',
     api_key: '',
     auto_send: props.settings.auto_send,
+    company_enabled: props.settings.company_enabled,
 });
 
 function save() {
@@ -108,6 +109,12 @@ async function copy(text) {
                             </v-col>
                         </v-row>
                         <v-switch v-model="form.auto_send" label="Invia allo SDI quando emetti una fattura" class="mt-2" />
+                        <v-switch
+                            v-model="form.company_enabled"
+                            label="Dati delle aziende dal Registro Imprese (servizio Company)"
+                            hint="Con le stesse credenziali: compila clienti e fornitori dalla partita IVA e aggiorna sede legale, PEC e codice SDI. Il servizio va attivato sul tuo account Openapi e ogni ricerca ha un costo."
+                            persistent-hint
+                        />
                     </v-card-text>
                     <v-card-actions>
                         <v-spacer />

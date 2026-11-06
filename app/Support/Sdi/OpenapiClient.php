@@ -12,10 +12,11 @@ use Illuminate\Support\Facades\Http;
 use Throwable;
 
 /**
- * Openapi "SDI Electronic Invoicing" (sdi.openapi.it, sandbox test.sdi.openapi.it).
+ * Openapi "SDI Electronic Invoicing" (sdi.openapi.it, sandbox test.sdi.openapi.it) and "Company"
+ * (company.openapi.com: company data from the Registro Imprese, same account).
  *
- * Authentication: a bearer token created with the account e-mail and API key (oauth.openapi.it, Basic auth)
- * for the SDI scopes, cached encrypted in the settings and renewed before it expires.
+ * Authentication: a bearer token per service created with the account e-mail and API key (oauth.openapi.it,
+ * Basic auth) for the scopes of that service, cached encrypted in the settings and renewed before it expires.
  * Every request is logged in openapi_calls with its price, for the cost summary.
  */
 class OpenapiClient
@@ -25,6 +26,13 @@ class OpenapiClient
 
     /** Token lifetime requested (30 days); renewed when less than a day is left. */
     private const TOKEN_TTL = 2_592_000;
+
+    public const SERVICE_SDI = 'sdi';
+
+    public const SERVICE_COMPANY = 'company';
+
+    /** Settings key of the cached token of each service. */
+    private const TOKEN_KEYS = [self::SERVICE_SDI => 'sdi.token', self::SERVICE_COMPANY => 'sdi.company_token'];
 
     private ?int $invoiceId = null;
 
@@ -64,6 +72,22 @@ class OpenapiClient
     public function baseUrl(): string
     {
         return $this->isTest() ? 'https://test.sdi.openapi.it' : 'https://sdi.openapi.it';
+    }
+
+    /**
+     * Company data from the Registro Imprese: switched on in Impostazioni → Fatturazione elettronica
+     * once the "Company" service is active on the Openapi account (the SDI may be off).
+     */
+    public function companyEnabled(): bool
+    {
+        return (bool) $this->settings->get('sdi.company_enabled')
+            && filled($this->settings->get('sdi.username'))
+            && $this->settings->has('sdi.api_key');
+    }
+
+    public function companyBaseUrl(): string
+    {
+        return $this->isTest() ? 'https://test.company.openapi.com' : 'https://company.openapi.com';
     }
 
     public function oauthUrl(): string
@@ -232,18 +256,48 @@ class OpenapiClient
         return (array) ($response->json('data') ?? $response->json());
     }
 
+    // --- Company -------------------------------------------------------------------------------
+
+    /**
+     * Company data ("IT-advanced": name, registered office, PEC, recipient code, status...) by VAT number or tax code.
+     *
+     * @return array<string, mixed>
+     */
+    public function company(string $vatOrTaxCode): array
+    {
+        $path = '/IT-advanced/'.$vatOrTaxCode;
+
+        try {
+            $response = $this->call('GET', $path, fn (PendingRequest $request) => $request->get($this->companyBaseUrl().'/IT-advanced/'.rawurlencode($vatOrTaxCode)), self::SERVICE_COMPANY);
+        } catch (OpenapiException $exception) {
+            throw in_array($exception->status, [404, 406], true)
+                ? new OpenapiException(__('Nel Registro Imprese non c\'è nessuna azienda con partita IVA o codice fiscale :code.', ['code' => $vatOrTaxCode]), $exception->status)
+                : $exception;
+        }
+
+        $data = $response->json('data');
+        $company = is_array($data) && array_is_list($data) ? ($data[0] ?? null) : $data;
+
+        if (! is_array($company) || $company === []) {
+            throw new OpenapiException(__('Nel Registro Imprese non c\'è nessuna azienda con partita IVA o codice fiscale :code.', ['code' => $vatOrTaxCode]), 404);
+        }
+
+        return $company;
+    }
+
     // --- Token ---------------------------------------------------------------------------------
 
-    public function token(bool $refresh = false): string
+    public function token(bool $refresh = false, string $service = self::SERVICE_SDI): string
     {
-        $expires = $this->settings->get('sdi.token_expires_at');
-        $cached = $this->settings->get('sdi.token');
+        $key = self::TOKEN_KEYS[$service];
+        $expires = $this->settings->get("{$key}_expires_at");
+        $cached = $this->settings->get($key);
 
-        if (! $refresh && $cached && $expires && Carbon::parse($expires)->subDay()->isFuture() && $this->settings->get('sdi.token_environment') === $this->environment()) {
+        if (! $refresh && $cached && $expires && Carbon::parse($expires)->subDay()->isFuture() && $this->settings->get("{$key}_environment") === $this->environment()) {
             return $cached;
         }
 
-        $scopes = $this->sdiScopes();
+        $scopes = $service === self::SERVICE_COMPANY ? $this->companyScopes() : $this->sdiScopes();
 
         try {
             $response = $this->oauth()->post($this->oauthUrl().'/token', ['scopes' => $scopes, 'ttl' => self::TOKEN_TTL]);
@@ -259,9 +313,9 @@ class OpenapiClient
         }
 
         $this->settings->set([
-            'sdi.token' => $token,
-            'sdi.token_expires_at' => now()->addSeconds(self::TOKEN_TTL)->toIso8601String(),
-            'sdi.token_environment' => $this->environment(),
+            $key => $token,
+            "{$key}_expires_at" => now()->addSeconds(self::TOKEN_TTL)->toIso8601String(),
+            "{$key}_environment" => $this->environment(),
         ]);
 
         return $token;
@@ -274,6 +328,38 @@ class OpenapiClient
      */
     public function sdiScopes(): array
     {
+        $scopes = $this->scopesFor($this->baseUrl());
+
+        if ($scopes === []) {
+            throw new OpenapiException(__("Sul tuo account Openapi non risulta attivo il servizio «Fatturazione elettronica SDI» per l'ambiente :env.", ['env' => $this->isTest() ? 'di prova' : 'di produzione']));
+        }
+
+        return $scopes;
+    }
+
+    /**
+     * The Company scopes enabled on the account ("GET:company.openapi.com/IT-advanced"...).
+     *
+     * @return list<string>
+     */
+    public function companyScopes(): array
+    {
+        $scopes = $this->scopesFor($this->companyBaseUrl());
+
+        if ($scopes === []) {
+            throw new OpenapiException(__("Sul tuo account Openapi non risulta ancora attivo il servizio «Company» (dati delle aziende) per l'ambiente :env: attivalo nella console di Openapi.", ['env' => $this->isTest() ? 'di prova' : 'di produzione']));
+        }
+
+        return $scopes;
+    }
+
+    /**
+     * The scopes of the account for a host (from oauth.openapi.it/scopes).
+     *
+     * @return list<string>
+     */
+    private function scopesFor(string $baseUrl): array
+    {
         try {
             $response = $this->oauth()->get($this->oauthUrl().'/scopes');
         } catch (ConnectionException) {
@@ -282,7 +368,7 @@ class OpenapiClient
 
         $this->throwUnlessOk($response);
 
-        $host = parse_url($this->baseUrl(), PHP_URL_HOST);
+        $host = parse_url($baseUrl, PHP_URL_HOST);
         $scopes = [];
 
         $data = (array) $response->json();
@@ -292,10 +378,6 @@ class OpenapiClient
                 $scopes[] = $value;
             }
         });
-
-        if ($scopes === []) {
-            throw new OpenapiException(__("Sul tuo account Openapi non risulta attivo il servizio «Fatturazione elettronica SDI» per l'ambiente :env.", ['env' => $this->isTest() ? 'di prova' : 'di produzione']));
-        }
 
         return array_values(array_unique($scopes));
     }
@@ -326,9 +408,13 @@ class OpenapiClient
      *
      * @param  \Closure(PendingRequest): Response  $send
      */
-    private function call(string $method, string $path, \Closure $send): Response
+    private function call(string $method, string $path, \Closure $send, string $service = self::SERVICE_SDI): Response
     {
-        if (! $this->isConfigured()) {
+        if ($service === self::SERVICE_COMPANY && ! $this->companyEnabled()) {
+            throw new OpenapiException(__('I dati delle aziende da Openapi non sono attivi: abilitali in Impostazioni → Fatturazione elettronica.'));
+        }
+
+        if ($service === self::SERVICE_SDI && ! $this->isConfigured()) {
             throw new OpenapiException(__('La fatturazione elettronica non è configurata: completa Impostazioni → Fatturazione elettronica.'));
         }
 
@@ -338,10 +424,10 @@ class OpenapiClient
         $error = null;
 
         try {
-            $response = $send($this->request($this->token()));
+            $response = $send($this->request($this->token(service: $service)));
 
             if ($response->status() === 401) {
-                $response = $send($this->request($this->token(true)));
+                $response = $send($this->request($this->token(true, $service)));
             }
         } catch (ConnectionException $exception) {
             $error = __('Openapi non risponde: riprova tra qualche minuto.');
