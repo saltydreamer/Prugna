@@ -23,7 +23,9 @@ step "Uploaded files of the real data"
 docker compose exec -T app sh -c 'cd /app/storage/app && rm -rf private/* public/*'
 
 step "Empty database and demo data"
-docker compose run --rm --no-deps app php artisan migrate:fresh --force --no-interaction
+# Recreated like restore.sh does: migrate:fresh is prohibited in production (DB::prohibitDestructiveCommands).
+docker compose exec -T mariadb sh -c 'mariadb -uroot -p"$MARIADB_ROOT_PASSWORD" -e "DROP DATABASE IF EXISTS \`$MARIADB_DATABASE\`; CREATE DATABASE \`$MARIADB_DATABASE\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; GRANT ALL PRIVILEGES ON \`$MARIADB_DATABASE\`.* TO \`$MARIADB_USER\`@\`%\`;"'
+docker compose run --rm --no-deps app php artisan migrate --force --no-interaction
 docker compose run --rm --no-deps app php artisan permissions:sync --no-interaction
 docker compose run --rm --no-deps app php artisan app:demo-seed --force --no-interaction
 docker compose run --rm --no-deps app php artisan app:create-super-admin "$admin" --if-none --no-interaction
