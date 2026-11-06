@@ -219,3 +219,60 @@ jobs:
           done
           echo "::error::https://$APP_DOMAIN non risponde. Controlla che il record DNS A punti al VPS (il certificato HTTPS viene emesso solo dopo)."
           exit 1
+
+  deploy-internal:
+    name: Deploy to the internal server
+    # Turned on with the repository variable INTERNAL_DEPLOY=true once the runner is installed
+    # (deploy/README.md, "Server interno"): until then no job waits for a missing runner.
+    if: vars.INTERNAL_DEPLOY == 'true'
+    concurrency:
+      group: internal
+      cancel-in-progress: false
+    needs: [image, smoke]
+    runs-on: [self-hosted, prugna]
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: read
+    environment:
+      name: production
+      url: https://${{ vars.INTERNAL_DOMAIN || 'prugna.reimg.it' }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Update stack files
+        run: |
+          test -f /srv/boilerplate/.env || { echo "::error::Server interno non preparato: esegui provision.sh con INTERNAL=1 (deploy/README.md)."; exit 1; }
+          cp deploy/compose.yaml deploy/scripts/deploy.sh deploy/scripts/backup.sh deploy/scripts/restore.sh /srv/boilerplate/
+          chmod +x /srv/boilerplate/deploy.sh /srv/boilerplate/backup.sh /srv/boilerplate/restore.sh
+
+      - name: Deploy
+        env:
+          APP_IMAGE: ${{ needs.image.outputs.image }}
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REGISTRY_USER: ${{ github.actor }}
+        run: |
+          # The workflow-level APP_DOMAIN is the demo's: Compose must read this server's own .env.
+          unset APP_DOMAIN
+          printf '%s' "$REGISTRY_TOKEN" | docker login ghcr.io -u "$REGISTRY_USER" --password-stdin > /dev/null
+          APP_IMAGE="$APP_IMAGE" APP_NAME="$APP_NAME" /srv/boilerplate/deploy.sh || { docker logout ghcr.io > /dev/null; exit 1; }
+          docker logout ghcr.io > /dev/null
+
+      - name: Verify
+        env:
+          INTERNAL_DOMAIN: ${{ vars.INTERNAL_DOMAIN || 'prugna.reimg.it' }}
+        run: |
+          for i in $(seq 1 24); do
+            curl -fsS -o /dev/null http://localhost/up && break
+            sleep 5
+          done
+          curl -fsS -o /dev/null http://localhost/up || { echo "::error::L'app non risponde sul server interno (http://localhost/up)."; exit 1; }
+          if curl -fsS -o /dev/null "https://$INTERNAL_DOMAIN/up"; then
+            echo "Online: https://$INTERNAL_DOMAIN"
+          else
+            echo "::warning::L'app risponde sul server interno ma https://$INTERNAL_DOMAIN no: controlla il reverse proxy e il record DNS."
+          fi

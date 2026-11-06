@@ -1,0 +1,101 @@
+name: Copy data to the internal server
+
+# Copies the real data of dev.reimg.it (database, uploaded files and the encryption key of the
+# saved passwords) to the internal server, replacing what it holds. Runs on the internal runner.
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: Scrivi COPIA per sostituire i dati del server interno con quelli di dev.reimg.it
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  transfer:
+    name: Copy data
+    concurrency:
+      group: internal
+      cancel-in-progress: false
+    runs-on: [self-hosted, prugna]
+    timeout-minutes: 30
+    environment:
+      name: production
+      url: https://${{ vars.INTERNAL_DOMAIN || 'prugna.reimg.it' }}
+    steps:
+      - name: Check the confirmation
+        env:
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          test "$CONFIRM" = "COPIA" || { echo "::error::Conferma mancante: scrivi COPIA."; exit 1; }
+          test -f /srv/boilerplate/.env || { echo "::error::Server interno non preparato (deploy/README.md)."; exit 1; }
+          test -x /srv/boilerplate/restore.sh || { echo "::error::Esegui prima il workflow Deploy sul server interno."; exit 1; }
+          # The VPS key is written in the job's temporary folder, never in the runner user's home.
+          mkdir -p "$RUNNER_TEMP/home"
+          echo "HOME=$RUNNER_TEMP/home" >> "$GITHUB_ENV"
+
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Configure SSH
+        uses: ./.github/actions/ssh
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          port: ${{ secrets.VPS_PORT }}
+          user: deploy
+          key: ${{ secrets.VPS_SSH_KEY }}
+
+      - name: dev.reimg.it still holds the real data
+        run: |
+          # After «Reset demo» the VPS holds the demo: copying it would overwrite the real data.
+          if ssh vps "grep -q '^APP_DEMO=true' /srv/boilerplate/.env"; then
+            echo "::error::dev.reimg.it è ormai la demo (APP_DEMO=true): la copia sovrascriverebbe i dati veri del server interno. Interrotto."
+            exit 1
+          fi
+
+      - name: Backup on dev.reimg.it
+        id: backup
+        run: |
+          ssh vps '/srv/boilerplate/backup.sh' | tee backup.log
+          db="$(grep -o 'backups/db-[^ ]*\.sql\.gz' backup.log | tail -1)"
+          files="$(grep -o 'backups/files-[^ ]*\.tar\.gz' backup.log | tail -1)"
+          test -n "$db" && test -n "$files" || { echo "::error::Backup non riuscito."; exit 1; }
+          echo "db=$db" >> "$GITHUB_OUTPUT"
+          echo "files=$files" >> "$GITHUB_OUTPUT"
+
+      - name: Download the backup
+        env:
+          DB: ${{ steps.backup.outputs.db }}
+          FILES: ${{ steps.backup.outputs.files }}
+        run: |
+          mkdir -p /srv/boilerplate/backups
+          scp -q "vps:/srv/boilerplate/$DB" "vps:/srv/boilerplate/$FILES" /srv/boilerplate/backups/
+          ls -lh "/srv/boilerplate/$DB" "/srv/boilerplate/$FILES"
+
+      - name: Same encryption key
+        run: |
+          # Passwords and keys saved in the settings (SMTP, AI, SDI) are encrypted with APP_KEY.
+          key="$(ssh vps "grep -E '^APP_KEY=' /srv/boilerplate/.env | tail -1 | cut -d= -f2-")"
+          test -n "$key" || { echo "::error::APP_KEY non trovata sul VPS."; exit 1; }
+          echo "::add-mask::$key"
+          cd /srv/boilerplate
+          sed -i '/^APP_KEY=/d' .env
+          printf 'APP_KEY=%s\n' "$key" >> .env
+
+      - name: Restore on the internal server
+        env:
+          DB: ${{ steps.backup.outputs.db }}
+          FILES: ${{ steps.backup.outputs.files }}
+        run: |
+          unset APP_DOMAIN
+          /srv/boilerplate/restore.sh "$DB" "$FILES"
+          for i in $(seq 1 24); do curl -fsS -o /dev/null http://localhost/up && break; sleep 5; done
+          curl -fsS -o /dev/null http://localhost/up
+          echo "Dati copiati: accedi a https://${{ vars.INTERNAL_DOMAIN || 'prugna.reimg.it' }} con gli utenti di dev.reimg.it."
+
+      - name: Remove the VPS key
+        if: always()
+        run: rm -rf "$HOME/.ssh"

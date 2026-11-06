@@ -384,7 +384,10 @@ function logout() {
                         <v-icon :icon="plumIcon" size="20" />
                     </v-avatar>
                 </template>
-                <v-list-item-title class="text-body-1 font-weight-bold">{{ appName }}</v-list-item-title>
+                <v-list-item-title class="text-body-1 font-weight-bold">
+                    {{ appName }}
+                    <v-chip v-if="page.props.app?.demo" size="x-small" color="info" variant="tonal" class="ml-1">Demo</v-chip>
+                </v-list-item-title>
             </v-list-item>
 
             <v-divider />

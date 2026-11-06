@@ -1,0 +1,97 @@
+name: Reset demo
+
+# Turns dev.reimg.it into the demonstration instance: it ERASES its data (after a backup) and fills it
+# with three years of work of a fictitious freelance system administrator (php artisan app:demo-seed).
+# Run it only once the real data live on the internal server (workflow "Copy data to the internal
+# server") and the SDI is connected from there (Impostazioni → Fatturazione elettronica → «Collega»).
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: Scrivi AZZERA per cancellare i dati di dev.reimg.it e caricare la demo
+        required: true
+
+permissions:
+  contents: read
+
+env:
+  APP_DOMAIN: ${{ vars.APP_DOMAIN || 'dev.reimg.it' }}
+  INTERNAL_DOMAIN: ${{ vars.INTERNAL_DOMAIN || 'prugna.reimg.it' }}
+
+jobs:
+  reset:
+    name: Reset demo data
+    concurrency:
+      group: vps
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: dev
+      url: https://${{ vars.APP_DOMAIN || 'dev.reimg.it' }}
+
+    steps:
+      - name: Check the confirmation
+        env:
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          test "$CONFIRM" = "AZZERA" || { echo "::error::Conferma mancante: scrivi AZZERA."; exit 1; }
+
+      - name: The real data are on the internal server
+        run: |
+          # Never erase dev.reimg.it while the internal server is not online.
+          curl -fsS -o /dev/null "https://$INTERNAL_DOMAIN/up" || { echo "::error::https://$INTERNAL_DOMAIN non risponde: prima porta i dati sul server interno."; exit 1; }
+          echo "https://$INTERNAL_DOMAIN è online."
+
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Configure SSH
+        uses: ./.github/actions/ssh
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          port: ${{ secrets.VPS_PORT }}
+          user: deploy
+          key: ${{ secrets.VPS_SSH_KEY }}
+
+      - name: Backup before erasing
+        run: ssh vps '/srv/boilerplate/backup.sh'
+
+      - name: Demo data
+        run: |
+          ssh vps 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          cd /srv/boilerplate
+          unset APP_DOMAIN
+          env_value() { grep -E "^$1=" .env | tail -1 | cut -d= -f2- | tr -d '"' || true; }
+          sed -i '/^APP_DEMO=/d' .env && echo 'APP_DEMO=true' >> .env
+          admin="$(env_value APP_ADMIN_EMAIL)"
+          admin="${admin:-admin@$(env_value APP_DOMAIN)}"
+
+          echo "==> Maintenance mode"
+          docker compose exec -T app php artisan down || true
+          docker compose stop worker scheduler
+
+          echo "==> Uploaded files of the real data"
+          docker compose exec -T app sh -c 'cd /app/storage/app && rm -rf private/* public/*'
+
+          echo "==> Empty database and demo data"
+          docker compose run --rm --no-deps app php artisan migrate:fresh --force --no-interaction
+          docker compose run --rm --no-deps app php artisan permissions:sync --no-interaction
+          docker compose run --rm --no-deps app php artisan app:demo-seed --force --no-interaction
+          docker compose run --rm --no-deps app php artisan app:create-super-admin "$admin" --if-none --no-interaction
+
+          echo "==> Restart with APP_DEMO=true"
+          docker compose up -d --force-recreate app worker scheduler
+          docker compose exec -T app php artisan up || true
+          docker compose ps --format 'table {{.Service}}\t{{.Status}}'
+          REMOTE
+
+      - name: Verify
+        run: |
+          for i in $(seq 1 24); do curl -fsS -o /dev/null "https://$APP_DOMAIN/up" && break; sleep 5; done
+          # The page props carry the demo account only with APP_DEMO=true.
+          curl -fsS "https://$APP_DOMAIN/login" | grep -q 'demo@prugna.it' || { echo "::error::La pagina di accesso non mostra l'account demo."; exit 1; }
+          echo "Demo online: https://$APP_DOMAIN (demo@prugna.it / prugna-demo)"
