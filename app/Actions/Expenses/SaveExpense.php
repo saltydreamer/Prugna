@@ -4,6 +4,7 @@ namespace App\Actions\Expenses;
 
 use App\Actions\Documents\DocumentTotals;
 use App\Actions\Documents\SyncDocumentLines;
+use App\Models\AccountingCategory;
 use App\Models\AiExtraction;
 use App\Models\Expense;
 use App\Models\Order;
@@ -34,6 +35,8 @@ class SaveExpense
 
         return DB::transaction(function () use ($expense, $data, $lines, $attachment, $extractionId): Expense {
             $expense->fill($data);
+            // Share used for the business: the category's default unless given.
+            $expense->business_share ??= $expense->category_id ? (AccountingCategory::query()->whereKey($expense->category_id)->value('business_share') ?? 100) : 100;
 
             // Costs of a customer order are charged to that order's customer.
             if ($expense->order_id) {

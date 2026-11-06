@@ -56,6 +56,8 @@ class Invoice extends Model
             'pension_vat_rate' => 'decimal:2',
             'pension_amount' => 'decimal:2',
             'stamp_duty_amount' => 'decimal:2',
+            'paid_amount' => 'decimal:2',
+            'paid_at' => 'date',
             'charge_stamp_duty' => 'boolean',
             'subtotal' => 'decimal:2',
             'vat_total' => 'decimal:2',
@@ -142,6 +144,60 @@ class Invoice extends Model
     public function relatedInvoice(): BelongsTo
     {
         return $this->belongsTo(Invoice::class, 'related_invoice_id');
+    }
+
+    /**
+     * Collections (refunds for credit notes) recorded on the accounts.
+     *
+     * @return HasMany<AccountMovement, $this>
+     */
+    public function movements(): HasMany
+    {
+        return $this->hasMany(AccountMovement::class);
+    }
+
+    /**
+     * Amount cancelled by the issued credit notes of this invoice.
+     */
+    public function creditedAmount(): float
+    {
+        $notes = $this->relationLoaded('creditNotes')
+            ? $this->creditNotes->where('status', InvoiceStatus::Issued)
+            : $this->creditNotes()->where('status', InvoiceStatus::Issued->value)->get();
+
+        return round((float) $notes->sum('amount_due'), 2);
+    }
+
+    /**
+     * What is still to collect: amount due minus collections and credit notes. Credit notes are
+     * never "to collect" (a refund, when due, is recorded by hand).
+     */
+    public function outstanding(): float
+    {
+        if ($this->isDraft() || $this->type === InvoiceType::CreditNote) {
+            return 0.0;
+        }
+
+        return round(max(0, (float) $this->amount_due - (float) $this->paid_amount - $this->creditedAmount()), 2);
+    }
+
+    public function isPaid(): bool
+    {
+        return ! $this->isDraft() && $this->type !== InvoiceType::CreditNote && (float) $this->paid_amount > 0 && $this->outstanding() <= 0;
+    }
+
+    /**
+     * Amount collected and day of the full collection, from the movements. Credit notes are
+     * refunded: their movements are negative.
+     */
+    public function refreshPayments(): void
+    {
+        $sign = $this->type === InvoiceType::CreditNote ? -1 : 1;
+        $paid = round($sign * (float) $this->movements()->sum('amount'), 2);
+        $due = round((float) $this->amount_due - ($this->type === InvoiceType::CreditNote ? 0 : $this->creditedAmount()), 2);
+        $paidAt = $paid > 0 && $paid >= $due ? $this->movements()->max('date') : null;
+
+        $this->forceFill(['paid_amount' => $paid, 'paid_at' => $paidAt])->save();
     }
 
     /**

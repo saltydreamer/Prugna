@@ -48,6 +48,14 @@ class InvoiceLine extends Model
     }
 
     /**
+     * @return BelongsTo<Product, $this>
+     */
+    public function product(): BelongsTo
+    {
+        return $this->belongsTo(Product::class);
+    }
+
+    /**
      * Costs charged back by this line (one or more, e.g. a single "spese" line).
      *
      * @return HasMany<InvoiceLineCost, $this>

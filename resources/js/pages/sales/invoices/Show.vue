@@ -6,6 +6,7 @@ import PageHeader from '@/components/PageHeader.vue';
 import DocumentLinesTable from '@/components/sales/DocumentLinesTable.vue';
 import InvoiceTotalsCard from '@/components/sales/InvoiceTotalsCard.vue';
 import SdiCard from '@/components/sdi/SdiCard.vue';
+import InvoiceCollectionsCard from '@/components/accounting/InvoiceCollectionsCard.vue';
 import { useConfirm } from '@/composables/useConfirm';
 import { useInertiaLink } from '@/composables/useInertiaLink';
 import { formatDate, formatMoney } from '@/utils/format';
@@ -24,6 +25,8 @@ const props = defineProps({
     deleteReusesNumber: { type: Boolean, default: false },
     /** Service contracts whose fees the invoice bills. */
     subscriptions: { type: Array, default: () => [] },
+    /** Collections on the accounts (null without the accounting permission or for drafts). */
+    collections: { type: Object, default: null },
 });
 
 const { link } = useInertiaLink();
@@ -248,6 +251,7 @@ async function destroy() {
                 <InvoiceTotalsCard :totals="allTotals" :invoice="invoice" :pension-label="pensionLabel" class="mb-6" />
 
                 <SdiCard v-if="!isDraft" :invoice="invoice" :sdi="sdi" class="mb-6" @credit-note="creditNote" />
+                <InvoiceCollectionsCard v-if="collections" :invoice="invoice" :collections="collections" class="mb-6" />
 
                 <v-card title="Dati fiscali">
                     <v-list density="compact">

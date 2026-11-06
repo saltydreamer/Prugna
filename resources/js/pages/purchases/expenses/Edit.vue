@@ -27,6 +27,10 @@ const props = defineProps({
     units: { type: Array, required: true },
     types: { type: Array, required: true },
     categories: { type: Array, required: true },
+    businessLines: { type: Array, default: () => [] },
+    accounts: { type: Array, default: () => [] },
+    /** Account the payment was recorded on. */
+    paymentAccountId: { type: Number, default: null },
     organizationTypes: { type: Array, default: () => [] },
     canUseAi: { type: Boolean, default: false },
 });
@@ -39,7 +43,10 @@ const linesEditable = computed(() => isNew.value || Boolean(props.expense.can?.e
 
 const form = useForm({
     type: source.type ?? 'invoice',
-    category: source.category ?? null,
+    category_id: source.category_id ?? null,
+    business_line_id: source.business_line_id ?? null,
+    business_share: source.business_share ?? 100,
+    financial_account_id: props.paymentAccountId ?? (props.accounts.length === 1 ? props.accounts[0].value : null),
     supplier_id: source.supplier_id ?? null,
     number: source.number ?? '',
     document_date: source.document_date,
@@ -54,6 +61,18 @@ const form = useForm({
     ai_extraction_id: source.ai_extraction_id ?? null,
     lines: (source.lines ?? []).map((line, index) => ({ rebill: false, markup_percent: 0, ...line, key: `line-${line.id ?? index}` })),
 });
+
+// A category brings its usual business share (e.g. car 50%).
+watch(
+    () => form.category_id,
+    (id) => {
+        const category = props.categories.find((item) => item.value === id);
+
+        if (category) {
+            form.business_share = category.business_share;
+        }
+    },
+);
 
 const isPaid = ref(Boolean(form.paid_at));
 watch(isPaid, (value) => (form.paid_at = value ? form.paid_at || form.document_date : null));
@@ -225,12 +244,12 @@ const backUrl = computed(() => (isNew.value ? route('purchases.expenses.index') 
                                     </v-autocomplete>
                                 </v-col>
                                 <v-col cols="12" md="4">
-                                    <v-select
-                                        v-model="form.category"
+                                    <v-autocomplete
+                                        v-model="form.category_id"
                                         :items="categories"
                                         label="Categoria"
                                         clearable
-                                        :error-messages="form.errors.category"
+                                        :error-messages="form.errors.category_id"
                                     />
                                 </v-col>
                                 <v-col cols="6" md="4">
@@ -241,6 +260,30 @@ const backUrl = computed(() => (isNew.value ? route('purchases.expenses.index') 
                                 </v-col>
                                 <v-col cols="12" md="4">
                                     <v-text-field v-model="form.title" label="Descrizione" :error-messages="form.errors.title" />
+                                </v-col>
+                                <v-col cols="12" md="4">
+                                    <v-select
+                                        v-model="form.business_line_id"
+                                        :items="businessLines"
+                                        label="Linea di attività"
+                                        clearable
+                                        :hint="businessLines.length ? 'Vuota: spesa generale' : 'Crea le linee in Contabilità → Categorie e attività'"
+                                        persistent-hint
+                                        :error-messages="form.errors.business_line_id"
+                                    />
+                                </v-col>
+                                <v-col cols="6" md="4">
+                                    <v-text-field
+                                        v-model.number="form.business_share"
+                                        label="Quota aziendale"
+                                        type="number"
+                                        min="0"
+                                        max="100"
+                                        suffix="%"
+                                        hint="Parte usata per l'attività (es. auto 50%)"
+                                        persistent-hint
+                                        :error-messages="form.errors.business_share"
+                                    />
                                 </v-col>
                             </v-row>
                         </v-card-text>
@@ -357,6 +400,16 @@ const backUrl = computed(() => (isNew.value ? route('purchases.expenses.index') 
                                     type="date"
                                     :error-messages="form.errors.paid_at"
                                     class="mt-2"
+                                />
+                                <v-select
+                                    v-if="isPaid && accounts.length"
+                                    v-model="form.financial_account_id"
+                                    :items="accounts"
+                                    label="Pagata dal conto"
+                                    clearable
+                                    hint="Registra l'uscita in Cassa e banca"
+                                    persistent-hint
+                                    :error-messages="form.errors.financial_account_id"
                                 />
                             </v-card-text>
                         </v-card>

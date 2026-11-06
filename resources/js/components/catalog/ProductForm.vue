@@ -13,6 +13,7 @@ const props = defineProps({
     units: { type: Array, required: true },
     billingPeriods: { type: Array, required: true },
     categories: { type: Array, required: true },
+    businessLines: { type: Array, default: () => [] },
     vatRates: { type: Array, required: true },
     nextCodes: { type: Object, default: () => ({}) },
     isNew: { type: Boolean, default: false },
@@ -115,6 +116,17 @@ watch(
             </v-col>
             <v-col cols="12" md="6">
                 <v-select v-model="form.unit" :items="units" label="Unità di misura" :error-messages="form.errors.unit" />
+            </v-col>
+            <v-col v-if="businessLines.length || form.business_line_id" cols="12" md="6">
+                <v-select
+                    v-model="form.business_line_id"
+                    :items="businessLines"
+                    label="Linea di attività"
+                    clearable
+                    hint="I ricavi di questo articolo vanno a questa linea nel conto economico"
+                    persistent-hint
+                    :error-messages="form.errors.business_line_id"
+                />
             </v-col>
         </v-row>
 

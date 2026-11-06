@@ -13,7 +13,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['type', 'code', 'name', 'description', 'category_id', 'unit', 'price', 'cost', 'vat_rate_id', 'billing_period', 'is_active', 'notes'])]
+#[Fillable(['type', 'code', 'name', 'description', 'category_id', 'business_line_id', 'unit', 'price', 'cost', 'vat_rate_id', 'billing_period', 'is_active', 'notes'])]
 class Product extends Model
 {
     /** @use HasFactory<ProductFactory> */
@@ -42,6 +42,16 @@ class Product extends Model
     public function category(): BelongsTo
     {
         return $this->belongsTo(ProductCategory::class);
+    }
+
+    /**
+     * Line of business the revenue of this product goes to.
+     *
+     * @return BelongsTo<BusinessLine, $this>
+     */
+    public function businessLine(): BelongsTo
+    {
+        return $this->belongsTo(BusinessLine::class);
     }
 
     /**

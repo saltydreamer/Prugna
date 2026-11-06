@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-use App\Enums\ExpenseCategory;
 use App\Enums\ExpenseType;
 use App\Enums\PaymentMethod;
 use Database\Factories\ExpenseFactory;
@@ -14,7 +13,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
-    'type', 'category', 'supplier_id', 'number', 'document_date', 'title', 'customer_id', 'order_id', 'payment_method',
+    'type', 'category_id', 'business_line_id', 'business_share', 'supplier_id', 'number', 'document_date', 'title', 'customer_id', 'order_id', 'payment_method',
     'due_date', 'paid_at', 'notes', 'owner_id',
 ])]
 class Expense extends Model
@@ -31,7 +30,6 @@ class Expense extends Model
     {
         return [
             'type' => ExpenseType::class,
-            'category' => ExpenseCategory::class,
             'payment_method' => PaymentMethod::class,
             'supplier' => 'array',
             'document_date' => 'date',
@@ -40,7 +38,34 @@ class Expense extends Model
             'subtotal' => 'decimal:2',
             'vat_total' => 'decimal:2',
             'total' => 'decimal:2',
+            'business_share' => 'decimal:2',
         ];
+    }
+
+    /**
+     * @return BelongsTo<AccountingCategory, $this>
+     */
+    public function category(): BelongsTo
+    {
+        return $this->belongsTo(AccountingCategory::class);
+    }
+
+    /**
+     * @return BelongsTo<BusinessLine, $this>
+     */
+    public function businessLine(): BelongsTo
+    {
+        return $this->belongsTo(BusinessLine::class);
+    }
+
+    /**
+     * Payment recorded on an account (when paid through Contabilità → Cassa e banca).
+     *
+     * @return HasMany<AccountMovement, $this>
+     */
+    public function movements(): HasMany
+    {
+        return $this->hasMany(AccountMovement::class);
     }
 
     /**

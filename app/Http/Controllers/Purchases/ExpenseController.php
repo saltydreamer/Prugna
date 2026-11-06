@@ -2,9 +2,9 @@
 
 namespace App\Http\Controllers\Purchases;
 
+use App\Actions\Accounting\SyncExpensePayment;
 use App\Actions\Documents\ExpenseDraft;
 use App\Actions\Expenses\SaveExpense;
-use App\Enums\ExpenseCategory;
 use App\Enums\ExpenseType;
 use App\Enums\OrganizationRole;
 use App\Enums\PaymentMethod;
@@ -13,8 +13,11 @@ use App\Http\Controllers\Controller;
 use App\Http\Controllers\Sales\ProvidesDocumentEditorOptions;
 use App\Http\Requests\Purchases\ExpenseRequest;
 use App\Http\Resources\ExpenseResource;
+use App\Models\AccountingCategory;
 use App\Models\AiExtraction;
+use App\Models\BusinessLine;
 use App\Models\Expense;
+use App\Models\FinancialAccount;
 use App\Models\Order;
 use App\Models\ReceivedInvoice;
 use App\Support\Ai\DocumentReader;
@@ -45,7 +48,7 @@ class ExpenseController extends Controller
         $filters = $request->validate([
             'search' => ['nullable', 'string', 'max:100'],
             'status' => ['nullable', Rule::in(['all', 'unpaid', 'overdue', 'paid'])],
-            'category' => ['nullable', Rule::enum(ExpenseCategory::class)],
+            'category' => ['nullable', 'integer'],
             'supplier' => ['nullable', 'integer'],
             'sort_by' => ['nullable', Rule::in(self::SORTABLE)],
             'sort_dir' => ['nullable', Rule::in(['asc', 'desc'])],
@@ -58,7 +61,7 @@ class ExpenseController extends Controller
         $expenses = (clone $base)
             ->with(['customer', 'order'])
             ->search($filters['search'] ?? null)
-            ->when($filters['category'] ?? null, fn ($query, string $category) => $query->where('category', $category))
+            ->when($filters['category'] ?? null, fn ($query, int $category) => $query->where('category_id', $category))
             ->when($status === 'unpaid', fn ($query) => $query->unpaid())
             ->when($status === 'overdue', fn ($query) => $query->overdue())
             ->when($status === 'paid', fn ($query) => $query->whereNotNull('paid_at'))
@@ -72,7 +75,7 @@ class ExpenseController extends Controller
             'filters' => [
                 'search' => $filters['search'] ?? '',
                 'status' => $status,
-                'category' => $filters['category'] ?? null,
+                'category' => isset($filters['category']) ? (int) $filters['category'] : null,
                 'supplier' => isset($filters['supplier']) ? (int) $filters['supplier'] : null,
                 'sort_by' => $filters['sort_by'] ?? null,
                 'sort_dir' => $filters['sort_dir'] ?? null,
@@ -86,7 +89,7 @@ class ExpenseController extends Controller
                 'due_soon' => round((float) (clone $base)->unpaid()->whereBetween('due_date', [today(), today()->addDays(30)])->sum('total'), 2),
                 'month' => round((float) (clone $base)->where('type', '!=', ExpenseType::CreditNote->value)->whereBetween('document_date', [today()->startOfMonth(), today()->endOfMonth()])->sum('subtotal'), 2),
             ],
-            'categories' => ExpenseCategory::options(),
+            'categories' => AccountingCategory::options(),
         ]);
     }
 
@@ -116,9 +119,10 @@ class ExpenseController extends Controller
         ]);
     }
 
-    public function store(ExpenseRequest $request, SaveExpense $save): RedirectResponse
+    public function store(ExpenseRequest $request, SaveExpense $save, SyncExpensePayment $syncPayment): RedirectResponse
     {
-        $expense = $save->handle(new Expense, [...$request->validated(), 'attachment' => $request->file('attachment'), 'owner_id' => $request->user()->id]);
+        $expense = $save->handle(new Expense, [...collect($request->validated())->except('financial_account_id')->all(), 'attachment' => $request->file('attachment'), 'owner_id' => $request->user()->id]);
+        $syncPayment->handle($expense, $request->integer('financial_account_id') ?: null);
 
         // Recorded from the "Fatture ricevute" inbox.
         if ($expense->ai_extraction_id) {
@@ -135,11 +139,12 @@ class ExpenseController extends Controller
     {
         $this->authorize('view', $expense);
 
-        $expense->load(['lines.rebilledBy.invoice', 'customer', 'order', 'owner', 'aiExtraction']);
+        $expense->load(['lines.rebilledBy.invoice', 'customer', 'order', 'owner', 'aiExtraction', 'category', 'businessLine', 'movements.account']);
 
         return Inertia::render('purchases/expenses/Show', [
             'expense' => ExpenseResource::make($expense)->resolve(),
             'paymentMethods' => PaymentMethod::options(),
+            'accounts' => FinancialAccount::options(),
         ]);
     }
 
@@ -155,9 +160,10 @@ class ExpenseController extends Controller
         ]);
     }
 
-    public function update(ExpenseRequest $request, Expense $expense, SaveExpense $save): RedirectResponse
+    public function update(ExpenseRequest $request, Expense $expense, SaveExpense $save, SyncExpensePayment $syncPayment): RedirectResponse
     {
-        $save->handle($expense, [...$request->validated(), 'attachment' => $request->file('attachment')]);
+        $save->handle($expense, [...collect($request->validated())->except('financial_account_id')->all(), 'attachment' => $request->file('attachment')]);
+        $syncPayment->handle($expense, $request->integer('financial_account_id') ?: null);
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Spesa salvata.')]);
 
@@ -235,19 +241,21 @@ class ExpenseController extends Controller
     /**
      * Records the payment (or undoes it).
      */
-    public function payment(Request $request, Expense $expense): RedirectResponse
+    public function payment(Request $request, Expense $expense, SyncExpensePayment $syncPayment): RedirectResponse
     {
         $this->authorize('update', $expense);
 
         $data = $request->validate([
             'paid_at' => ['nullable', 'date', 'before_or_equal:today'],
             'payment_method' => ['nullable', Rule::enum(PaymentMethod::class)],
-        ], [], ['paid_at' => 'data di pagamento', 'payment_method' => 'pagamento']);
+            'financial_account_id' => ['nullable', 'integer', Rule::exists('financial_accounts', 'id')],
+        ], [], ['paid_at' => 'data di pagamento', 'payment_method' => 'pagamento', 'financial_account_id' => 'conto']);
 
         $expense->forceFill([
             'paid_at' => $data['paid_at'] ?? null,
             'payment_method' => $data['payment_method'] ?? $expense->payment_method,
         ])->save();
+        $syncPayment->handle($expense, $data['financial_account_id'] ?? null);
 
         Inertia::flash('toast', ['type' => 'success', 'message' => $expense->paid_at ? __('Pagamento registrato.') : __('Spesa di nuovo da pagare.')]);
 
@@ -308,7 +316,10 @@ class ExpenseController extends Controller
             'customers' => $this->organizationOptions(OrganizationRole::Customer, $expense?->customer_id),
             'orders' => $this->orderOptions($expense?->order_id),
             'types' => ExpenseType::options(),
-            'categories' => ExpenseCategory::options(),
+            'categories' => AccountingCategory::options($expense?->category_id),
+            'businessLines' => BusinessLine::options($expense?->business_line_id),
+            'accounts' => FinancialAccount::options(),
+            'paymentAccountId' => $expense?->movements()->value('financial_account_id'),
             'paymentMethods' => PaymentMethod::options(),
             'canUseAi' => request()->user()->can(Permission::AiUse->value),
         ];

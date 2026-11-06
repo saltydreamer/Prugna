@@ -10,6 +10,7 @@ use App\Http\Requests\Catalog\ProductRequest;
 use App\Http\Resources\CustomerPriceResource;
 use App\Http\Resources\ProductResource;
 use App\Http\Resources\VatRateResource;
+use App\Models\BusinessLine;
 use App\Models\Organization;
 use App\Models\Product;
 use App\Models\ProductCategory;
@@ -185,6 +186,7 @@ class ProductController extends Controller
             'units' => UnitOfMeasure::options(),
             'billingPeriods' => BillingPeriod::options(),
             'categories' => ProductCategory::query()->orderBy('name')->get(['id', 'name', 'color']),
+            'businessLines' => BusinessLine::options($product?->business_line_id),
             // Active rates, plus the current one if it has been deactivated meanwhile.
             'vatRates' => VatRateResource::collection(
                 VatRate::query()

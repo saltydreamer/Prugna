@@ -147,6 +147,32 @@ const navigation = computed(() => {
             ],
         },
         {
+            title: 'Contabilità',
+            items: [
+                {
+                    title: 'Conto economico',
+                    icon: 'mdi-scale-balance',
+                    route: 'accounting.index',
+                    active: 'accounting.index',
+                    permission: 'accounting.view',
+                },
+                {
+                    title: 'Cassa e banca',
+                    icon: 'mdi-bank-outline',
+                    route: 'accounting.cash.index',
+                    active: 'accounting.cash.*',
+                    permission: 'accounting.view',
+                },
+                {
+                    title: 'Categorie e attività',
+                    icon: 'mdi-shape-outline',
+                    route: 'accounting.settings.index',
+                    active: 'accounting.settings.*',
+                    permission: 'accounting.manage',
+                },
+            ],
+        },
+        {
             title: 'Acquisti',
             items: [
                 {

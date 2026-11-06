@@ -14,6 +14,7 @@ import { formatDate, formatMoney } from '@/utils/format';
 const props = defineProps({
     expense: { type: Object, required: true },
     paymentMethods: { type: Array, required: true },
+    accounts: { type: Array, default: () => [] },
 });
 
 const { link } = useInertiaLink();
@@ -33,11 +34,12 @@ const quantity = (value) => Number(value).toLocaleString('it-IT', { maximumFract
 const title = computed(() => [props.expense.type_label, props.expense.number].filter(Boolean).join(' '));
 
 const paymentDialog = ref(false);
-const paymentForm = useForm({ paid_at: null, payment_method: null });
+const paymentForm = useForm({ paid_at: null, payment_method: null, financial_account_id: null });
 
 function openPayment() {
     paymentForm.paid_at = new Date().toISOString().slice(0, 10);
     paymentForm.payment_method = props.expense.payment_method;
+    paymentForm.financial_account_id = props.accounts.length === 1 ? props.accounts[0].value : null;
     paymentDialog.value = true;
 }
 
@@ -143,7 +145,12 @@ async function destroy() {
                                 <div class="text-body-2">Data {{ formatDate(expense.document_date) }}</div>
                                 <div v-if="expense.due_date" class="text-body-2">Scadenza {{ formatDate(expense.due_date) }}</div>
                                 <div v-if="expense.payment_method_label" class="text-body-2">Pagamento: {{ expense.payment_method_label }}</div>
-                                <div v-if="expense.category_label" class="text-body-2">Categoria: {{ expense.category_label }}</div>
+                                <div v-if="expense.category_label" class="text-body-2">
+                                    Categoria: {{ expense.category_label }}
+                                    <template v-if="expense.business_share < 100">· quota aziendale {{ expense.business_share }}%</template>
+                                </div>
+                                <div v-if="expense.business_line" class="text-body-2">Linea di attività: {{ expense.business_line }}</div>
+                                <div v-if="expense.payment_account" class="text-body-2">Pagata dal conto: {{ expense.payment_account }}</div>
                                 <div class="mt-2 text-body-2">
                                     <div v-if="expense.order">
                                         Per l'ordine
@@ -290,6 +297,17 @@ async function destroy() {
                         label="Pagamento"
                         clearable
                         :error-messages="paymentForm.errors.payment_method"
+                    />
+                    <v-select
+                        v-if="accounts.length"
+                        v-model="paymentForm.financial_account_id"
+                        :items="accounts"
+                        label="Dal conto"
+                        clearable
+                        hint="Registra l'uscita in Cassa e banca"
+                        persistent-hint
+                        class="mt-2"
+                        :error-messages="paymentForm.errors.financial_account_id"
                     />
                 </v-card-text>
                 <v-card-actions>

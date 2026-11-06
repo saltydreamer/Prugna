@@ -1,6 +1,9 @@
 <?php
 
 use App\Enums\Permission;
+use App\Http\Controllers\Accounting\AccountingSettingsController;
+use App\Http\Controllers\Accounting\CashController;
+use App\Http\Controllers\Accounting\ProfitAndLossController;
 use App\Http\Controllers\Admin\AnnouncementController;
 use App\Http\Controllers\Admin\RoleController;
 use App\Http\Controllers\Admin\SendPasswordResetLinkController;
@@ -257,6 +260,34 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('field/sync', [FieldController::class, 'sync'])->middleware('throttle:120,1')->name('field.sync');
 
     Route::get('statistics', StatisticsController::class)->name('statistics.index');
+
+    Route::prefix('accounting')->name('accounting.')->group(function () {
+        Route::get('/', ProfitAndLossController::class)->name('index');
+
+        Route::controller(CashController::class)->group(function () {
+            Route::get('cash', 'index')->name('cash.index');
+            Route::post('accounts', 'storeAccount')->name('accounts.store');
+            Route::put('accounts/{account}', 'updateAccount')->name('accounts.update');
+            Route::delete('accounts/{account}', 'destroyAccount')->name('accounts.destroy');
+            Route::post('movements', 'storeMovement')->name('movements.store');
+            Route::put('movements/{movement}', 'updateMovement')->name('movements.update');
+            Route::delete('movements/{movement}', 'destroyMovement')->name('movements.destroy');
+            Route::post('transfers', 'transfer')->name('transfers.store');
+            Route::post('invoices/{invoice}/collections', 'collect')->name('collections.store');
+            Route::post('dolibarr-collections', 'importDolibarr')->name('dolibarr-collections.store');
+        });
+
+        Route::controller(AccountingSettingsController::class)->prefix('settings')->name('settings.')->group(function () {
+            Route::get('/', 'index')->name('index');
+            Route::post('categories', 'storeCategory')->name('categories.store');
+            Route::put('categories/{category}', 'updateCategory')->name('categories.update');
+            Route::delete('categories/{category}', 'destroyCategory')->name('categories.destroy');
+            Route::post('lines', 'storeLine')->name('lines.store');
+            Route::put('lines/{line}', 'updateLine')->name('lines.update');
+            Route::delete('lines/{line}', 'destroyLine')->name('lines.destroy');
+            Route::put('tax', 'updateTax')->name('tax.update');
+        });
+    });
 
     Route::prefix('settings')->name('settings.')->group(function () {
         Route::controller(SettingsController::class)->group(function () {

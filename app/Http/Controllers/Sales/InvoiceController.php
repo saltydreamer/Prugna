@@ -18,7 +18,9 @@ use App\Enums\SdiStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Sales\InvoiceRequest;
 use App\Http\Resources\InvoiceResource;
+use App\Models\AccountMovement;
 use App\Models\ExpenseLine;
+use App\Models\FinancialAccount;
 use App\Models\Invoice;
 use App\Models\Order;
 use App\Models\Organization;
@@ -213,6 +215,22 @@ class InvoiceController extends Controller
             // Why an issued invoice can't be deleted (sent to the SDI, not the last one...).
             'deleteProblems' => $invoice->isDraft() ? [] : $deleteIssued->problems($invoice),
             'deleteReusesNumber' => $deleteIssued->reusesNumber($invoice),
+            // Collections on the accounts (Contabilità).
+            'collections' => $request->user()->can(Permission::AccountingView->value) && ! $invoice->isDraft() ? [
+                'movements' => $invoice->movements()->with('account:id,name')->orderBy('date')->get()->map(fn (AccountMovement $movement) => [
+                    'id' => $movement->id,
+                    'date' => $movement->date->toDateString(),
+                    'account' => $movement->account?->name,
+                    'amount' => (float) $movement->amount,
+                ]),
+                'paid_amount' => (float) $invoice->paid_amount,
+                'paid_at' => $invoice->paid_at?->toDateString(),
+                'credited' => $invoice->creditedAmount(),
+                'outstanding' => $invoice->outstanding(),
+                'is_paid' => $invoice->isPaid(),
+                'can_record' => $request->user()->can(Permission::AccountingManage->value),
+                'accounts' => $request->user()->can(Permission::AccountingManage->value) ? FinancialAccount::options() : [],
+            ] : null,
             // Service contracts whose fees this invoice bills.
             'subscriptions' => Subscription::query()
                 ->whereIn('id', $invoice->subscriptionPeriods()->select('subscription_id'))

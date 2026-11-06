@@ -11,6 +11,7 @@ const props = defineProps({
     units: { type: Array, required: true },
     billingPeriods: { type: Array, required: true },
     categories: { type: Array, required: true },
+    businessLines: { type: Array, default: () => [] },
     vatRates: { type: Array, required: true },
     nextCodes: { type: Object, required: true },
 });
@@ -23,6 +24,7 @@ const form = useForm({
     name: props.product.name,
     description: props.product.description ?? '',
     category_id: props.product.category_id,
+    business_line_id: props.product.business_line_id,
     unit: props.product.unit,
     price: props.product.price,
     cost: props.product.cost ?? '',
@@ -54,6 +56,7 @@ function submit() {
                         :units="units"
                         :billing-periods="billingPeriods"
                         :categories="categories"
+                        :business-lines="businessLines"
                         :vat-rates="vatRates"
                         :next-codes="nextCodes"
                     />

@@ -2,7 +2,6 @@
 
 namespace App\Http\Requests\Purchases;
 
-use App\Enums\ExpenseCategory;
 use App\Enums\ExpenseType;
 use App\Enums\PaymentMethod;
 use App\Http\Requests\Concerns\ValidatesDocumentLines;
@@ -50,7 +49,10 @@ class ExpenseRequest extends FormRequest
 
         $header = [
             'type' => ['required', Rule::enum(ExpenseType::class)],
-            'category' => ['nullable', Rule::enum(ExpenseCategory::class)],
+            'category_id' => ['nullable', 'integer', Rule::exists('accounting_categories', 'id')->where('kind', '!=', 'revenue')],
+            'business_line_id' => ['nullable', 'integer', Rule::exists('business_lines', 'id')],
+            'business_share' => ['nullable', 'numeric', 'between:0,100'],
+            'financial_account_id' => ['nullable', 'integer', Rule::exists('financial_accounts', 'id')],
             'number' => ['nullable', 'string', 'max:64'],
             'document_date' => ['required', 'date'],
             'title' => ['nullable', 'string', 'max:255'],
@@ -117,7 +119,10 @@ class ExpenseRequest extends FormRequest
     {
         return [
             'type' => 'tipo',
-            'category' => 'categoria',
+            'category_id' => 'categoria',
+            'business_line_id' => 'linea di attività',
+            'business_share' => 'quota aziendale',
+            'financial_account_id' => 'conto',
             'supplier_id' => 'fornitore',
             'customer_id' => 'cliente',
             'order_id' => 'ordine cliente',
