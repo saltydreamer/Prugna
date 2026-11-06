@@ -54,6 +54,7 @@
 - Fiscal totals: `InvoiceCalculator` (pension fund on the taxable, withholding, split payment, virtual stamp duty > 77.47 €), mirrored in `resources/js/utils/invoiceTotals.js`. Deposits are deducted in the balance as negative system lines (`deducts_invoice_id`), only once issued.
 - FatturaPA XML: `App\Support\FatturaPa\FatturaPaXml` (FPR12/FPA12; public bodies need the 6 character office code, CIG/CUP go in `DatiOrdineAcquisto`, Openapi signs FPA12 invoices automatically). Strings must be Basic Latin/Latin-1 (`text()` transliterates). `FatturaPaXmlTest` validates against the official XSD in `tests/Fixtures/fatturapa`.
 - Permissions `invoices.view`, `invoices.manage` (drafts), `invoices.issue` (issue, credit notes). PDF courtesy copy via `InvoicePdf` (`resources/views/pdf/invoice.blade.php`, all PDFs extend `pdf/layout.blade.php`).
+- Payment status in the invoice list: `Invoice::paymentStatus()` (`InvoicePaymentStatus` unpaid / partial / overdue — due date before today, due today is not overdue, `isOverdue()` — / paid / credited; none for drafts and credit notes), computed from `paid_amount` and the issued credit notes (the list eager-loads `creditNotes`; `InvoiceResource` adds the payment fields only then). Scopes `toCollect()` / `overdue()` / `collected()` repeat `outstanding()` in SQL; filter `payment` (unpaid/overdue/paid), `year=all`, card «Da incassare» (all years, overdue part).
 
 ## Service contracts (Contratti servizi)
 

@@ -1,5 +1,5 @@
 <script setup>
-import { reactive, ref, watch } from 'vue';
+import { computed, reactive, ref, watch } from 'vue';
 import { router } from '@inertiajs/vue3';
 import { route } from 'ziggy-js';
 import PageHeader from '@/components/PageHeader.vue';
@@ -19,7 +19,14 @@ const { link } = useInertiaLink();
 const { can } = usePermissions();
 
 const loading = ref(false);
-const query = reactive({ search: props.filters.search, type: props.filters.type, year: props.filters.year });
+const query = reactive({ search: props.filters.search, type: props.filters.type, year: props.filters.year, payment: props.filters.payment });
+
+const yearItems = computed(() => [...props.years, { title: 'Tutti gli anni', value: 'all' }]);
+const paymentFilters = [
+    { value: 'unpaid', title: 'Da incassare' },
+    { value: 'overdue', title: 'Scadute' },
+    { value: 'paid', title: 'Pagate' },
+];
 
 const headers = [
     { title: 'Numero', key: 'number', sortable: true },
@@ -28,6 +35,7 @@ const headers = [
     { title: 'Scadenza', key: 'due_date', sortable: true },
     { title: 'Totale', key: 'total', sortable: true, align: 'end' },
     { title: 'Netto a pagare', key: 'amount_due', sortable: false, align: 'end' },
+    { title: 'Pagamento', key: 'payment', sortable: false },
     { title: 'SDI', key: 'sdi_status', sortable: false },
 ];
 
@@ -44,6 +52,7 @@ function load(params = {}) {
             search: query.search,
             type: query.type ?? undefined,
             year: query.year,
+            payment: query.payment ?? undefined,
             status: props.filters.status ?? undefined,
             organization: props.filters.organization ?? undefined,
             sort_by: props.filters.sort_by,
@@ -86,9 +95,17 @@ watch(
     },
 );
 watch(
-    () => [query.type, query.year],
+    () => [query.type, query.year, query.payment],
     () => load({ page: 1 }),
 );
+
+/**
+ * What customers still have to pay, whatever the year.
+ */
+function showToCollect(payment = 'unpaid') {
+    query.payment = payment;
+    query.year = 'all';
+}
 
 function open(event, { item }) {
     router.visit(route('sales.invoices.show', item.id));
@@ -112,7 +129,9 @@ function open(event, { item }) {
                         <template #prepend>
                             <v-avatar color="success" variant="tonal"><v-icon icon="mdi-cash-check" /></v-avatar>
                         </template>
-                        <v-card-subtitle>Fatturato {{ filters.year }} (imponibile, al netto delle note di credito)</v-card-subtitle>
+                        <v-card-subtitle>
+                            Fatturato {{ filters.year === 'all' ? 'di tutti gli anni' : filters.year }} (imponibile, al netto delle note di credito)
+                        </v-card-subtitle>
                         <v-card-title class="font-weight-bold">{{ formatMoney(summary.invoiced) }}</v-card-title>
                     </v-card-item>
                 </v-card>
@@ -128,6 +147,33 @@ function open(event, { item }) {
                     </v-card-item>
                 </v-card>
             </v-col>
+            <v-col cols="12" sm="6" md="4">
+                <v-card
+                    :color="summary.overdue_count ? 'error' : undefined"
+                    :variant="summary.overdue_count ? 'tonal' : undefined"
+                    @click="showToCollect()"
+                >
+                    <v-card-item>
+                        <template #prepend>
+                            <v-avatar color="warning" variant="tonal"><v-icon icon="mdi-cash-clock" /></v-avatar>
+                        </template>
+                        <v-card-subtitle>Da incassare ({{ summary.to_collect_count }} fatture, tutti gli anni)</v-card-subtitle>
+                        <v-card-title class="font-weight-bold">{{ formatMoney(summary.to_collect) }}</v-card-title>
+                        <div v-if="summary.overdue_count" class="text-caption">
+                            di cui scaduti
+                            <span
+                                role="button"
+                                tabindex="0"
+                                class="font-weight-medium text-decoration-underline"
+                                @click.stop="showToCollect('overdue')"
+                                @keydown.enter.stop="showToCollect('overdue')"
+                            >
+                                {{ formatMoney(summary.overdue) }} ({{ summary.overdue_count }})
+                            </span>
+                        </div>
+                    </v-card-item>
+                </v-card>
+            </v-col>
         </v-row>
 
         <v-card>
@@ -138,7 +184,7 @@ function open(event, { item }) {
 
             <v-card-text>
                 <v-row dense>
-                    <v-col cols="12" md="6">
+                    <v-col cols="12" md="4">
                         <v-text-field
                             v-model="query.search"
                             label="Cerca per numero, oggetto o cliente"
@@ -148,11 +194,14 @@ function open(event, { item }) {
                             @click:clear="query.search = ''"
                         />
                     </v-col>
-                    <v-col cols="6" md="3">
+                    <v-col cols="12" sm="4" md="3">
+                        <v-select v-model="query.payment" :items="paymentFilters" label="Pagamento" clearable hide-details />
+                    </v-col>
+                    <v-col cols="6" sm="4" md="2">
                         <v-select v-model="query.type" :items="types" label="Tipo" clearable hide-details />
                     </v-col>
-                    <v-col cols="6" md="3">
-                        <v-select v-model="query.year" :items="years" label="Anno" hide-details />
+                    <v-col cols="6" sm="4" md="3">
+                        <v-select v-model="query.year" :items="yearItems" label="Anno" hide-details />
                     </v-col>
                 </v-row>
             </v-card-text>
@@ -190,12 +239,30 @@ function open(event, { item }) {
                     </div>
                 </template>
                 <template #[`item.issue_date`]="{ item }">{{ formatDate(item.issue_date) }}</template>
-                <template #[`item.due_date`]="{ item }">{{ formatDate(item.due_date) }}</template>
+                <template #[`item.due_date`]="{ item }">
+                    <span class="text-no-wrap" :class="{ 'text-error font-weight-medium': item.payment_status === 'overdue' }">
+                        {{ formatDate(item.due_date) }}
+                    </span>
+                </template>
                 <template #[`item.total`]="{ item }">
                     <span class="text-no-wrap" :class="{ 'text-error': item.type === 'credit_note' }">{{ formatMoney(item.total) }}</span>
                 </template>
                 <template #[`item.amount_due`]="{ item }">
                     <span class="text-no-wrap font-weight-medium">{{ formatMoney(item.amount_due) }}</span>
+                </template>
+                <template #[`item.payment`]="{ item }">
+                    <template v-if="item.payment_status">
+                        <v-chip size="x-small" :color="item.payment_status_color" variant="tonal" class="text-no-wrap">
+                            {{ item.payment_status_label }}
+                        </v-chip>
+                        <div v-if="item.payment_status === 'paid' && item.paid_at" class="text-caption text-medium-emphasis text-no-wrap">
+                            il {{ formatDate(item.paid_at) }}
+                        </div>
+                        <div v-else-if="item.paid_amount > 0 && item.outstanding > 0" class="text-caption text-medium-emphasis text-no-wrap">
+                            restano {{ formatMoney(item.outstanding) }}
+                        </div>
+                    </template>
+                    <span v-else-if="item.status === 'issued'" class="text-caption text-medium-emphasis">—</span>
                 </template>
                 <template #[`item.sdi_status`]="{ item }">
                     <v-chip v-if="item.sdi_status" size="x-small" :color="item.sdi_status_color" variant="tonal">{{ item.sdi_status_label }}</v-chip>

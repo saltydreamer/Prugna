@@ -49,6 +49,9 @@ class InvoiceController extends Controller
 
     private const SORTABLE = ['number', 'issue_date', 'due_date', 'total'];
 
+    /** «Pagamento» filter of the list: still to collect, overdue, collected. */
+    private const PAYMENT_FILTERS = ['unpaid', 'overdue', 'paid'];
+
     public function __construct(private Settings $settings) {}
 
     public function index(Request $request): Response
@@ -59,24 +62,31 @@ class InvoiceController extends Controller
             'search' => ['nullable', 'string', 'max:100'],
             'status' => ['nullable', Rule::enum(InvoiceStatus::class)],
             'type' => ['nullable', Rule::enum(InvoiceType::class)],
-            'year' => ['nullable', 'integer', 'between:2000,2100'],
+            // A year, or "all" (e.g. what is still to collect, whatever the year).
+            'year' => ['nullable', 'regex:/^(all|20\d\d|2100)$/'],
+            'payment' => ['nullable', Rule::in(self::PAYMENT_FILTERS)],
             'organization' => ['nullable', 'integer'],
             'sort_by' => ['nullable', Rule::in(self::SORTABLE)],
             'sort_dir' => ['nullable', Rule::in(['asc', 'desc'])],
             'per_page' => ['nullable', 'integer', Rule::in([10, 25, 50, 100])],
         ]);
 
-        $year = (int) ($filters['year'] ?? today()->year);
+        $year = ($filters['year'] ?? null) === 'all' ? null : (int) ($filters['year'] ?? today()->year);
 
         $base = Invoice::query()
-            ->whereYear('issue_date', $year)
+            ->when($year, fn ($query, int $year) => $query->whereYear('issue_date', $year))
             ->when($filters['organization'] ?? null, fn ($query, int $organization) => $query->where('organization_id', $organization));
 
         $invoices = (clone $base)
-            ->with('organization')
+            ->with(['organization', 'creditNotes'])
             ->search($filters['search'] ?? null)
             ->when($filters['status'] ?? null, fn ($query, string $status) => $query->where('status', $status))
             ->when($filters['type'] ?? null, fn ($query, string $type) => $query->where('type', $type))
+            ->when($filters['payment'] ?? null, fn ($query, string $payment) => match ($payment) {
+                'unpaid' => $query->toCollect(),
+                'overdue' => $query->overdue(),
+                'paid' => $query->collected(),
+            })
             // Drafts first, then by number.
             ->orderByRaw('case when status = ? then 0 else 1 end', [InvoiceStatus::Draft->value])
             ->orderBy($filters['sort_by'] ?? 'issue_date', $filters['sort_dir'] ?? 'desc')
@@ -93,7 +103,8 @@ class InvoiceController extends Controller
                 'search' => $filters['search'] ?? '',
                 'status' => $filters['status'] ?? null,
                 'type' => $filters['type'] ?? null,
-                'year' => $year,
+                'year' => $year ?? 'all',
+                'payment' => $filters['payment'] ?? null,
                 'organization' => isset($filters['organization']) ? (int) $filters['organization'] : null,
                 'sort_by' => $filters['sort_by'] ?? 'issue_date',
                 'sort_dir' => $filters['sort_dir'] ?? 'desc',
@@ -103,6 +114,8 @@ class InvoiceController extends Controller
                 'drafts' => (clone $base)->where('status', InvoiceStatus::Draft->value)->count(),
                 'invoiced' => round((float) (clone $issued)->where('type', '!=', InvoiceType::CreditNote->value)->sum('subtotal') - (float) (clone $issued)->where('type', InvoiceType::CreditNote->value)->sum('subtotal'), 2),
                 'count' => (clone $issued)->count(),
+                // Whatever the year: what customers still have to pay.
+                ...$this->toCollectSummary($filters['organization'] ?? null),
             ],
             'years' => $this->years(),
             'types' => array_map(fn (InvoiceType $type) => ['value' => $type->value, 'title' => $type->label()], InvoiceType::cases()),
@@ -492,6 +505,25 @@ class InvoiceController extends Controller
     /**
      * @return list<int>
      */
+    /**
+     * @return array{to_collect: float, to_collect_count: int, overdue: float, overdue_count: int}
+     */
+    private function toCollectSummary(?int $organizationId): array
+    {
+        $invoices = Invoice::query()->toCollect()
+            ->when($organizationId, fn ($query, int $id) => $query->where('organization_id', $id))
+            ->with('creditNotes')
+            ->get(['id', 'type', 'status', 'amount_due', 'paid_amount', 'due_date']);
+        $overdue = $invoices->filter(fn (Invoice $invoice) => $invoice->isOverdue());
+
+        return [
+            'to_collect' => round($invoices->sum(fn (Invoice $invoice) => $invoice->outstanding()), 2),
+            'to_collect_count' => $invoices->count(),
+            'overdue' => round($overdue->sum(fn (Invoice $invoice) => $invoice->outstanding()), 2),
+            'overdue_count' => $overdue->count(),
+        ];
+    }
+
     private function years(): array
     {
         $first = Invoice::query()->min('issue_date');

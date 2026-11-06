@@ -37,7 +37,7 @@ class Receivables
     public function summary(): array
     {
         $invoices = $this->invoices();
-        $overdue = $invoices->filter(fn (Invoice $invoice) => $invoice->due_date && $invoice->due_date->isPast());
+        $overdue = $invoices->filter(fn (Invoice $invoice) => $invoice->isOverdue());
 
         return [
             'receivable' => round($invoices->sum(fn (Invoice $invoice) => $invoice->outstanding()), 2),

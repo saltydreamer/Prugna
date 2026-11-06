@@ -86,7 +86,7 @@ class CashController extends Controller
                 'issue_date' => $invoice->issue_date?->toDateString(),
                 'due_date' => $invoice->due_date?->toDateString(),
                 'outstanding' => $invoice->outstanding(),
-                'overdue' => $invoice->due_date?->isPast() ?? false,
+                'overdue' => $invoice->isOverdue(),
             ])->values(),
             'open' => $receivables->summary(),
             'dolibarr' => [
