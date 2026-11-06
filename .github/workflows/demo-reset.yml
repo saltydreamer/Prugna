@@ -61,33 +61,11 @@ jobs:
 
       - name: Demo data
         run: |
-          ssh vps 'bash -s' <<'REMOTE'
-          set -euo pipefail
-          cd /srv/boilerplate
-          unset APP_DOMAIN
-          env_value() { grep -E "^$1=" .env | tail -1 | cut -d= -f2- | tr -d '"' || true; }
-          sed -i '/^APP_DEMO=/d' .env && echo 'APP_DEMO=true' >> .env
-          admin="$(env_value APP_ADMIN_EMAIL)"
-          admin="${admin:-admin@$(env_value APP_DOMAIN)}"
-
-          echo "==> Maintenance mode"
-          docker compose exec -T app php artisan down || true
-          docker compose stop worker scheduler
-
-          echo "==> Uploaded files of the real data"
-          docker compose exec -T app sh -c 'cd /app/storage/app && rm -rf private/* public/*'
-
-          echo "==> Empty database and demo data"
-          docker compose run --rm --no-deps app php artisan migrate:fresh --force --no-interaction
-          docker compose run --rm --no-deps app php artisan permissions:sync --no-interaction
-          docker compose run --rm --no-deps app php artisan app:demo-seed --force --no-interaction
-          docker compose run --rm --no-deps app php artisan app:create-super-admin "$admin" --if-none --no-interaction
-
-          echo "==> Restart with APP_DEMO=true"
-          docker compose up -d --force-recreate app worker scheduler
-          docker compose exec -T app php artisan up || true
-          docker compose ps --format 'table {{.Service}}\t{{.Status}}'
-          REMOTE
+          # Uploaded and run as a file: fed through stdin ('bash -s'), the first `docker compose exec`
+          # read the rest of the script and nothing after maintenance mode ran.
+          ssh vps 'cat > /srv/boilerplate/demo-reset.sh && chmod +x /srv/boilerplate/demo-reset.sh' < deploy/scripts/demo-reset.sh
+          ssh -n vps '/srv/boilerplate/demo-reset.sh' | tee demo-reset.log
+          grep -q '^Demo data loaded\.$' demo-reset.log || { echo "::error::Lo script della demo non è arrivato in fondo."; exit 1; }
 
       - name: Verify
         run: |

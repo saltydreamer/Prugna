@@ -9,7 +9,8 @@ use Carbon\CarbonImmutable;
 use Illuminate\Console\Command;
 
 /**
- * Fills an empty database with the demonstration data (dev.reimg.it): run after migrate:fresh.
+ * Fills an empty database with the demonstration data (dev.reimg.it): run on a freshly migrated
+ * database (deploy/scripts/demo-reset.sh, workflow "Reset demo").
  */
 class DemoSeedCommand extends Command
 {
@@ -22,7 +23,7 @@ class DemoSeedCommand extends Command
     public function handle(DemoData $demo): int
     {
         if (Organization::query()->withTrashed()->exists() || Invoice::query()->exists()) {
-            $this->error('The database already holds data: the demo is only for an empty database (php artisan migrate:fresh).');
+            $this->error('The database already holds data: the demo is only for an empty database (workflow «Reset demo»).');
 
             return self::FAILURE;
         }
