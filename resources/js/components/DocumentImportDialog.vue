@@ -59,6 +59,9 @@ watch(open, (value) => {
 function submit() {
     form.post(route('documents.read'), {
         forceFormData: true,
+        // The prefilled form must start from the data read, also when it is the page already open
+        // (e.g. «Compila da documento» on a new expense); on errors the dialog stays as it is.
+        preserveState: 'errors',
         onSuccess: () => (open.value = false),
     });
 }
