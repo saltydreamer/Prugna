@@ -129,6 +129,15 @@ function setPeriod(period) {
 }
 
 function open(event, { item }) {
+    // The whole selection cell selects (a click just beside the checkbox, or on a disabled one, never opens the intervention).
+    if (event.target.closest?.('.v-data-table__td--select-row')) {
+        if (selectable(item)) {
+            selected.value = selected.value.includes(item.id) ? selected.value.filter((id) => id !== item.id) : [...selected.value, item.id];
+        }
+
+        return;
+    }
+
     router.visit(route('interventions.show', item.id));
 }
 
