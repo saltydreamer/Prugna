@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Settings\CompanySettingsRequest;
 use App\Http\Requests\Settings\MailSettingsRequest;
 use App\Mail\TestMail;
+use App\Models\AiCall;
 use App\Models\AiExtraction;
 use App\Models\PaymentTerm;
 use App\Models\VatRate;
@@ -213,10 +214,11 @@ class SettingsController extends Controller
      */
     private function aiUsage(): array
     {
-        $month = AiExtraction::query()->where('created_at', '>=', now()->startOfMonth());
+        // Every OpenRouter call (documents and Preventivatore), as in «Costi IA».
+        $month = AiCall::query()->where('created_at', '>=', now()->startOfMonth());
 
         return [
-            'month_count' => (clone $month)->where('source', 'ai')->count(),
+            'month_count' => (clone $month)->count(),
             'month_cost' => round((float) (clone $month)->sum('cost'), 4),
             'latest' => AiExtraction::query()->with('user:id,name')->latest('id')->limit(10)->get()
                 ->map(fn (AiExtraction $extraction) => [

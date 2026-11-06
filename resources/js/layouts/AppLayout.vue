@@ -282,6 +282,13 @@ const navigation = computed(() => {
                     permission: 'settings.manage',
                 },
                 {
+                    title: 'Costi IA',
+                    icon: 'mdi-cash-multiple',
+                    route: 'settings.ai-costs.index',
+                    active: 'settings.ai-costs.*',
+                    permission: 'settings.manage',
+                },
+                {
                     title: 'Importa da Dolibarr',
                     icon: 'mdi-database-import-outline',
                     route: 'settings.dolibarr.index',
@@ -293,7 +300,10 @@ const navigation = computed(() => {
                     icon: 'mdi-cog-outline',
                     route: 'settings.index',
                     active: () =>
-                        route().current('settings.*') && !route().current('settings.einvoicing.*') && !route().current('settings.dolibarr.*'),
+                        route().current('settings.*') &&
+                        !route().current('settings.einvoicing.*') &&
+                        !route().current('settings.dolibarr.*') &&
+                        !route().current('settings.ai-costs.*'),
                     permission: 'settings.manage',
                 },
             ],
