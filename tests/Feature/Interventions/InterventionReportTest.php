@@ -14,9 +14,11 @@ use App\Notifications\ContractHoursNotification;
 use App\Support\InterventionSummaryPdf;
 use App\Support\Settings;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
+use Mockery;
 use Tests\TestCase;
 
 class InterventionReportTest extends TestCase
@@ -95,6 +97,29 @@ class InterventionReportTest extends TestCase
 
         $this->actingAs($this->admin)->get('/interventions/summary')->assertSessionHasErrors('ids');
         $this->actingAs($this->admin)->get('/interventions/summary?'.http_build_query(['ids' => [$running->id]]))->assertNotFound();
+    }
+
+    public function test_all_the_filtered_interventions_are_summarised_also_the_covered_ones(): void
+    {
+        $this->travelTo('2026-11-06 12:00:00');
+        $acme = Organization::factory()->create(['name' => 'Acme Srl']);
+        $covered = Intervention::factory()->count(2)->create(['organization_id' => $acme->id, 'started_at' => '2026-11-03 08:00:00', 'covered' => true]);
+        $toInvoice = Intervention::factory()->create(['organization_id' => $acme->id, 'started_at' => '2026-11-04 08:00:00']);
+        Intervention::factory()->running()->create(['organization_id' => $acme->id]);
+        Intervention::factory()->create(['organization_id' => $acme->id, 'started_at' => '2026-10-20 08:00:00']);
+        Intervention::factory()->create(['started_at' => '2026-11-03 08:00:00']);
+
+        $expected = [...$covered->pluck('id'), $toInvoice->id];
+        $pdf = Mockery::mock(InterventionSummaryPdf::class, [app(Settings::class)])->makePartial();
+        $pdf->shouldReceive('make')->once()->withArgs(fn (Collection $interventions) => $interventions->pluck('id')->sort()->values()->all() === $expected)->passthru();
+        $this->instance(InterventionSummaryPdf::class, $pdf);
+
+        $this->actingAs($this->admin)->get('/interventions/summary?'.http_build_query(['all' => 1, 'customer' => $acme->id, 'from' => '2026-11-01', 'download' => 1]))
+            ->assertOk()
+            ->assertHeader('content-disposition', 'attachment; filename=Riepilogo-interventi-acme-srl-2026-11-06.pdf');
+
+        // The status tab is a filter too.
+        $this->actingAs($this->admin)->get('/interventions/summary?'.http_build_query(['all' => 1, 'status' => 'covered', 'customer' => $acme->id, 'to' => '2026-10-31']))->assertNotFound();
     }
 
     public function test_technicians_summarise_only_their_own_interventions(): void

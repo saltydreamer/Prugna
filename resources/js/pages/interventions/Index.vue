@@ -132,14 +132,90 @@ function open(event, { item }) {
     router.visit(route('interventions.show', item.id));
 }
 
-// --- Invoicing ------------------------------------------------------------------------------
+// --- Selection: summary PDF and invoicing -------------------------------------------------------
+/** Interventions in one summary PDF (InterventionDocumentController::SUMMARY_LIMIT). */
+const SUMMARY_LIMIT = 500;
+
+// Any completed intervention can be selected (covered by an hour contract, invoiced...): for the summary PDF,
+// or to invoice the ones still to invoice.
+const selectable = (item) => !item.running;
 const selected = ref([]);
+/** Every intervention of the filters is selected, on every page. */
+const allSelected = ref(false);
+const total = computed(() => props.interventions.meta.total);
+const pageSelectable = computed(() => props.interventions.data.filter(selectable).map((item) => item.id));
+/** The whole page is selected but the filters show more: offer to select them all. */
+const canSelectAll = computed(
+    () =>
+        !allSelected.value &&
+        total.value > props.interventions.data.length &&
+        pageSelectable.value.length > 0 &&
+        pageSelectable.value.every((id) => selected.value.includes(id)),
+);
+const selectionCount = computed(() => (allSelected.value ? total.value : selected.value.length));
+
+/**
+ * The filters the list shows, for the summary of all of them.
+ */
+function appliedFilters() {
+    const { search, scope, technician, customer, order, category, mode, status, from, to } = props.filters;
+
+    return Object.fromEntries(
+        Object.entries({ search, scope, technician, customer, order, category, mode, status, from, to }).filter(
+            ([, value]) => value !== null && value !== undefined && value !== '',
+        ),
+    );
+}
+
+const summaryUrl = computed(() => route('interventions.summary', allSelected.value ? { all: 1, ...appliedFilters() } : { ids: selected.value }));
+
+function clearSelection() {
+    selected.value = [];
+    allSelected.value = false;
+}
+
+// While everything is selected the rows of the other pages are ticked too; unticking one goes back to a manual selection.
+watch(
+    () => props.interventions.data,
+    (rows) => {
+        if (allSelected.value) {
+            selected.value = [...new Set([...selected.value, ...rows.filter(selectable).map((row) => row.id)])];
+        }
+    },
+);
+watch(selected, (ids, previous) => {
+    if (allSelected.value && ids.length < previous.length) {
+        allSelected.value = false;
+    }
+});
+// Other filters, other interventions: "all" no longer applies.
+watch(
+    () => JSON.stringify(appliedFilters()),
+    () => {
+        if (allSelected.value) {
+            clearSelection();
+        }
+    },
+);
+
 const invoiceDialog = ref(false);
 const invoiceCustomer = ref(null);
 const invoicePreselect = ref(null);
 const canInvoice = computed(() => can('invoices.manage'));
 
 function invoiceSelected() {
+    if (allSelected.value) {
+        if (!query.customer) {
+            toast.error('Per fatturare tutti gli interventi filtrati scegli prima il cliente: la fattura è una per cliente.');
+
+            return;
+        }
+
+        invoiceCustomerAll();
+
+        return;
+    }
+
     // The selection may include interventions already invoiced (e.g. for the summary PDF): only the others are invoiced.
     const items = props.interventions.data.filter((item) => selected.value.includes(item.id) && item.status === 'to_invoice');
     const customers = [...new Set(items.map((item) => item.organization_id))];
@@ -166,10 +242,6 @@ function invoiceCustomerAll() {
     invoicePreselect.value = null;
     invoiceDialog.value = true;
 }
-
-// Any completed intervention can be selected: for the summary PDF, or to invoice the ones still to invoice.
-const selectable = (item) => !item.running;
-const summaryUrl = computed(() => route('interventions.summary', { ids: selected.value }));
 </script>
 
 <template>
@@ -286,14 +358,32 @@ const summaryUrl = computed(() => route('interventions.summary', { ids: selected
                 </v-row>
             </v-card-text>
 
-            <v-toolbar v-if="selected.length" density="compact" color="primary" class="px-4">
-                <span class="text-body-2">{{ selected.length }} selezionati</span>
+            <v-toolbar v-if="selected.length || allSelected" density="compact" color="primary" class="px-4">
+                <span class="text-body-2">
+                    {{ allSelected ? `Selezionati tutti i ${total} interventi` : `${selected.length} selezionati` }}
+                </span>
+                <template v-if="canSelectAll">
+                    <v-btn v-if="total <= SUMMARY_LIMIT" variant="text" size="small" class="ml-2" @click="allSelected = true">
+                        Seleziona tutti i {{ total }}
+                    </v-btn>
+                    <span v-else class="text-caption ml-3">
+                        Sono {{ total }}: per esportarli tutti restringi i filtri (massimo {{ SUMMARY_LIMIT }}).
+                    </span>
+                </template>
                 <v-spacer />
-                <v-btn variant="text" prepend-icon="mdi-file-pdf-box" :href="summaryUrl" target="_blank">Esporta PDF</v-btn>
+                <v-btn
+                    variant="text"
+                    prepend-icon="mdi-file-pdf-box"
+                    :href="selectionCount <= SUMMARY_LIMIT ? summaryUrl : undefined"
+                    :disabled="selectionCount > SUMMARY_LIMIT"
+                    target="_blank"
+                >
+                    Esporta PDF
+                </v-btn>
                 <v-btn v-if="canInvoice" variant="flat" color="white" prepend-icon="mdi-receipt-text-plus-outline" @click="invoiceSelected">
                     Fattura interventi
                 </v-btn>
-                <v-btn variant="text" icon="mdi-close" title="Annulla selezione" @click="selected = []" />
+                <v-btn variant="text" icon="mdi-close" title="Annulla selezione" @click="clearSelection" />
             </v-toolbar>
 
             <v-data-table-server

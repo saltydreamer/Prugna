@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Interventions;
 
 use App\Actions\Interventions\SignIntervention;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Interventions\InterventionFilterRequest;
 use App\Mail\DocumentMail;
 use App\Models\Intervention;
 use App\Support\InterventionPdf;
@@ -24,6 +25,9 @@ use Throwable;
  */
 class InterventionDocumentController extends Controller
 {
+    /** Interventions in one summary PDF. */
+    public const SUMMARY_LIMIT = 500;
+
     public function pdf(Request $request, Intervention $intervention, InterventionPdf $pdf): Response
     {
         $this->authorize('view', $intervention);
@@ -38,24 +42,24 @@ class InterventionDocumentController extends Controller
     }
 
     /**
-     * Riepilogo PDF of the interventions selected in the list (only the visible, completed ones).
+     * Riepilogo PDF of the interventions selected in the list (?ids[]=), or of all the ones the list
+     * filters show (?all=1 with the list filters). Only visible, completed interventions.
      */
-    public function summary(Request $request, InterventionSummaryPdf $pdf): Response
+    public function summary(InterventionFilterRequest $request, InterventionSummaryPdf $pdf): Response
     {
-        $this->authorize('viewAny', Intervention::class);
-
         $data = $request->validate([
-            'ids' => ['required', 'array', 'min:1', 'max:500'],
+            'all' => ['boolean'],
+            'ids' => ['exclude_if:all,1', 'required', 'array', 'min:1', 'max:'.self::SUMMARY_LIMIT],
             'ids.*' => ['integer'],
         ], [], ['ids' => 'interventi']);
 
-        $interventions = Intervention::query()
-            ->visibleTo($request->user())
-            ->whereIn('id', $data['ids'])
-            ->whereNotNull('duration_minutes')
-            ->get();
+        $query = $request->boolean('all')
+            ? $request->listedQuery()
+            : Intervention::query()->visibleTo($request->user())->whereIn('id', $data['ids']);
+        $interventions = $query->whereNotNull('duration_minutes')->limit(self::SUMMARY_LIMIT + 1)->get();
 
         abort_if($interventions->isEmpty(), 404, __('Nessun intervento concluso tra quelli scelti.'));
+        abort_if($interventions->count() > self::SUMMARY_LIMIT, 422, __('Sono più di :max interventi: restringi i filtri (per esempio il periodo).', ['max' => self::SUMMARY_LIMIT]));
 
         $document = $pdf->make($interventions);
 
