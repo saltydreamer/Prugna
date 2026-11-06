@@ -37,7 +37,6 @@ class GenerateSubscriptionInvoices
         return Subscription::query()
             ->with(['lines', 'periods', 'organization'])
             ->where('is_active', true)
-            ->whereDate('starts_on', '<=', $date->toDateString())
             ->when($subscriptionId, fn (Builder $query, int $id) => $query->whereKey($id))
             ->when($lock, fn (Builder $query) => $query->lockForUpdate())
             ->orderBy('organization_id')

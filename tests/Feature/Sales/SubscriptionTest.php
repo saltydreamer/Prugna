@@ -56,6 +56,36 @@ class SubscriptionTest extends TestCase
         $this->assertSame([], $this->due($this->subscription(['billing_period' => BillingPeriod::Quarterly, 'billing_mode' => Subscription::MODE_ARREARS])));
     }
 
+    public function test_fees_resume_the_day_after_the_ones_invoiced_elsewhere(): void
+    {
+        // Invoiced in Dolibarr up to August, start date left later: September and October are due anyway.
+        $this->assertSame(['2026-09-01', '2026-10-01'], $this->due($this->subscription([
+            'starts_on' => '2026-11-01', 'billed_until' => '2026-08-31', 'billing_mode' => Subscription::MODE_ARREARS,
+        ])));
+
+        // A yearly fee invoiced up to the end of August restarts from September, without billing January–August again.
+        $yearly = $this->subscription(['starts_on' => '2024-01-01', 'billed_until' => '2026-08-31', 'billing_period' => BillingPeriod::Annual]);
+        $this->assertSame([['2026-09-01', '2027-08-31']], array_map(
+            fn (array $period) => [$period['starts_on']->toDateString(), $period['ends_on']->toDateString()],
+            $yearly->refresh()->duePeriods(Subscription::today()),
+        ));
+    }
+
+    public function test_the_start_date_can_not_follow_the_fees_invoiced_elsewhere(): void
+    {
+        $this->actingAs($this->admin)->post('/sales/subscriptions', [
+            'organization_id' => Organization::factory()->create()->id,
+            'title' => 'Assistenza',
+            'billing_period' => 'monthly',
+            'billing_mode' => 'arrears',
+            'starts_on' => '2026-11-01',
+            'billed_until' => '2026-08-31',
+            'lines' => [['type' => 'item', 'description' => 'Canone', 'quantity' => 1, 'unit_price' => 100, 'vat_rate_id' => VatRate::factory()->create()->id]],
+        ])->assertSessionHasErrors('starts_on');
+
+        $this->assertSame(0, Subscription::count());
+    }
+
     public function test_periods_have_readable_labels(): void
     {
         $label = fn (string $from, string $to) => Subscription::periodLabel(['starts_on' => CarbonImmutable::parse($from), 'ends_on' => CarbonImmutable::parse($to)]);
@@ -164,12 +194,14 @@ class SubscriptionTest extends TestCase
             'billing_period' => 'annual',
             'billing_mode' => 'advance',
             'starts_on' => '2026-01-01',
+            'billed_until' => '2026-12-31',
             'lines' => [['type' => 'item', 'description' => 'Hosting', 'quantity' => 1, 'unit_price' => 60, 'vat_rate_id' => VatRate::default()->id]],
         ])->assertRedirect();
 
         $subscription->refresh();
         $this->assertSame(BillingPeriod::Monthly, $subscription->billing_period);
         $this->assertSame('2026-09-01', $subscription->starts_on->toDateString());
+        $this->assertNull($subscription->billed_until);
         $this->assertSame(60.0, $subscription->load('lines')->amount());
 
         $this->actingAs($this->admin)->delete("/sales/subscriptions/{$subscription->id}")->assertForbidden();

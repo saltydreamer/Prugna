@@ -14,9 +14,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
- * Contratto servizi: services charged to a customer every period (canone). Periods are aligned to
- * the start date; a fee is due when its period starts (in advance) or ends (in arrears) and it is
- * neither in an invoice (SubscriptionPeriod) nor invoiced outside Prugna (up to billed_until).
+ * Contratto servizi: services charged to a customer every period (canone). Periods follow one another
+ * from the start date, or from the day after billed_until when the fees were invoiced outside Prugna
+ * up to that date; a fee is due when its period starts (in advance) or ends (in arrears) and it is
+ * not in an invoice yet (SubscriptionPeriod).
  * Dates are calendar days: they carry no timezone.
  */
 #[Fillable([
@@ -118,17 +119,26 @@ class Subscription extends Model
     }
 
     /**
-     * The n-th period (0 = the first), aligned to the start date.
+     * First day billed by Prugna: the start date, or the day after the fees invoiced elsewhere.
+     */
+    public function billingStart(): CarbonImmutable
+    {
+        return $this->billed_until?->addDay() ?? $this->starts_on;
+    }
+
+    /**
+     * The n-th period (0 = the first), aligned to the first day billed by Prugna.
      *
      * @return array{starts_on: CarbonImmutable, ends_on: CarbonImmutable}
      */
     public function period(int $index): array
     {
         $months = $this->billing_period->months();
+        $start = $this->billingStart();
 
         return [
-            'starts_on' => $this->starts_on->addMonthsNoOverflow($index * $months),
-            'ends_on' => $this->starts_on->addMonthsNoOverflow(($index + 1) * $months)->subDay(),
+            'starts_on' => $start->addMonthsNoOverflow($index * $months),
+            'ends_on' => $start->addMonthsNoOverflow(($index + 1) * $months)->subDay(),
         ];
     }
 
@@ -162,10 +172,6 @@ class Subscription extends Model
 
             if ($until !== null && $this->dueDate($period)->toDateString() > $until->toDateString()) {
                 break;
-            }
-
-            if ($this->billed_until !== null && $period['ends_on']->toDateString() <= $this->billed_until->toDateString()) {
-                continue;
             }
 
             if (! $billed->has($period['starts_on']->toDateString())) {
@@ -258,7 +264,7 @@ class Subscription extends Model
     }
 
     /**
-     * Start date and billing period can't change once a fee is invoiced: the periods are aligned to them.
+     * Start, billed_until and billing period can't change once a fee is invoiced: the periods are aligned to them.
      */
     public function hasBilledPeriods(): bool
     {

@@ -188,7 +188,7 @@ async function destroy() {
                             v-if="subscription.billed_until"
                             prepend-icon="mdi-history"
                             title="Già fatturato fuori da Prugna"
-                            :subtitle="`fino al ${formatDate(subscription.billed_until)}`"
+                            :subtitle="`fino al ${formatDate(subscription.billed_until)} · Prugna fattura dal ${formatDate(subscription.billing_start)}`"
                         />
                         <v-list-item prepend-icon="mdi-cash-clock" title="Pagamento" :subtitle="subscription.payment_term ?? 'Quello del cliente'" />
                         <v-list-item prepend-icon="mdi-account-tie-outline" title="Responsabile" :subtitle="subscription.owner ?? '—'" />

@@ -38,6 +38,7 @@ class SubscriptionResource extends JsonResource
             'starts_on' => $this->starts_on->toDateString(),
             'ends_on' => $this->ends_on?->toDateString(),
             'billed_until' => $this->billed_until?->toDateString(),
+            'billing_start' => $this->billingStart()->toDateString(),
             'payment_term_id' => $this->payment_term_id,
             'payment_term' => $this->whenLoaded('paymentTerm', fn () => $this->paymentTerm?->name),
             'owner_id' => $this->owner_id,

@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue';
+import { computed, watch } from 'vue';
 import { useForm } from '@inertiajs/vue3';
 import { route } from 'ziggy-js';
 import PageHeader from '@/components/PageHeader.vue';
@@ -47,6 +47,29 @@ const amount = computed(() => form.lines.reduce((sum, line) => sum + lineTotal(l
 const yearly = computed(() => (amount.value * 12) / (MONTHS[form.billing_period] ?? 1));
 const per = computed(() => props.billingPeriods.find((period) => period.value === form.billing_period)?.title.toLowerCase());
 
+/** "2026-08-31" → "2026-09-01". */
+function dayAfter(date) {
+    const day = new Date(`${date}T12:00:00Z`);
+    day.setUTCDate(day.getUTCDate() + 1);
+
+    return day.toISOString().slice(0, 10);
+}
+
+// Fees invoiced elsewhere up to a date: Prugna resumes the day after, so the contract started by then.
+watch(
+    () => form.billed_until,
+    (billedUntil) => {
+        if (props.scheduleEditable && billedUntil && form.starts_on && form.starts_on > dayAfter(billedUntil)) {
+            form.starts_on = dayAfter(billedUntil);
+        }
+    },
+    { immediate: true },
+);
+
+const resumeHint = computed(() =>
+    form.billed_until ? `Prugna fattura i canoni dal ${new Date(`${dayAfter(form.billed_until)}T12:00:00Z`).toLocaleDateString('it-IT')}` : '',
+);
+
 function submit() {
     if (isNew.value) {
         form.post(route('sales.subscriptions.store'));
@@ -79,7 +102,7 @@ function submit() {
                     <v-card class="mb-6" title="Contratto">
                         <v-card-text>
                             <v-alert v-if="!scheduleEditable" type="info" variant="tonal" density="compact" class="mb-4">
-                                Alcuni canoni sono già in fattura: cliente, decorrenza e periodicità non si cambiano più. Per cambiarli dai una
+                                Alcuni canoni sono già in fattura: cliente, date di partenza e periodicità non si cambiano più. Per cambiarli dai una
                                 scadenza a questo contratto e creane uno nuovo.
                             </v-alert>
                             <v-row dense>
@@ -123,7 +146,7 @@ function submit() {
                                         v-model="form.starts_on"
                                         type="date"
                                         label="Decorrenza"
-                                        hint="I periodi partono da qui"
+                                        hint="Inizio del contratto"
                                         persistent-hint
                                         :disabled="!scheduleEditable"
                                         :error-messages="form.errors.starts_on"
@@ -146,8 +169,9 @@ function submit() {
                                         type="date"
                                         label="Già fatturato fino al"
                                         clearable
-                                        hint="Canoni fatturati fuori da Prugna (es. Dolibarr)"
+                                        :hint="resumeHint || 'Canoni fatturati fuori da Prugna (es. Dolibarr)'"
                                         persistent-hint
+                                        :disabled="!scheduleEditable"
                                         :error-messages="form.errors.billed_until"
                                     />
                                 </v-col>
