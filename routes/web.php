@@ -26,6 +26,7 @@ use App\Http\Controllers\Profile\ProfileController;
 use App\Http\Controllers\Profile\PushSubscriptionController;
 use App\Http\Controllers\PublicArea\PublicQuoteController;
 use App\Http\Controllers\Purchases\ExpenseController;
+use App\Http\Controllers\Purchases\ExpenseImportController;
 use App\Http\Controllers\Purchases\PurchaseOrderController;
 use App\Http\Controllers\Purchases\PurchaseOrderDocumentController;
 use App\Http\Controllers\Purchases\ReceivedInvoiceController;
@@ -230,6 +231,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
         Route::get('expenses/link-options', [ExpenseController::class, 'linkOptions'])->name('expenses.link-options');
         Route::patch('expenses/link', [ExpenseController::class, 'link'])->name('expenses.link');
+        // «Carica più documenti»: files uploaded one by one, then read and recorded in the background.
+        Route::controller(ExpenseImportController::class)->prefix('expenses/imports')->name('expenses.imports.')->group(function () {
+            Route::post('/', 'store')->name('store');
+            Route::post('{import}/files', 'upload')->middleware('throttle:120,1')->name('upload');
+            Route::post('{import}/start', 'start')->name('start');
+            Route::get('{import}', 'show')->name('show');
+            Route::post('{import}/items/{item}/retry', 'retry')->middleware('throttle:30,1')->name('retry')->scopeBindings();
+        });
         Route::resource('expenses', ExpenseController::class);
         Route::patch('expenses/{expense}/payment', [ExpenseController::class, 'payment'])->name('expenses.payment');
         Route::get('expenses/{expense}/attachment', [ExpenseController::class, 'attachment'])->name('expenses.attachment');

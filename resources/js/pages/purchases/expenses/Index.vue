@@ -5,6 +5,7 @@ import { route } from 'ziggy-js';
 import DocumentImportDialog from '@/components/DocumentImportDialog.vue';
 import ExpenseLinkDialog from '@/components/purchases/ExpenseLinkDialog.vue';
 import PageHeader from '@/components/PageHeader.vue';
+import ExpenseBatchImportDialog from '@/components/purchases/ExpenseBatchImportDialog.vue';
 import { useInertiaLink } from '@/composables/useInertiaLink';
 import { usePermissions } from '@/composables/usePermissions';
 import { formatDate, formatMoney } from '@/utils/format';
@@ -14,6 +15,8 @@ const props = defineProps({
     filters: { type: Object, required: true },
     summary: { type: Object, required: true },
     categories: { type: Array, required: true },
+    /** «Carica più documenti» still being read or done in the last day: { id, completed, items, waiting, recorded, failed, duplicates } */
+    imports: { type: Array, default: () => [] },
 });
 
 const { link } = useInertiaLink();
@@ -21,6 +24,28 @@ const { can } = usePermissions();
 
 const loading = ref(false);
 const importDialog = ref(false);
+const batchDialog = ref(false);
+
+/**
+ * "Documenti letti: 3 spese registrate, 1 già presente, 1 da completare a mano."
+ */
+function importSummary(batch) {
+    if (!batch.completed) {
+        return `Lettura dei documenti in corso: ${batch.items - batch.waiting} di ${batch.items}.`;
+    }
+
+    const parts = [batch.recorded === 1 ? '1 spesa registrata' : `${batch.recorded} spese registrate`];
+
+    if (batch.duplicates) {
+        parts.push(batch.duplicates === 1 ? '1 già presente' : `${batch.duplicates} già presenti`);
+    }
+
+    if (batch.failed) {
+        parts.push(`${batch.failed} da completare a mano`);
+    }
+
+    return `Documenti letti: ${parts.join(', ')}.`;
+}
 const query = reactive({ search: props.filters.search, category: props.filters.category });
 
 const headers = [
@@ -116,9 +141,24 @@ function open(event, { item }) {
         <PageHeader title="Spese e scadenze" subtitle="Fatture dei fornitori, ricevute e pagamenti">
             <template v-if="can('expenses.manage')" #actions>
                 <v-btn variant="tonal" prepend-icon="mdi-file-upload-outline" @click="importDialog = true">Carica documento</v-btn>
+                <v-btn variant="tonal" prepend-icon="mdi-file-multiple-outline" @click="batchDialog = true">Carica più documenti</v-btn>
                 <v-btn color="primary" prepend-icon="mdi-plus" v-bind="link(route('purchases.expenses.create'))">Nuova spesa</v-btn>
             </template>
         </PageHeader>
+
+        <v-alert
+            v-for="batch in imports"
+            :key="batch.id"
+            :type="batch.completed ? (batch.failed ? 'warning' : 'success') : 'info'"
+            variant="tonal"
+            density="compact"
+            class="mb-4"
+        >
+            {{ importSummary(batch) }}
+            <template #append>
+                <v-btn size="small" variant="text" v-bind="link(route('purchases.expenses.imports.show', batch.id))">Vedi</v-btn>
+            </template>
+        </v-alert>
 
         <v-row class="mb-2">
             <v-col cols="12" sm="6" md="3">
@@ -267,6 +307,7 @@ function open(event, { item }) {
         </v-card>
 
         <DocumentImportDialog v-model="importDialog" kind="expense" />
+        <ExpenseBatchImportDialog v-model="batchDialog" />
         <ExpenseLinkDialog v-model="linkDialog" :expense-ids="linkIds" :current="linkCurrent" @linked="selected = []" />
     </div>
 </template>
