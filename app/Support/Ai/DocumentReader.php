@@ -28,17 +28,40 @@ class DocumentReader
 
     public function read(UploadedFile $file, string $kind, ?User $user, ?string $model = null): AiExtraction
     {
-        $contents = (string) $file->get();
-        $filename = $file->getClientOriginalName();
-        $mimeType = $this->mimeType($file);
+        return $this->readStored($this->store($file), $kind, $user, $model);
+    }
+
+    /**
+     * Keeps an upload on the private disk, to be read now or later (documents uploaded in bulk).
+     *
+     * @return array{path: string, name: string, mime_type: string, size: int}
+     */
+    public function store(UploadedFile $file): array
+    {
+        return [
+            'path' => Storage::disk(self::DISK)->putFileAs('documents/'.now()->format('Y/m'), $file, Str::uuid().'.'.$this->extension($file)),
+            'name' => Str::limit($file->getClientOriginalName(), 250, ''),
+            'mime_type' => $this->mimeType($file),
+            'size' => (int) $file->getSize(),
+        ];
+    }
+
+    /**
+     * @param  array{path: string, name: string, mime_type: string}  $stored  As returned by store().
+     */
+    public function readStored(array $stored, string $kind, ?User $user, ?string $model = null): AiExtraction
+    {
+        $contents = (string) Storage::disk(self::DISK)->get($stored['path']);
+        $filename = $stored['name'];
+        $mimeType = $stored['mime_type'];
 
         $extraction = new AiExtraction([
             'user_id' => $user?->id,
             'kind' => $kind,
-            'original_name' => Str::limit($filename, 250, ''),
+            'original_name' => $filename,
             'mime_type' => $mimeType,
             'file_size' => strlen($contents),
-            'file_path' => Storage::disk(self::DISK)->putFileAs('documents/'.now()->format('Y/m'), $file, Str::uuid().'.'.$this->extension($file)),
+            'file_path' => $stored['path'],
         ]);
 
         $started = hrtime(true);

@@ -17,6 +17,8 @@ use App\Models\AccountingCategory;
 use App\Models\AiExtraction;
 use App\Models\BusinessLine;
 use App\Models\Expense;
+use App\Models\ExpenseImport;
+use App\Models\ExpenseImportItem;
 use App\Models\FinancialAccount;
 use App\Models\Order;
 use App\Models\ReceivedInvoice;
@@ -90,6 +92,30 @@ class ExpenseController extends Controller
                 'month' => round((float) (clone $base)->where('type', '!=', ExpenseType::CreditNote->value)->whereBetween('document_date', [today()->startOfMonth(), today()->endOfMonth()])->sum('subtotal'), 2),
             ],
             'categories' => AccountingCategory::options(),
+            // «Carica più documenti» of the user still being read, or done in the last day.
+            'imports' => ExpenseImport::query()
+                ->where('user_id', $request->user()->id)
+                ->whereNotNull('started_at')
+                ->where(fn ($query) => $query->whereNull('completed_at')->orWhere('completed_at', '>=', now()->subDay()))
+                ->withCount([
+                    'items',
+                    'items as waiting_count' => fn ($query) => $query->whereIn('status', [ExpenseImportItem::PENDING, ExpenseImportItem::PROCESSING]),
+                    'items as recorded_count' => fn ($query) => $query->where('status', ExpenseImportItem::RECORDED),
+                    'items as failed_count' => fn ($query) => $query->where('status', ExpenseImportItem::FAILED),
+                    'items as duplicate_count' => fn ($query) => $query->where('status', ExpenseImportItem::DUPLICATE),
+                ])
+                ->latest('id')
+                ->limit(3)
+                ->get()
+                ->map(fn (ExpenseImport $import) => [
+                    'id' => $import->id,
+                    'completed' => $import->isCompleted(),
+                    'items' => $import->items_count,
+                    'waiting' => $import->waiting_count,
+                    'recorded' => $import->recorded_count,
+                    'failed' => $import->failed_count,
+                    'duplicates' => $import->duplicate_count,
+                ]),
         ]);
     }
 
@@ -124,10 +150,12 @@ class ExpenseController extends Controller
         $expense = $save->handle(new Expense, [...collect($request->validated())->except('financial_account_id')->all(), 'attachment' => $request->file('attachment'), 'owner_id' => $request->user()->id]);
         $syncPayment->handle($expense, $request->integer('financial_account_id') ?: null);
 
-        // Recorded from the "Fatture ricevute" inbox.
+        // Recorded from the "Fatture ricevute" inbox, or completed by hand from an expense import.
         if ($expense->ai_extraction_id) {
             ReceivedInvoice::query()->where('ai_extraction_id', $expense->ai_extraction_id)->whereNull('expense_id')
                 ->update(['expense_id' => $expense->id, 'status' => ReceivedInvoice::STATUS_RECORDED]);
+            ExpenseImportItem::query()->where('ai_extraction_id', $expense->ai_extraction_id)->where('status', ExpenseImportItem::FAILED)
+                ->update(['status' => ExpenseImportItem::RECORDED, 'expense_id' => $expense->id, 'supplier_id' => $expense->supplier_id, 'error' => null]);
         }
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Spesa registrata.')]);
