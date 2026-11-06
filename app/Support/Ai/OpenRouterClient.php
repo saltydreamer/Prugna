@@ -2,16 +2,20 @@
 
 namespace App\Support\Ai;
 
+use App\Models\AiCall;
+use App\Models\User;
 use App\Support\Settings;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Throwable;
 
 /**
  * OpenRouter chat completions (https://openrouter.ai/api/v1) for reading documents:
  * images as data URLs, PDFs as "file" parts with the file-parser plugin, JSON schema responses.
+ * Every call is logged in ai_calls with its cost (USD), for «Costi IA».
  */
 class OpenRouterClient
 {
@@ -29,6 +33,8 @@ class OpenRouterClient
     ];
 
     private const MODELS_CACHE_KEY = 'ai.openrouter.models';
+
+    private ?int $userId = null;
 
     public function __construct(private Settings $settings) {}
 
@@ -108,29 +114,7 @@ class OpenRouterClient
             $payload['plugins'] = [['id' => 'file-parser', 'pdf' => ['engine' => $this->readsPdf($model) ? 'native' : 'mistral-ocr']]];
         }
 
-        try {
-            $response = $this->request()->timeout(150)->post(self::BASE_URL.'/chat/completions', $payload);
-        } catch (ConnectionException) {
-            throw new AiException(__('OpenRouter non ha risposto in tempo. Riprova tra poco o con un file più piccolo.'));
-        }
-
-        $this->throwOnError($response);
-
-        $content = $response->json('choices.0.message.content');
-
-        if (is_array($content)) {
-            $content = collect($content)->pluck('text')->implode('');
-        }
-
-        $data = $this->decodeJson((string) $content);
-
-        return [
-            'data' => $data,
-            'model' => (string) ($response->json('model') ?? $model),
-            'cost' => $response->json('usage.cost') !== null ? (float) $response->json('usage.cost') : null,
-            'prompt_tokens' => $response->json('usage.prompt_tokens'),
-            'completion_tokens' => $response->json('usage.completion_tokens'),
-        ];
+        return $this->send(self::feature($schemaName, true), $model, $payload, 150, __('OpenRouter non ha risposto in tempo. Riprova tra poco o con un file più piccolo.'));
     }
 
     /**
@@ -143,39 +127,133 @@ class OpenRouterClient
     {
         $model ??= (string) $this->settings->get('ai.model');
 
+        return $this->send(self::feature($schemaName, false), $model, [
+            'model' => $model,
+            'messages' => [
+                ['role' => 'system', 'content' => $instructions],
+                ['role' => 'user', 'content' => $text],
+            ],
+            'response_format' => [
+                'type' => 'json_schema',
+                'json_schema' => ['name' => $schemaName, 'strict' => true, 'schema' => $schema],
+            ],
+            'provider' => $this->providerPreferences(),
+            'max_tokens' => 4000,
+        ], 90, __('OpenRouter non ha risposto in tempo. Riprova tra poco.'));
+    }
+
+    /**
+     * Calls made from now on are logged for this user (e.g. a document read in a queue job).
+     */
+    public function forUser(?User $user): static
+    {
+        $this->userId = $user?->id;
+
+        return $this;
+    }
+
+    /**
+     * Usage of the API key according to OpenRouter (USD): to compare with «Costi IA».
+     *
+     * @return array{label: string|null, usage: float|null, limit: float|null, limit_remaining: float|null}
+     */
+    public function keyInfo(): array
+    {
         try {
-            $response = $this->request()->timeout(90)->post(self::BASE_URL.'/chat/completions', [
-                'model' => $model,
-                'messages' => [
-                    ['role' => 'system', 'content' => $instructions],
-                    ['role' => 'user', 'content' => $text],
-                ],
-                'response_format' => [
-                    'type' => 'json_schema',
-                    'json_schema' => ['name' => $schemaName, 'strict' => true, 'schema' => $schema],
-                ],
-                'provider' => $this->providerPreferences(),
-                'max_tokens' => 4000,
-            ]);
+            $response = $this->request()->timeout(15)->get(self::BASE_URL.'/key');
         } catch (ConnectionException) {
             throw new AiException(__('OpenRouter non ha risposto in tempo. Riprova tra poco.'));
         }
 
         $this->throwOnError($response);
-
-        $content = $response->json('choices.0.message.content');
-
-        if (is_array($content)) {
-            $content = collect($content)->pluck('text')->implode('');
-        }
+        $number = fn (string $key) => is_numeric($response->json("data.{$key}")) ? (float) $response->json("data.{$key}") : null;
 
         return [
-            'data' => $this->decodeJson((string) $content),
-            'model' => (string) ($response->json('model') ?? $model),
-            'cost' => $response->json('usage.cost') !== null ? (float) $response->json('usage.cost') : null,
-            'prompt_tokens' => $response->json('usage.prompt_tokens'),
-            'completion_tokens' => $response->json('usage.completion_tokens'),
+            'label' => $response->json('data.label'),
+            'usage' => $number('usage'),
+            'limit' => $number('limit'),
+            'limit_remaining' => $number('limit_remaining'),
         ];
+    }
+
+    /**
+     * Sends a chat completion, decodes the JSON answer and logs the call with its cost (also when it fails).
+     *
+     * @param  array<string, mixed>  $payload
+     * @return array{data: array<string, mixed>, model: string, cost: float|null, prompt_tokens: int|null, completion_tokens: int|null}
+     */
+    private function send(string $feature, string $model, array $payload, int $timeout, string $timeoutMessage): array
+    {
+        $started = hrtime(true);
+        $response = null;
+
+        try {
+            try {
+                $response = $this->request()->timeout($timeout)->post(self::BASE_URL.'/chat/completions', $payload);
+            } catch (ConnectionException) {
+                throw new AiException($timeoutMessage);
+            }
+
+            $this->throwOnError($response);
+
+            $content = $response->json('choices.0.message.content');
+
+            if (is_array($content)) {
+                $content = collect($content)->pluck('text')->implode('');
+            }
+
+            $result = [
+                'data' => $this->decodeJson((string) $content),
+                'model' => (string) ($response->json('model') ?? $model),
+                'cost' => $response->json('usage.cost') !== null ? (float) $response->json('usage.cost') : null,
+                'prompt_tokens' => $response->json('usage.prompt_tokens'),
+                'completion_tokens' => $response->json('usage.completion_tokens'),
+            ];
+        } catch (AiException $exception) {
+            $this->log($feature, $model, $response, $started, $exception->getMessage());
+
+            throw $exception;
+        }
+
+        $this->log($feature, $model, $response, $started, null);
+
+        return $result;
+    }
+
+    /**
+     * A failed call is logged too: OpenRouter may charge it (e.g. an answer that is not valid JSON).
+     */
+    private function log(string $feature, string $model, ?Response $response, int|float $started, ?string $error): void
+    {
+        try {
+            AiCall::create([
+                'user_id' => $this->userId ?? auth()->id(),
+                'feature' => $feature,
+                'model' => (string) ($response?->json('model') ?? $model),
+                'success' => $error === null,
+                'cost' => is_numeric($response?->json('usage.cost')) ? (float) $response->json('usage.cost') : null,
+                'prompt_tokens' => $response?->json('usage.prompt_tokens'),
+                'completion_tokens' => $response?->json('usage.completion_tokens'),
+                'duration_ms' => (int) ((hrtime(true) - $started) / 1_000_000),
+                'error' => $error ? mb_substr($error, 0, 1000) : null,
+                'created_at' => now(),
+            ]);
+        } catch (Throwable $exception) {
+            report($exception);
+        }
+    }
+
+    /**
+     * What the call is for, from its schema: shown in «Costi IA».
+     */
+    private static function feature(string $schemaName, bool $withFile): string
+    {
+        return match ($schemaName) {
+            'expense_document' => 'expense',
+            'organization_document' => 'organization',
+            'product_price' => $withFile ? 'product_screenshot' : 'product_link',
+            default => $schemaName,
+        };
     }
 
     /**

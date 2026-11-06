@@ -70,7 +70,7 @@ class DocumentReader
             if ($kind === AiExtraction::KIND_EXPENSE && FatturaPaReader::looks($contents, $filename)) {
                 $extraction->fill(['source' => 'xml', 'result' => $this->fatturaPa->read($contents), 'cost' => 0]);
             } else {
-                $extraction->fill(['source' => 'ai', ...$this->readWithAi($contents, $mimeType, $filename, $kind, $model)]);
+                $extraction->fill(['source' => 'ai', ...$this->readWithAi($contents, $mimeType, $filename, $kind, $model, $user)]);
             }
 
             $extraction->status = 'succeeded';
@@ -87,7 +87,7 @@ class DocumentReader
     /**
      * @return array<string, mixed>
      */
-    private function readWithAi(string $contents, string $mimeType, string $filename, string $kind, ?string $model): array
+    private function readWithAi(string $contents, string $mimeType, string $filename, string $kind, ?string $model, ?User $user): array
     {
         if (! in_array($mimeType, ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'], true)) {
             throw new AiException(__("L'AI legge foto (JPG, PNG, WebP) e PDF."));
@@ -105,7 +105,7 @@ class DocumentReader
         }
 
         $definition = $kind === AiExtraction::KIND_ORGANIZATION ? DocumentSchemas::organization() : DocumentSchemas::expense();
-        $result = $this->client->extract($definition['instructions'], $definition['name'], $definition['schema'], $contents, $mimeType, $filename, $model);
+        $result = $this->client->forUser($user)->extract($definition['instructions'], $definition['name'], $definition['schema'], $contents, $mimeType, $filename, $model);
 
         return [
             'result' => $result['data'],

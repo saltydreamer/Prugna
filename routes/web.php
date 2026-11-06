@@ -48,6 +48,7 @@ use App\Http\Controllers\Sales\QuoteController;
 use App\Http\Controllers\Sales\QuoteDocumentController;
 use App\Http\Controllers\Sales\QuoteLookupController;
 use App\Http\Controllers\Sales\SubscriptionController;
+use App\Http\Controllers\Settings\AiCostsController;
 use App\Http\Controllers\Settings\DolibarrImportController;
 use App\Http\Controllers\Settings\ElectronicInvoicingController;
 use App\Http\Controllers\Settings\PaymentTermController;
@@ -344,6 +345,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
         });
 
         Route::resource('payment-terms', PaymentTermController::class)->only(['store', 'update', 'destroy']);
+
+        Route::get('ai-costs', [AiCostsController::class, 'index'])->name('ai-costs.index');
+        Route::get('ai-costs/key', [AiCostsController::class, 'key'])->middleware('throttle:20,1')->name('ai-costs.key');
 
         Route::controller(DolibarrImportController::class)->prefix('dolibarr')->name('dolibarr.')->group(function () {
             Route::get('/', 'index')->name('index');

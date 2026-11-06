@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue';
 import { router, useForm } from '@inertiajs/vue3';
 import { route } from 'ziggy-js';
+import { useInertiaLink } from '@/composables/useInertiaLink';
 import { formatDateTime } from '@/utils/format';
 import { http, upload } from '@/utils/http';
 
@@ -13,6 +14,8 @@ const props = defineProps({
     privacyLevels: { type: Array, required: true },
     usage: { type: Object, default: null },
 });
+
+const { link } = useInertiaLink();
 
 const form = useForm({
     enabled: props.ai.enabled,
@@ -223,11 +226,14 @@ onMounted(() => {
         </v-card>
 
         <v-card title="Utilizzo">
+            <template #append>
+                <v-btn variant="tonal" size="small" prepend-icon="mdi-cash-multiple" v-bind="link(route('settings.ai-costs.index'))">Costi IA</v-btn>
+            </template>
             <v-card-text v-if="usage">
                 <div class="text-body-1 mb-4">
                     Questo mese:
                     <strong>{{ usage.month_count }}</strong>
-                    letture con l'AI ·
+                    chiamate all'AI ·
                     <strong>{{ `$ ${usage.month_cost.toFixed(4)}` }}</strong>
                     <span class="text-caption text-medium-emphasis ml-1">(costi in dollari, come addebitati da OpenRouter)</span>
                 </div>
