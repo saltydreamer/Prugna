@@ -56,6 +56,25 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Reverse proxy
+    |--------------------------------------------------------------------------
+    |
+    | When an external reverse proxy terminates HTTPS (e.g. the internal server
+    | behind the office proxy), its X-Forwarded-* headers are trusted so the app
+    | sees the address the visitor used: "*" or a comma separated list of IPs.
+    |
+    */
+
+    'trusted_proxies' => env('TRUSTED_PROXIES'),
+
+    /*
+    | Demonstration instance: fictitious data, a banner and the demo login.
+    */
+
+    'demo' => (bool) env('APP_DEMO', false),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Timezone
     |--------------------------------------------------------------------------
     |

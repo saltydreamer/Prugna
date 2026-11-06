@@ -25,7 +25,8 @@ services:
     <<: *app
     environment:
       CONTAINER_ROLE: web
-      SERVER_NAME: ${APP_DOMAIN:?Set APP_DOMAIN in .env}
+      # The public domain (automatic HTTPS), or ":80" behind an external reverse proxy (APP_SERVER_NAME).
+      SERVER_NAME: ${APP_SERVER_NAME:-${APP_DOMAIN:?Set APP_DOMAIN in .env}}
     ports:
       - "80:80"
       - "443:443"

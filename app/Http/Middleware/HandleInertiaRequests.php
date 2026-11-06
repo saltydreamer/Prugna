@@ -6,6 +6,7 @@ use App\Enums\Permission;
 use App\Http\Controllers\Interventions\InterventionController;
 use App\Http\Resources\NotificationResource;
 use App\Models\User;
+use App\Support\Demo\DemoData;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -47,6 +48,8 @@ class HandleInertiaRequests extends Middleware
             'app' => [
                 'name' => config('app.name'),
                 'locale' => app()->getLocale(),
+                // Demonstration instance: the login page offers the demo account.
+                'demo' => config('app.demo') ? ['email' => DemoData::EMAIL, 'password' => DemoData::PASSWORD] : null,
             ],
             'auth' => [
                 'user' => $user ? [

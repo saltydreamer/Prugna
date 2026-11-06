@@ -97,3 +97,69 @@ Finché non configuri un server SMTP, le email (reset password, verifica, notifi
 ```bash
 docker compose up -d
 ```
+
+## Server interno (prugna.reimg.it)
+
+Prugna con i dati veri gira su un container LXC di Proxmox nella rete interna, dietro il reverse proxy che riceve le porte 80/443 dell'IP pubblico. Lo stack è lo stesso del VPS (stessi `compose.yaml`, `deploy.sh`, `backup.sh`), con due differenze:
+
+- l'app serve **HTTP semplice sulla porta 80** del container (`APP_SERVER_NAME=:80`): l'HTTPS lo fa il reverse proxy;
+- l'app si fida degli header `X-Forwarded-*` del proxy (`TRUSTED_PROXIES`, `*` o l'IP del proxy), così link, redirect e cookie restano in HTTPS.
+
+Gli aggiornamenti arrivano da un **runner GitHub Actions** installato nel container (etichette `self-hosted,prugna`): a ogni merge su `main` il job *Deploy to the internal server* scarica l'immagine e riavvia lo stack, insieme al deploy del VPS. Nessuna porta va aperta verso l'ufficio per il deploy.
+
+### 1. Container LXC su Proxmox
+
+Debian 12, **non privilegiato con `nesting=1` e `keyctl=1`** (servono a Docker), 2 vCPU, 4 GB di RAM, 30 GB di disco, IP statico nella LAN. Da shell del nodo Proxmox (adatta ID, storage, bridge e indirizzi):
+
+```bash
+pct create 120 local:vztmpl/debian-12-standard_12.7-1_amd64.tar.zst --hostname prugna --unprivileged 1 --features nesting=1,keyctl=1 --cores 2 --memory 4096 --swap 1024 --rootfs local-lvm:30 --net0 name=eth0,bridge=vmbr0,ip=192.168.1.120/24,gw=192.168.1.1 --onboot 1
+```
+
+```bash
+pct start 120
+```
+
+### 2. Preparazione (una volta)
+
+Su GitHub: *Settings → Actions → Runners → New self-hosted runner*, copia il **token** di registrazione (vale un'ora). Poi copia `deploy/scripts/provision.sh` nel container (es. `pct push 120 provision.sh /root/provision.sh`) ed eseguilo come root:
+
+```bash
+INTERNAL=1 APP_DOMAIN=prugna.reimg.it TRUSTED_PROXIES=192.168.1.10 RUNNER_TOKEN=<token> bash /root/provision.sh
+```
+
+`TRUSTED_PROXIES` è l'IP del reverse proxy (o `*`). Lo script installa Docker, crea l'utente `deploy`, `/srv/boilerplate/.env` con password casuali, il backup notturno e il runner (servizio di sistema, utente `deploy`). Niente swap né firewall: in un LXC si gestiscono da Proxmox.
+
+### 3. Reverse proxy e DNS
+
+- Record DNS **A** `prugna.reimg.it` → IP pubblico dell'ufficio.
+- Sul reverse proxy: `prugna.reimg.it` → `http://192.168.1.120:80` (certificato HTTPS sul proxy), con gli header `X-Forwarded-For`, `X-Forwarded-Proto` e `X-Forwarded-Host`; limite di upload almeno 25 MB (documenti fino a 20 MB).
+
+### 4. Primo deploy
+
+Su GitHub crea la variabile di repository **`INTERNAL_DEPLOY` = `true`** (*Settings → Secrets and variables → Actions → Variables*; facoltativa `INTERNAL_DOMAIN`, default `prugna.reimg.it`) e rilancia il workflow *Deploy*. Il job *Deploy to the internal server* avvia lo stack vuoto e verifica `http://localhost/up` e `https://prugna.reimg.it/up`.
+
+### 5. Copia dei dati da dev.reimg.it
+
+Workflow **Copy data to the internal server** (manuale, scrivi `COPIA`): fa un backup sul VPS, lo scarica nel container, copia l'`APP_KEY` (le password salvate nelle impostazioni — SMTP, AI, SDI — restano leggibili) e ripristina database e documenti con `restore.sh`. Si può ripetere finché dev.reimg.it ha i dati veri: ogni volta sostituisce i dati del server interno con quelli del VPS. Dopo il *Reset demo* il workflow si rifiuta di partire (il VPS ha `APP_DEMO=true`), così la demo non può mai finire sui dati veri.
+
+Dopo la copia, su **prugna.reimg.it**:
+
+1. accedi con i soliti utenti e controlla fatture, spese e documenti;
+2. **Impostazioni → Fatturazione elettronica → «Collega»**: Openapi manda da quel momento esiti e fatture ricevute a prugna.reimg.it (finché non lo fai, i webhook puntano ancora a dev.reimg.it);
+3. notifiche push e app installata: riattivale dal profilo e reinstalla l'app dal nuovo indirizzo (sono legate al dominio).
+
+### Operazioni sul server interno
+
+Come sul VPS (`sudo -iu deploy`, `cd /srv/boilerplate`, `docker compose …`). Ripristino di un backup:
+
+```bash
+./restore.sh backups/db-<data>.sql.gz backups/files-<data>.tar.gz
+```
+
+## Demo (dev.reimg.it)
+
+Quando i dati veri sono sul server interno, dev.reimg.it diventa la **demo**: tre anni di lavoro di un sistemista a partita IVA in regime forfettario (Luca Bianchi, consulenza informatica e integrazione di sistemi), generati da `php artisan app:demo-seed` con le azioni dell'app: clienti e fornitori, interventi fatturati ogni mese, canoni, progetti dal preventivo alla fattura, monte ore, acquisti e spese, incassi, F24.
+
+Workflow **Reset demo** (manuale, scrivi `AZZERA`): parte solo se `https://prugna.reimg.it/up` risponde, fa un backup, **cancella** database e documenti di dev.reimg.it, carica la demo, imposta `APP_DEMO=true` (avviso e accesso demo nella pagina di login, etichetta «Demo») e ricrea il super amministratore `APP_ADMIN_EMAIL` (password nel log, una sola volta). Si può rilanciare per riportare la demo allo stato iniziale.
+
+Accesso demo: `demo@prugna.it` / `prugna-demo`. SDI, AI ed email restano spenti.

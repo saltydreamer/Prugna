@@ -10,6 +10,7 @@ use App\Support\Settings;
 use App\Support\WebPushKeys;
 use Carbon\CarbonImmutable;
 use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Middleware\TrustProxies;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
@@ -35,10 +36,24 @@ class AppServiceProvider extends ServiceProvider
     /**
      * Bootstrap any application services.
      */
+    /**
+     * Behind an external reverse proxy (TRUSTED_PROXIES): its X-Forwarded-* headers tell the
+     * scheme, host and client address, so links, redirects and secure cookies stay on HTTPS.
+     */
+    public static function trustProxies(?string $proxies): void
+    {
+        if (blank($proxies)) {
+            return;
+        }
+
+        TrustProxies::at($proxies === '*' ? '*' : array_values(array_filter(array_map('trim', explode(',', $proxies)))));
+    }
+
     public function boot(): void
     {
         $this->configureAuthorization();
         $this->configureDefaults();
+        self::trustProxies(config('app.trusted_proxies'));
 
         $this->app->afterResolving('mail.manager', fn () => $this->app->make(MailSettings::class)->apply());
         $this->app->beforeResolving(WebPushChannel::class, fn () => $this->app->make(WebPushKeys::class)->apply());

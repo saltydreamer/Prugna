@@ -146,6 +146,10 @@
 - Shared props: `auth` (user, roles, permissions), `inbox` (unread_count, latest), `app`, `status` (Fortify), `runningIntervention`.
 - Look: compact and minimal. Component defaults (compact density, flat bordered cards, flat buttons, no ripple) are set once in `resources/js/plugins/vuetify.js`; typography (Inter via `@fontsource-variable/inter`, root font size 14 px, heading/table/button sizes) in `resources/css/app.css`. Don't add elevation, uppercase text or per-page font sizes: change the global files.
 
+## Deploy and demo
+
+- Deploy: `deploy/README.md`. dev.reimg.it (VPS, SSH from GitHub Actions) and the internal server prugna.reimg.it (Proxmox LXC behind the office reverse proxy: `APP_SERVER_NAME=:80`, `TRUSTED_PROXIES` → `AppServiceProvider::trustProxies()`; self-hosted runner `self-hosted,prugna`, job `deploy-internal` gated by the variable `INTERNAL_DEPLOY`; `provision.sh` with `INTERNAL=1`; workflow «Copy data to the internal server» + `restore.sh`). Demo: `app:demo-seed` (`App\Support\Demo\DemoData`, three years of a flat-rate freelance sysadmin built day by day with the app's actions under `Carbon::setTestNow`, fixed seed, no Faker), `APP_DEMO=true` (`config('app.demo')`: demo account on the login page, «Demo» chip), workflow «Reset demo» (guarded: internal server online, backup first).
+
 ## Quality
 
 - `php artisan test` (feature tests per area in `tests/Feature`), `vendor/bin/pint`, `npm run lint`, `npm run format`.

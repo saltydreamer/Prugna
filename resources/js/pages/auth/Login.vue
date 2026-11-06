@@ -1,6 +1,6 @@
 <script setup>
-import { ref } from 'vue';
-import { Head, useForm } from '@inertiajs/vue3';
+import { computed, ref } from 'vue';
+import { Head, useForm, usePage } from '@inertiajs/vue3';
 import { route } from 'ziggy-js';
 import { useInertiaLink } from '@/composables/useInertiaLink';
 
@@ -24,6 +24,15 @@ function submit() {
         onFinish: () => form.reset('password'),
     });
 }
+
+/** Demonstration instance: the demo account, with fictitious data. */
+const demo = computed(() => usePage().props.app?.demo ?? null);
+
+function enterDemo() {
+    form.email = demo.value.email;
+    form.password = demo.value.password;
+    submit();
+}
 </script>
 
 <template>
@@ -36,6 +45,18 @@ function submit() {
         </v-card-item>
 
         <v-card-text>
+            <v-alert v-if="demo" type="info" variant="tonal" class="mb-4" title="Ambiente dimostrativo">
+                <div class="text-body-2">
+                    Dati di fantasia di un sistemista a partita IVA in regime forfettario. Accedi con
+                    <strong>{{ demo.email }}</strong>
+                    e password
+                    <strong>{{ demo.password }}</strong>
+                    .
+                </div>
+                <v-btn color="info" variant="flat" size="small" class="mt-3" prepend-icon="mdi-login" :loading="form.processing" @click="enterDemo">
+                    Entra nella demo
+                </v-btn>
+            </v-alert>
             <v-alert v-if="status" type="success" variant="tonal" density="compact" class="mb-4">{{ status }}</v-alert>
             <v-alert v-if="form.errors.session" type="warning" variant="tonal" density="compact" class="mb-4">
                 {{ form.errors.session }}
