@@ -93,11 +93,21 @@ class ServiceContract extends Model
     }
 
     /**
-     * Invoiced with its own invoice or with the documents of the quote that sold it.
+     * Order that sold the package (invoiced with the order).
+     *
+     * @return BelongsTo<Order, $this>
+     */
+    public function order(): BelongsTo
+    {
+        return $this->belongsTo(Order::class);
+    }
+
+    /**
+     * Invoiced with its own invoice or with the documents of the quote or order that sold it.
      */
     public function isBilled(): bool
     {
-        return $this->invoice_id !== null || $this->quote_id !== null;
+        return $this->invoice_id !== null || $this->quote_id !== null || $this->order_id !== null;
     }
 
     /**

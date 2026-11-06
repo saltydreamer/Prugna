@@ -23,6 +23,7 @@ use App\Models\PaymentTerm;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderLine;
 use App\Models\Quote;
+use App\Models\ServiceContract;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -150,7 +151,36 @@ class OrderController extends Controller
             'interventions' => $request->user()->can('viewAny', Intervention::class) || $request->user()->can(Permission::InvoicesManage->value)
                 ? Intervention::summary(Intervention::query()->where('order_id', $order->id))
                 : null,
+            'hourPackages' => $request->user()->can('viewAny', ServiceContract::class) ? $this->hourPackages($order) : null,
         ]);
+    }
+
+    /**
+     * Hour packages sold with the order or with its quote, with the hours used.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function hourPackages(Order $order): array
+    {
+        return ServiceContract::query()
+            ->where(fn ($query) => $query->where('order_id', $order->id)
+                ->when($order->quote_id, fn ($query, int $quoteId) => $query->orWhere('quote_id', $quoteId)))
+            ->withSum('interventions as used_minutes', 'contract_minutes')
+            ->orderBy('starts_on')
+            ->orderBy('id')
+            ->get()
+            ->map(fn (ServiceContract $contract) => [
+                'id' => $contract->id,
+                'number' => $contract->number,
+                'title' => $contract->title,
+                'total_minutes' => $contract->totalMinutes(),
+                'used_minutes' => (int) $contract->used_minutes,
+                'starts_on' => $contract->starts_on->toDateString(),
+                'ends_on' => $contract->ends_on?->toDateString(),
+                'status_label' => ServiceContract::statusLabel($status = $contract->status()),
+                'status_color' => ServiceContract::statusColor($status),
+            ])
+            ->all();
     }
 
     /**

@@ -6,6 +6,7 @@ import PageHeader from '@/components/PageHeader.vue';
 import DocumentLinesTable from '@/components/sales/DocumentLinesTable.vue';
 import CostInvoiceDialog from '@/components/sales/CostInvoiceDialog.vue';
 import PastCostsDialog from '@/components/sales/PastCostsDialog.vue';
+import OrderHourPackageDialog from '@/components/sales/OrderHourPackageDialog.vue';
 import InvoiceDialog from '@/components/sales/InvoiceDialog.vue';
 import InterventionInvoiceDialog from '@/components/interventions/InterventionInvoiceDialog.vue';
 import QuoteTotalsCard from '@/components/sales/QuoteTotalsCard.vue';
@@ -25,7 +26,11 @@ const props = defineProps({
     organizationArchived: { type: Boolean, default: false },
     /** Interventions linked to the order (null without access). */
     interventions: { type: Object, default: null },
+    /** Hour packages sold with the order or its quote (null without access to the contracts). */
+    hourPackages: { type: Array, default: null },
 });
+
+const hourPackageDialog = ref(false);
 
 const interventionDialog = ref(false);
 
@@ -351,6 +356,39 @@ async function destroy() {
                     </v-card-actions>
                 </v-card>
 
+                <v-card v-if="hourPackages" class="mb-6" title="Monte ore" prepend-icon="mdi-timer-sand">
+                    <v-card-text v-if="!hourPackages.length" class="text-body-2 text-medium-emphasis">
+                        Nessun pacchetto di ore: se l'ordine vende ore di assistenza, aggiungilo e gli interventi del cliente le scaleranno.
+                    </v-card-text>
+                    <v-list v-else density="compact" class="py-0">
+                        <v-list-item
+                            v-for="item in hourPackages"
+                            :key="item.id"
+                            :title="item.title"
+                            v-bind="link(route('interventions.contracts.show', item.id))"
+                        >
+                            <v-list-item-subtitle>
+                                {{ item.number }} · {{ formatMinutes(item.used_minutes) }} usate di {{ formatMinutes(item.total_minutes) }}
+                            </v-list-item-subtitle>
+                            <v-progress-linear
+                                :model-value="item.total_minutes ? (100 * item.used_minutes) / item.total_minutes : 0"
+                                :color="item.status_color"
+                                height="4"
+                                rounded
+                                class="mt-1"
+                            />
+                            <template #append>
+                                <v-chip size="x-small" variant="tonal" :color="item.status_color">{{ item.status_label }}</v-chip>
+                            </template>
+                        </v-list-item>
+                    </v-list>
+                    <v-card-actions v-if="can('contracts.manage') && order.status !== 'cancelled'">
+                        <v-btn block variant="tonal" prepend-icon="mdi-timer-plus-outline" @click="hourPackageDialog = true">
+                            Aggiungi monte ore
+                        </v-btn>
+                    </v-card-actions>
+                </v-card>
+
                 <QuoteTotalsCard :totals="order.totals" />
             </v-col>
         </v-row>
@@ -358,6 +396,7 @@ async function destroy() {
         <CostInvoiceDialog v-model="costDialog" :organization-id="order.organization_id" :order-id="order.id" />
         <PastCostsDialog v-if="purchasing" v-model="pastCostsDialog" :order-id="order.id" :order-number="order.number" />
         <InterventionInvoiceDialog v-model="interventionDialog" :organization-id="order.organization_id" :order-id="order.id" />
+        <OrderHourPackageDialog v-if="hourPackages" v-model="hourPackageDialog" :order="order" />
 
         <InvoiceDialog
             v-model="invoiceDialog"

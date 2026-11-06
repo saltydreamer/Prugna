@@ -40,6 +40,7 @@ use App\Http\Controllers\Sales\InvoiceDocumentController;
 use App\Http\Controllers\Sales\InvoiceSdiController;
 use App\Http\Controllers\Sales\OrderController;
 use App\Http\Controllers\Sales\OrderDocumentController;
+use App\Http\Controllers\Sales\OrderHourPackageController;
 use App\Http\Controllers\Sales\OrderPastCostsController;
 use App\Http\Controllers\Sales\QuoteController;
 use App\Http\Controllers\Sales\QuoteDocumentController;
@@ -174,6 +175,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('orders/{order}/past-costs', [OrderPastCostsController::class, 'index'])->name('orders.past-costs.index');
         Route::post('orders/{order}/past-costs', [OrderPastCostsController::class, 'store'])->name('orders.past-costs.store');
         Route::delete('orders/{order}/past-costs/{expense}', [OrderPastCostsController::class, 'destroy'])->name('orders.past-costs.destroy');
+        Route::post('orders/{order}/hour-packages', [OrderHourPackageController::class, 'store'])->name('orders.hour-packages.store');
 
         Route::post('estimates/read-link', [EstimateController::class, 'readLink'])->middleware('throttle:20,1')->name('estimates.read-link');
         Route::post('estimates/read-image', [EstimateController::class, 'readImage'])->middleware('throttle:20,1')->name('estimates.read-image');

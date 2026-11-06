@@ -59,6 +59,16 @@ class Order extends Model
     }
 
     /**
+     * Hour packages sold with the order (contracts a monte ore, invoiced with the order).
+     *
+     * @return HasMany<ServiceContract, $this>
+     */
+    public function hourPackages(): HasMany
+    {
+        return $this->hasMany(ServiceContract::class);
+    }
+
+    /**
      * Expenses (supplier invoices, receipts) recorded for this order.
      *
      * @return HasMany<Expense, $this>
