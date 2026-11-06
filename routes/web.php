@@ -250,6 +250,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('invoiced-outside', [InterventionInvoicedOutsideController::class, 'index'])->name('invoiced-outside.index');
         Route::post('invoiced-outside', [InterventionInvoicedOutsideController::class, 'store'])->name('invoiced-outside.store');
         Route::delete('{intervention}/invoiced-outside', [InterventionInvoicedOutsideController::class, 'destroy'])->name('invoiced-outside.destroy');
+        Route::get('summary', [InterventionDocumentController::class, 'summary'])->name('summary');
         Route::get('start-options', [InterventionController::class, 'startOptions'])->name('start-options');
         Route::post('start', [InterventionController::class, 'start'])->name('start');
         Route::get('customers/{organization}', [InterventionController::class, 'customer'])->name('customer');

@@ -3,6 +3,7 @@
 namespace Tests\Feature\Interventions;
 
 use App\Actions\Interventions\ApplyContract;
+use App\Enums\Role;
 use App\Mail\DocumentMail;
 use App\Models\Intervention;
 use App\Models\Invoice;
@@ -10,6 +11,7 @@ use App\Models\Organization;
 use App\Models\ServiceContract;
 use App\Models\User;
 use App\Notifications\ContractHoursNotification;
+use App\Support\InterventionSummaryPdf;
 use App\Support\Settings;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Mail;
@@ -57,6 +59,52 @@ class InterventionReportTest extends TestCase
         $this->actingAs($this->admin)->post("/interventions/{$intervention->id}/signature", ['signed_by_name' => 'X', 'signature' => self::PNG])->assertForbidden();
         $this->actingAs($this->admin)->delete("/interventions/{$intervention->id}/signature")->assertRedirect();
         $this->assertFalse($intervention->refresh()->isSigned());
+    }
+
+    public function test_the_selected_interventions_are_summarised_in_a_pdf(): void
+    {
+        $this->travelTo('2026-11-06 12:00:00');
+        $acme = Organization::factory()->create(['name' => 'Acme Srl']);
+        $other = Organization::factory()->create(['name' => 'Beta Spa']);
+        $remote = Intervention::factory()->create(['organization_id' => $acme->id, 'started_at' => '2026-11-03 08:00:00', 'duration_minutes' => 50, 'description' => 'Configurazione della posta', 'internal_notes' => 'Nota segreta']);
+        $onsite = Intervention::factory()->onsite()->create(['organization_id' => $acme->id, 'started_at' => '2026-11-04 13:00:00', 'duration_minutes' => 120, 'travel_minutes' => 40, 'km' => 32, 'description' => 'Sostituzione switch']);
+        $onsite->materials()->create(['position' => 1, 'description' => 'Switch 8 porte', 'unit' => 'pz', 'quantity' => 1, 'unit_price' => 40]);
+        $running = Intervention::factory()->running()->create(['organization_id' => $acme->id]);
+        $otherCustomer = Intervention::factory()->create(['organization_id' => $other->id, 'started_at' => '2026-11-05 08:00:00']);
+
+        $this->actingAs($this->admin)->get('/interventions/summary?'.http_build_query(['ids' => [$remote->id, $onsite->id, $running->id], 'download' => 1]))
+            ->assertOk()
+            ->assertHeader('content-type', 'application/pdf')
+            ->assertHeader('content-disposition', 'attachment; filename=Riepilogo-interventi-acme-srl-2026-11-06.pdf');
+
+        $html = app(InterventionSummaryPdf::class)->make(Intervention::query()->whereIn('id', [$remote->id, $onsite->id])->get())->getDomPDF()->outputHtml();
+        $this->assertStringContainsString('Riepilogo interventi', $html);
+        $this->assertStringContainsString('Acme Srl', $html);
+        $this->assertStringContainsString($remote->number, $html);
+        $this->assertStringContainsString('Sostituzione switch', $html);
+        $this->assertStringContainsString('Switch 8 porte (1 pz)', $html);
+        $this->assertStringContainsString('2 h 50 min', $html);
+        $this->assertStringContainsString('32 km', $html);
+        $this->assertStringNotContainsString('Nota segreta', $html);
+        $this->assertStringNotContainsString($running->number, $html);
+
+        // Several customers: one section each.
+        $html = app(InterventionSummaryPdf::class)->make(Intervention::query()->whereIn('id', [$remote->id, $otherCustomer->id])->get())->getDomPDF()->outputHtml();
+        $this->assertStringContainsString('Totale Acme Srl', $html);
+        $this->assertStringContainsString('Totale Beta Spa', $html);
+
+        $this->actingAs($this->admin)->get('/interventions/summary')->assertSessionHasErrors('ids');
+        $this->actingAs($this->admin)->get('/interventions/summary?'.http_build_query(['ids' => [$running->id]]))->assertNotFound();
+    }
+
+    public function test_technicians_summarise_only_their_own_interventions(): void
+    {
+        $technician = User::factory()->withRole(Role::User)->create();
+        $own = Intervention::factory()->create(['technician_id' => $technician->id]);
+        $colleague = Intervention::factory()->create();
+
+        $this->actingAs($technician)->get('/interventions/summary?'.http_build_query(['ids' => [$colleague->id]]))->assertNotFound();
+        $this->actingAs($technician)->get('/interventions/summary?'.http_build_query(['ids' => [$own->id, $colleague->id]]))->assertOk();
     }
 
     public function test_running_interventions_cannot_be_signed(): void

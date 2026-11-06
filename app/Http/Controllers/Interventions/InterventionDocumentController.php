@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Mail\DocumentMail;
 use App\Models\Intervention;
 use App\Support\InterventionPdf;
+use App\Support\InterventionSummaryPdf;
 use App\Support\MailSettings;
 use App\Support\Settings;
 use Illuminate\Http\JsonResponse;
@@ -19,7 +20,7 @@ use Symfony\Component\HttpFoundation\Response;
 use Throwable;
 
 /**
- * Rapportino (PDF and email) and customer signature of an intervention.
+ * Rapportino (PDF and email) and customer signature of an intervention; summary PDF of several.
  */
 class InterventionDocumentController extends Controller
 {
@@ -34,6 +35,33 @@ class InterventionDocumentController extends Controller
         return $request->boolean('download')
             ? $document->download($pdf->filename($intervention))
             : $document->stream($pdf->filename($intervention));
+    }
+
+    /**
+     * Riepilogo PDF of the interventions selected in the list (only the visible, completed ones).
+     */
+    public function summary(Request $request, InterventionSummaryPdf $pdf): Response
+    {
+        $this->authorize('viewAny', Intervention::class);
+
+        $data = $request->validate([
+            'ids' => ['required', 'array', 'min:1', 'max:500'],
+            'ids.*' => ['integer'],
+        ], [], ['ids' => 'interventi']);
+
+        $interventions = Intervention::query()
+            ->visibleTo($request->user())
+            ->whereIn('id', $data['ids'])
+            ->whereNotNull('duration_minutes')
+            ->get();
+
+        abort_if($interventions->isEmpty(), 404, __('Nessun intervento concluso tra quelli scelti.'));
+
+        $document = $pdf->make($interventions);
+
+        return $request->boolean('download')
+            ? $document->download($pdf->filename($interventions))
+            : $document->stream($pdf->filename($interventions));
     }
 
     /**

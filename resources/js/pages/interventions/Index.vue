@@ -140,17 +140,18 @@ const invoicePreselect = ref(null);
 const canInvoice = computed(() => can('invoices.manage'));
 
 function invoiceSelected() {
-    const items = props.interventions.data.filter((item) => selected.value.includes(item.id));
+    // The selection may include interventions already invoiced (e.g. for the summary PDF): only the others are invoiced.
+    const items = props.interventions.data.filter((item) => selected.value.includes(item.id) && item.status === 'to_invoice');
     const customers = [...new Set(items.map((item) => item.organization_id))];
 
-    if (customers.length !== 1) {
-        toast.error('Scegli interventi di un solo cliente: la fattura è una per cliente.');
+    if (!items.length) {
+        toast.error('Nessuno degli interventi scelti è da fatturare (già fatturati, coperti dal monte ore o non fatturabili).');
 
         return;
     }
 
-    if (items.some((item) => item.status !== 'to_invoice')) {
-        toast.error('Alcuni interventi scelti non sono da fatturare (in corso, già fatturati o non fatturabili).');
+    if (customers.length !== 1) {
+        toast.error('Scegli interventi di un solo cliente: la fattura è una per cliente.');
 
         return;
     }
@@ -166,7 +167,9 @@ function invoiceCustomerAll() {
     invoiceDialog.value = true;
 }
 
-const selectable = (item) => item.status === 'to_invoice';
+// Any completed intervention can be selected: for the summary PDF, or to invoice the ones still to invoice.
+const selectable = (item) => !item.running;
+const summaryUrl = computed(() => route('interventions.summary', { ids: selected.value }));
 </script>
 
 <template>
@@ -286,13 +289,16 @@ const selectable = (item) => item.status === 'to_invoice';
             <v-toolbar v-if="selected.length" density="compact" color="primary" class="px-4">
                 <span class="text-body-2">{{ selected.length }} selezionati</span>
                 <v-spacer />
-                <v-btn variant="flat" color="white" prepend-icon="mdi-receipt-text-plus-outline" @click="invoiceSelected">Fattura interventi</v-btn>
+                <v-btn variant="text" prepend-icon="mdi-file-pdf-box" :href="summaryUrl" target="_blank">Esporta PDF</v-btn>
+                <v-btn v-if="canInvoice" variant="flat" color="white" prepend-icon="mdi-receipt-text-plus-outline" @click="invoiceSelected">
+                    Fattura interventi
+                </v-btn>
                 <v-btn variant="text" icon="mdi-close" title="Annulla selezione" @click="selected = []" />
             </v-toolbar>
 
             <v-data-table-server
                 v-model="selected"
-                :show-select="canInvoice"
+                show-select
                 :item-selectable="selectable"
                 item-value="id"
                 :headers="headers"
