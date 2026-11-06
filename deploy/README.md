@@ -109,10 +109,24 @@ Gli aggiornamenti arrivano da un **runner GitHub Actions** installato nel contai
 
 ### 1. Container LXC su Proxmox
 
-Debian 12, **non privilegiato con `nesting=1` e `keyctl=1`** (servono a Docker), 2 vCPU, 4 GB di RAM, 30 GB di disco, IP statico nella LAN. Da shell del nodo Proxmox (adatta ID, storage, bridge e indirizzi):
+Debian 13 (la stabile attuale, supportata da Docker), **non privilegiato con `nesting=1` e `keyctl=1`** (servono a Docker), 2 vCPU, 4 GB di RAM, 30 GB di disco, IP statico nella LAN. Dalla shell del nodo Proxmox, scarica il modello Debian 13 (il nome esatto cambia con gli aggiornamenti: usa quello che compare nell'elenco):
 
 ```bash
-pct create 120 local:vztmpl/debian-12-standard_12.7-1_amd64.tar.zst --hostname prugna --unprivileged 1 --features nesting=1,keyctl=1 --cores 2 --memory 4096 --swap 1024 --rootfs local-lvm:30 --net0 name=eth0,bridge=vmbr0,ip=192.168.1.120/24,gw=192.168.1.1 --onboot 1
+pveam update
+```
+
+```bash
+pveam available --section system | grep debian-13
+```
+
+```bash
+pveam download local debian-13-standard_<versione>_amd64.tar.zst
+```
+
+Poi crea il container (adatta ID, nome del modello, storage, bridge e indirizzi):
+
+```bash
+pct create 120 local:vztmpl/debian-13-standard_<versione>_amd64.tar.zst --hostname prugna --unprivileged 1 --features nesting=1,keyctl=1 --cores 2 --memory 4096 --swap 1024 --rootfs local-lvm:30 --net0 name=eth0,bridge=vmbr0,ip=192.168.1.120/24,gw=192.168.1.1 --onboot 1
 ```
 
 ```bash
@@ -127,12 +141,31 @@ Su GitHub: *Settings → Actions → Runners → New self-hosted runner*, copia 
 INTERNAL=1 APP_DOMAIN=prugna.reimg.it TRUSTED_PROXIES=192.168.1.10 RUNNER_TOKEN=<token> bash /root/provision.sh
 ```
 
-`TRUSTED_PROXIES` è l'IP del reverse proxy (o `*`). Lo script installa Docker, crea l'utente `deploy`, `/srv/boilerplate/.env` con password casuali, il backup notturno e il runner (servizio di sistema, utente `deploy`). Niente swap né firewall: in un LXC si gestiscono da Proxmox.
+`TRUSTED_PROXIES` è l'IP LAN del reverse proxy (o `*`): metti il tuo, non quello dell'esempio (vedi il passo 3 per controllarlo). Lo script installa Docker, crea l'utente `deploy`, `/srv/boilerplate/.env` con password casuali, il backup notturno e il runner (servizio di sistema, utente `deploy`). Niente swap né firewall: in un LXC si gestiscono da Proxmox.
 
 ### 3. Reverse proxy e DNS
 
 - Record DNS **A** `prugna.reimg.it` → IP pubblico dell'ufficio.
 - Sul reverse proxy: `prugna.reimg.it` → `http://192.168.1.120:80` (certificato HTTPS sul proxy), con gli header `X-Forwarded-For`, `X-Forwarded-Proto` e `X-Forwarded-Host`; limite di upload almeno 25 MB (documenti fino a 20 MB).
+
+Con **Apache** (`a2enmod proxy proxy_http headers`), nel `VirtualHost *:443` di `prugna.reimg.it`. `X-Forwarded-Proto` va impostato a mano: Apache non lo manda, e senza Prugna crede di essere in HTTP (pagina senza stili, errori «Mixed Content»).
+
+```apache
+ProxyPreserveHost On
+ProxyTimeout 180
+RequestHeader set X-Forwarded-Proto "https"
+RequestHeader set X-Forwarded-Port "443"
+ProxyPass / http://192.168.1.120/
+ProxyPassReverse / http://192.168.1.120/
+```
+
+`TRUSTED_PROXIES` in `/srv/boilerplate/.env` dev'essere l'IP da cui il proxy raggiunge il container. Per vederlo, apri una pagina da `https://prugna.reimg.it` e poi, nel container:
+
+```bash
+cd /srv/boilerplate && docker compose exec app php artisan tinker --execute 'dump(DB::table("sessions")->orderByDesc("last_activity")->limit(3)->pluck("ip_address")->all());'
+```
+
+Se cambi `.env`, riavvia i servizi con `docker compose up -d --force-recreate app worker scheduler`.
 
 ### 4. Primo deploy
 

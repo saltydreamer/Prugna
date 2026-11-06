@@ -3,7 +3,7 @@
 # Usage: APP_DOMAIN=dev.example.com bash provision.sh
 #
 # Internal server behind an existing reverse proxy (e.g. a Proxmox LXC): run it by hand as root with
-#   INTERNAL=1 APP_DOMAIN=prugna.example.com [TRUSTED_PROXIES=192.168.1.10] [RUNNER_TOKEN=…] bash provision.sh
+#   INTERNAL=1 APP_DOMAIN=prugna.example.com [TRUSTED_PROXIES=192.168.1.10] [RUNNER_TOKEN=…] [RUNNER_VERSION=…] bash provision.sh
 # The app then serves plain HTTP on port 80 (the proxy does HTTPS), there is no swap or firewall
 # (an LXC container can't set them), and with RUNNER_TOKEN the GitHub Actions runner that deploys
 # every merge on main is installed (labels "self-hosted,prugna").
@@ -155,7 +155,12 @@ if [ "$INTERNAL" = "1" ] && [ -n "${RUNNER_TOKEN:-}" ]; then
     step "GitHub Actions runner (deploys every merge on main)"
     RUNNER_DIR="/home/$DEPLOY_USER/actions-runner"
     if [ ! -f "$RUNNER_DIR/.runner" ]; then
-        version="$(curl -fsSL https://api.github.com/repos/actions/runner/releases/latest | grep -m1 '"tag_name"' | sed -E 's/.*"v([^"]+)".*/\1/')"
+        # sed reads the whole answer: a reader that stops early (grep -m1) makes curl fail with pipefail.
+        version="${RUNNER_VERSION:-$(curl -fsSL https://api.github.com/repos/actions/runner/releases/latest | sed -nE 's/.*"tag_name": *"v([^"]+)".*/\1/p')}"
+        if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Runner version not found: set RUNNER_VERSION (e.g. 2.330.0, from github.com/actions/runner/releases)." >&2
+            exit 1
+        fi
         case "$(uname -m)" in
             aarch64 | arm64) arch=arm64 ;;
             *) arch=x64 ;;

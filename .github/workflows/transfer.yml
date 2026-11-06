@@ -32,8 +32,10 @@ jobs:
           test -f /srv/boilerplate/.env || { echo "::error::Server interno non preparato (deploy/README.md)."; exit 1; }
           test -x /srv/boilerplate/restore.sh || { echo "::error::Esegui prima il workflow Deploy sul server interno."; exit 1; }
           # The VPS key is written in the job's temporary folder, never in the runner user's home.
+          # OpenSSH reads ~/.ssh of the user's real home, not $HOME: ssh and scp get -F "$SSH_CONFIG".
           mkdir -p "$RUNNER_TEMP/home"
           echo "HOME=$RUNNER_TEMP/home" >> "$GITHUB_ENV"
+          echo "SSH_CONFIG=$RUNNER_TEMP/home/.ssh/config" >> "$GITHUB_ENV"
 
       - name: Checkout code
         uses: actions/checkout@v5
@@ -51,15 +53,18 @@ jobs:
       - name: dev.reimg.it still holds the real data
         run: |
           # After «Reset demo» the VPS holds the demo: copying it would overwrite the real data.
-          if ssh vps "grep -q '^APP_DEMO=true' /srv/boilerplate/.env"; then
-            echo "::error::dev.reimg.it è ormai la demo (APP_DEMO=true): la copia sovrascriverebbe i dati veri del server interno. Interrotto."
-            exit 1
-          fi
+          # An SSH failure stops the step too (bash -e): never read as "not the demo".
+          state="$(ssh -F "$SSH_CONFIG" vps "if grep -q '^APP_DEMO=true' /srv/boilerplate/.env; then echo demo; else echo real; fi")"
+          case "$state" in
+            real) echo "dev.reimg.it ha ancora i dati veri." ;;
+            demo) echo "::error::dev.reimg.it è ormai la demo (APP_DEMO=true): la copia sovrascriverebbe i dati veri del server interno. Interrotto."; exit 1 ;;
+            *) echo "::error::Non riesco a leggere la configurazione di dev.reimg.it. Interrotto."; exit 1 ;;
+          esac
 
       - name: Backup on dev.reimg.it
         id: backup
         run: |
-          ssh vps '/srv/boilerplate/backup.sh' | tee backup.log
+          ssh -F "$SSH_CONFIG" vps '/srv/boilerplate/backup.sh' | tee backup.log
           db="$(grep -o 'backups/db-[^ ]*\.sql\.gz' backup.log | tail -1)"
           files="$(grep -o 'backups/files-[^ ]*\.tar\.gz' backup.log | tail -1)"
           test -n "$db" && test -n "$files" || { echo "::error::Backup non riuscito."; exit 1; }
@@ -72,13 +77,13 @@ jobs:
           FILES: ${{ steps.backup.outputs.files }}
         run: |
           mkdir -p /srv/boilerplate/backups
-          scp -q "vps:/srv/boilerplate/$DB" "vps:/srv/boilerplate/$FILES" /srv/boilerplate/backups/
+          scp -F "$SSH_CONFIG" -q "vps:/srv/boilerplate/$DB" "vps:/srv/boilerplate/$FILES" /srv/boilerplate/backups/
           ls -lh "/srv/boilerplate/$DB" "/srv/boilerplate/$FILES"
 
       - name: Same encryption key
         run: |
           # Passwords and keys saved in the settings (SMTP, AI, SDI) are encrypted with APP_KEY.
-          key="$(ssh vps "grep -E '^APP_KEY=' /srv/boilerplate/.env | tail -1 | cut -d= -f2-")"
+          key="$(ssh -F "$SSH_CONFIG" vps "grep -E '^APP_KEY=' /srv/boilerplate/.env | tail -1 | cut -d= -f2-")"
           test -n "$key" || { echo "::error::APP_KEY non trovata sul VPS."; exit 1; }
           echo "::add-mask::$key"
           cd /srv/boilerplate
