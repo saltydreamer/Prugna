@@ -109,10 +109,24 @@ Gli aggiornamenti arrivano da un **runner GitHub Actions** installato nel contai
 
 ### 1. Container LXC su Proxmox
 
-Debian 12, **non privilegiato con `nesting=1` e `keyctl=1`** (servono a Docker), 2 vCPU, 4 GB di RAM, 30 GB di disco, IP statico nella LAN. Da shell del nodo Proxmox (adatta ID, storage, bridge e indirizzi):
+Debian 13 (la stabile attuale, supportata da Docker), **non privilegiato con `nesting=1` e `keyctl=1`** (servono a Docker), 2 vCPU, 4 GB di RAM, 30 GB di disco, IP statico nella LAN. Dalla shell del nodo Proxmox, scarica il modello Debian 13 (il nome esatto cambia con gli aggiornamenti: usa quello che compare nell'elenco):
 
 ```bash
-pct create 120 local:vztmpl/debian-12-standard_12.7-1_amd64.tar.zst --hostname prugna --unprivileged 1 --features nesting=1,keyctl=1 --cores 2 --memory 4096 --swap 1024 --rootfs local-lvm:30 --net0 name=eth0,bridge=vmbr0,ip=192.168.1.120/24,gw=192.168.1.1 --onboot 1
+pveam update
+```
+
+```bash
+pveam available --section system | grep debian-13
+```
+
+```bash
+pveam download local debian-13-standard_<versione>_amd64.tar.zst
+```
+
+Poi crea il container (adatta ID, nome del modello, storage, bridge e indirizzi):
+
+```bash
+pct create 120 local:vztmpl/debian-13-standard_<versione>_amd64.tar.zst --hostname prugna --unprivileged 1 --features nesting=1,keyctl=1 --cores 2 --memory 4096 --swap 1024 --rootfs local-lvm:30 --net0 name=eth0,bridge=vmbr0,ip=192.168.1.120/24,gw=192.168.1.1 --onboot 1
 ```
 
 ```bash
