@@ -275,6 +275,15 @@ class FatturaPaXml
             $related = $this->add($general, 'DatiFattureCollegate');
             $this->add($related, 'IdDocumento', $invoice->relatedInvoice->number);
             $this->add($related, 'Data', $invoice->relatedInvoice->issue_date->toDateString());
+
+            // The CIG/CUP of the credited invoice, where public bodies look for them on a credit note.
+            if (filled($cup = $invoice->cup ?: $invoice->relatedInvoice->cup)) {
+                $this->add($related, 'CodiceCUP', strtoupper($cup));
+            }
+
+            if (filled($cig = $invoice->cig ?: $invoice->relatedInvoice->cig)) {
+                $this->add($related, 'CodiceCIG', strtoupper($cig));
+            }
         }
     }
 

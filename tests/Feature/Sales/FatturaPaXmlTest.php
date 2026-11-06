@@ -9,6 +9,7 @@ use App\Enums\OrganizationType;
 use App\Models\Invoice;
 use App\Models\Organization;
 use App\Models\PaymentTerm;
+use App\Models\User;
 use App\Models\VatRate;
 use App\Support\FatturaPa\FatturaPaXml;
 use App\Support\Settings;
@@ -222,6 +223,68 @@ class FatturaPaXmlTest extends TestCase
 
         $this->assertSame('TD04', $this->value($xpath, '//TipoDocumento'));
         $this->assertSame($invoice->number, $this->value($xpath, '//DatiFattureCollegate/IdDocumento'));
+        $this->assertSame('Z1234ABCDE', $this->value($xpath, '//DatiFattureCollegate/CodiceCIG'));
+        $this->assertSame('J11B21000000001', $this->value($xpath, '//DatiFattureCollegate/CodiceCUP'));
+        $this->assertSame('Z1234ABCDE', $this->value($xpath, '//DatiOrdineAcquisto/CodiceCIG'));
         $this->assertSame(0, $xpath->query('//DatiPagamento')->length);
+    }
+
+    /**
+     * Invoice refused by a public body (e.g. CIG or amount): it stays issued, a credit note cancels it whole.
+     */
+    public function test_credit_note_to_a_public_body_from_the_flat_rate_regime(): void
+    {
+        app(Settings::class)->set(['fiscal.regime' => 'RF19', 'fiscal.stamp_duty_enabled' => true, 'fiscal.stamp_duty_charge_customer' => true]);
+        $customer = Organization::factory()->withDetails(1, 0)->create([
+            'type' => OrganizationType::PublicBody,
+            'vat_number' => null,
+            'tax_code' => '80007790506',
+            'sdi_code' => 'EPAKB1',
+        ]);
+        $invoice = $this->issue($customer, [
+            ['type' => 'item', 'description' => 'Assistenza tecnica - ore prepagate', 'quantity' => 12, 'unit_price' => 60, 'vat_rate_id' => VatRate::query()->where('nature', 'N2.2')->value('id')],
+        ], ['cig' => 'BDABECBC19']);
+        $this->assertSame('722.00', $invoice->fresh()->total);
+
+        $this->actingAs(User::factory()->admin()->create())->post("/sales/invoices/{$invoice->id}/credit-note")->assertRedirect();
+        $note = app(IssueInvoice::class)->handle(Invoice::query()->where('related_invoice_id', $invoice->id)->sole());
+
+        [, $xpath] = $this->validXml($note);
+
+        $this->assertSame('FPA12', $this->value($xpath, '//FormatoTrasmissione'));
+        $this->assertSame('EPAKB1', $this->value($xpath, '//CodiceDestinatario'));
+        $this->assertSame('TD04', $this->value($xpath, '//TipoDocumento'));
+        $this->assertSame('722.00', $this->value($xpath, '//ImportoTotaleDocumento'));
+        $this->assertSame('SI', $this->value($xpath, '//DatiBollo/BolloVirtuale'));
+        $this->assertSame($invoice->number, $this->value($xpath, '//DatiFattureCollegate/IdDocumento'));
+        $this->assertSame('BDABECBC19', $this->value($xpath, '//DatiFattureCollegate/CodiceCIG'));
+        $this->assertSame('80007790506', $this->value($xpath, '//CessionarioCommittente//CodiceFiscale'));
+    }
+
+    public function test_credit_note_to_a_private_person(): void
+    {
+        $customer = Organization::factory()->withDetails(1, 0)->create([
+            'type' => OrganizationType::Other,
+            'name' => 'Mario Rossi',
+            'vat_number' => null,
+            'tax_code' => 'RSSMRA80A01G702Z',
+            'sdi_code' => null,
+            'pec' => null,
+        ]);
+        $invoice = $this->issue($customer, [
+            ['type' => 'item', 'description' => 'Riparazione PC', 'quantity' => 1, 'unit_price' => 100, 'vat_rate_id' => VatRate::default()->id],
+        ]);
+
+        $note = app(SaveInvoice::class)->handle(new Invoice, app(BuildInvoice::class)->creditNote($invoice));
+        $note = app(IssueInvoice::class)->handle($note);
+
+        [, $xpath] = $this->validXml($note);
+
+        $this->assertSame('FPR12', $this->value($xpath, '//FormatoTrasmissione'));
+        $this->assertSame('0000000', $this->value($xpath, '//CodiceDestinatario'));
+        $this->assertSame('TD04', $this->value($xpath, '//TipoDocumento'));
+        $this->assertSame(0, $xpath->query('//CessionarioCommittente//IdFiscaleIVA')->length);
+        $this->assertSame('RSSMRA80A01G702Z', $this->value($xpath, '//CessionarioCommittente//CodiceFiscale'));
+        $this->assertSame('122.00', $this->value($xpath, '//ImportoTotaleDocumento'));
     }
 }

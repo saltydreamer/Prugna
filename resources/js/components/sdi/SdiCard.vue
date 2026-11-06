@@ -15,6 +15,8 @@ const props = defineProps({
     sdi: { type: Object, required: true },
 });
 
+const emit = defineEmits(['creditNote']);
+
 const { link } = useInertiaLink();
 const { confirm } = useConfirm();
 const { can } = usePermissions();
@@ -144,7 +146,21 @@ function refresh() {
                     Fattura emessa ma non recapitata: è nel cassetto fiscale del cliente. Inviagli una copia di cortesia.
                 </v-alert>
                 <v-alert v-else-if="latest.status === 'refused'" type="error" variant="tonal" class="mb-3">
-                    Rifiutata dalla pubblica amministrazione{{ latest.message ? `: ${latest.message}` : '' }}. Emetti una nota di credito se serve.
+                    <div>Rifiutata dalla pubblica amministrazione{{ latest.message ? `: ${latest.message}` : '' }}.</div>
+                    <div class="text-caption mt-2">
+                        Ai fini fiscali la fattura resta emessa: stornala con una nota di credito (riporta lo stesso CIG/CUP) e poi emetti una nuova
+                        fattura corretta.
+                    </div>
+                    <v-btn
+                        v-if="invoice.can?.credit_note"
+                        size="small"
+                        variant="tonal"
+                        class="mt-2"
+                        prepend-icon="mdi-file-undo-outline"
+                        @click="emit('creditNote')"
+                    >
+                        Prepara la nota di credito
+                    </v-btn>
                 </v-alert>
 
                 <div class="text-body-2">

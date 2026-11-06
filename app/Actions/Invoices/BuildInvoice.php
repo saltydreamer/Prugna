@@ -177,6 +177,11 @@ class BuildInvoice
             'related_invoice_id' => $invoice->id,
             'order_id' => $invoice->order_id,
             'quote_id' => $invoice->quote_id,
+            // Same references as the invoice: public bodies check the CIG/CUP on credit notes too.
+            'customer_reference' => $invoice->customer_reference,
+            'customer_reference_date' => $invoice->customer_reference_date?->toDateString(),
+            'cig' => $invoice->cig,
+            'cup' => $invoice->cup,
             'split_payment' => $invoice->split_payment,
             'apply_withholding' => $invoice->apply_withholding,
             'apply_pension' => $invoice->apply_pension,

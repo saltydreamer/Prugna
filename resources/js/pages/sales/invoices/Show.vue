@@ -103,17 +103,14 @@ async function destroy() {
                 >
                     Emetti
                 </v-btn>
-                <v-menu v-if="invoice.can?.credit_note || invoice.can?.delete">
+                <v-btn v-if="invoice.can?.credit_note" variant="tonal" prepend-icon="mdi-file-undo-outline" @click="creditNote">
+                    Nota di credito
+                </v-btn>
+                <v-menu v-if="invoice.can?.delete">
                     <template #activator="{ props: activator }">
                         <v-btn v-bind="activator" icon="mdi-dots-vertical" variant="text" aria-label="Altre azioni" />
                     </template>
                     <v-list density="compact">
-                        <v-list-item
-                            v-if="invoice.can?.credit_note"
-                            prepend-icon="mdi-file-undo-outline"
-                            title="Nota di credito"
-                            @click="creditNote"
-                        />
                         <v-list-item
                             v-if="invoice.can?.delete"
                             prepend-icon="mdi-delete-outline"
@@ -250,7 +247,7 @@ async function destroy() {
             <v-col cols="12" lg="4">
                 <InvoiceTotalsCard :totals="allTotals" :invoice="invoice" :pension-label="pensionLabel" class="mb-6" />
 
-                <SdiCard v-if="!isDraft" :invoice="invoice" :sdi="sdi" class="mb-6" />
+                <SdiCard v-if="!isDraft" :invoice="invoice" :sdi="sdi" class="mb-6" @credit-note="creditNote" />
 
                 <v-card title="Dati fiscali">
                     <v-list density="compact">
