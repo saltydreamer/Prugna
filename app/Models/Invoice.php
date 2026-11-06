@@ -17,10 +17,17 @@ use Illuminate\Database\Eloquent\Relations\MorphOne;
 #[Fillable([
     'type', 'issue_date', 'organization_id', 'contact_id', 'owner_id', 'quote_id', 'order_id', 'related_invoice_id',
     'title', 'customer_reference', 'customer_reference_date', 'cig', 'cup', 'payment_term_id', 'notes', 'internal_notes',
-    'split_payment', 'apply_withholding', 'apply_pension',
+    'split_payment', 'apply_withholding', 'apply_pension', 'charge_stamp_duty',
 ])]
 class Invoice extends Model
 {
+    /**
+     * The stamp duty is charged back to the customer unless turned off on the invoice.
+     *
+     * @var array<string, mixed>
+     */
+    protected $attributes = ['charge_stamp_duty' => true];
+
     /** @use HasFactory<InvoiceFactory> */
     use HasFactory;
 
@@ -49,6 +56,7 @@ class Invoice extends Model
             'pension_vat_rate' => 'decimal:2',
             'pension_amount' => 'decimal:2',
             'stamp_duty_amount' => 'decimal:2',
+            'charge_stamp_duty' => 'boolean',
             'subtotal' => 'decimal:2',
             'vat_total' => 'decimal:2',
             'total' => 'decimal:2',

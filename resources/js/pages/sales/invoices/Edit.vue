@@ -45,6 +45,7 @@ const form = useForm({
     split_payment: Boolean(source.split_payment),
     apply_withholding: Boolean(source.apply_withholding),
     apply_pension: Boolean(source.apply_pension),
+    charge_stamp_duty: source.charge_stamp_duty ?? true,
     notes: source.notes ?? '',
     internal_notes: source.internal_notes ?? '',
     lines: (props.invoice?.lines ?? []).map((line) => ({ ...line, key: `line-${line.id}` })),
@@ -70,7 +71,7 @@ const fiscal = computed(() => ({
     pension_withholding: props.fiscalSettings.pension_withholding,
     withholding_rate: props.fiscalSettings.withholding_rate,
     stamp_duty_enabled: props.fiscalSettings.stamp_duty_enabled,
-    stamp_duty_charge_customer: props.fiscalSettings.stamp_duty_charge_customer,
+    stamp_duty_charge_customer: props.fiscalSettings.stamp_duty_charge_customer && form.charge_stamp_duty,
 }));
 
 const totals = computed(() =>
@@ -419,6 +420,17 @@ const backUrl = computed(() => (isNew.value ? route('sales.invoices.index') : ro
                                     hide-details
                                 />
                                 <v-switch v-model="form.split_payment" label="Scissione dei pagamenti (split payment)" color="primary" hide-details />
+                                <template v-if="fiscalSettings.stamp_duty_enabled && fiscalSettings.stamp_duty_charge_customer">
+                                    <v-switch
+                                        v-model="form.charge_stamp_duty"
+                                        label="Addebita il bollo al cliente (2 €)"
+                                        color="primary"
+                                        hide-details
+                                    />
+                                    <div class="text-caption text-medium-emphasis">
+                                        Sopra 77,47 € senza IVA il bollo è dovuto comunque: spento, non lo riaddebiti e lo paghi tu.
+                                    </div>
+                                </template>
                                 <div class="text-caption text-medium-emphasis mt-2">Regime: {{ fiscalSettings.regime_label }}</div>
                             </v-card-text>
                         </v-card>

@@ -185,6 +185,7 @@ class BuildInvoice
             'split_payment' => $invoice->split_payment,
             'apply_withholding' => $invoice->apply_withholding,
             'apply_pension' => $invoice->apply_pension,
+            'charge_stamp_duty' => $invoice->charge_stamp_duty,
             'lines' => $invoice->lines
                 ->where('system', '!=', 'stamp_duty')
                 ->map(fn ($line) => $line->isItem()

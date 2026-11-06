@@ -60,6 +60,7 @@ class InvoiceRequest extends FormRequest
             'notes' => ['nullable', 'string', 'max:10000'],
             'internal_notes' => ['nullable', 'string', 'max:10000'],
             'split_payment' => ['boolean'],
+            'charge_stamp_duty' => ['boolean'],
             'apply_withholding' => ['boolean'],
             'apply_pension' => ['boolean'],
             ...$this->lineRules(),

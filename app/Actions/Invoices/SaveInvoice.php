@@ -176,7 +176,7 @@ class SaveInvoice
 
         $invoice->forceFill(['stamp_duty_amount' => $due ? FiscalCodes::STAMP_DUTY_AMOUNT : 0])->save();
 
-        if (! $due || ! $this->settings->get('fiscal.stamp_duty_charge_customer')) {
+        if (! $due || ! $this->settings->get('fiscal.stamp_duty_charge_customer') || ! $invoice->charge_stamp_duty) {
             return;
         }
 

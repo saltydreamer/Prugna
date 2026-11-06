@@ -65,6 +65,7 @@ class InvoiceResource extends JsonResource
             'internal_notes' => $this->internal_notes,
             'regime' => $this->regime,
             'split_payment' => $this->split_payment,
+            'charge_stamp_duty' => $this->charge_stamp_duty,
             'apply_withholding' => $this->apply_withholding,
             'withholding_type' => $this->withholding_type,
             'withholding_rate' => (float) $this->withholding_rate,

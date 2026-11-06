@@ -261,6 +261,31 @@ class FatturaPaXmlTest extends TestCase
         $this->assertSame('80007790506', $this->value($xpath, '//CessionarioCommittente//CodiceFiscale'));
     }
 
+    /**
+     * Stamp duty not charged back: still due and declared, no reimbursement line, total without the 2 €.
+     */
+    public function test_stamp_duty_not_charged_to_the_customer(): void
+    {
+        app(Settings::class)->set(['fiscal.regime' => 'RF19']);
+        $customer = Organization::factory()->withDetails(1, 0)->create(['sdi_code' => 'ABC1234']);
+
+        $invoice = $this->issue($customer, [
+            ['type' => 'item', 'description' => 'Sito web', 'quantity' => 1, 'unit_price' => 800, 'vat_rate_id' => VatRate::query()->where('nature', 'N2.2')->value('id')],
+        ], ['charge_stamp_duty' => false]);
+
+        [, $xpath] = $this->validXml($invoice);
+
+        $this->assertSame('SI', $this->value($xpath, '//DatiBollo/BolloVirtuale'));
+        $this->assertSame('2.00', $this->value($xpath, '//DatiBollo/ImportoBollo'));
+        $this->assertSame(1, $xpath->query('//DettaglioLinee')->length);
+        $this->assertSame('800.00', $this->value($xpath, '//ImportoTotaleDocumento'));
+        $this->assertSame('800.00', $this->value($xpath, '//ImportoPagamento'));
+
+        $note = app(SaveInvoice::class)->handle(new Invoice, app(BuildInvoice::class)->creditNote($invoice));
+        $this->assertFalse($note->charge_stamp_duty);
+        $this->assertSame('800.00', $note->total);
+    }
+
     public function test_credit_note_to_a_private_person(): void
     {
         $customer = Organization::factory()->withDetails(1, 0)->create([
