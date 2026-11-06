@@ -189,6 +189,8 @@ class RebillCosts
             ->when($onlyMarked, fn (Builder $query) => $query->where('rebill', true))
             ->whereHas('expense', fn (Builder $query) => $query
                 ->where('customer_id', $customerId)
+                // Past costs of orders already invoiced: never charged back.
+                ->where('past_cost', false)
                 ->when($order, fn (Builder $query) => $query->where('order_id', $order->id)))
             ->with('expense:id,type,number,document_date,supplier,order_id')
             ->orderBy('expense_id')

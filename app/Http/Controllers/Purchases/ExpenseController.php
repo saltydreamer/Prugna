@@ -218,7 +218,7 @@ class ExpenseController extends Controller
 
         DB::transaction(function () use ($expenses, $order, $customerId, $rebill, $data): void {
             foreach ($expenses as $expense) {
-                $expense->forceFill(['order_id' => $order?->id, 'customer_id' => $customerId])->save();
+                $expense->forceFill(['order_id' => $order?->id, 'customer_id' => $customerId, 'past_cost' => false])->save();
 
                 foreach ($expense->lines->filter(fn ($line) => $line->isItem()) as $line) {
                     $line->forceFill([

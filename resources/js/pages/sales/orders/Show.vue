@@ -5,6 +5,7 @@ import { route } from 'ziggy-js';
 import PageHeader from '@/components/PageHeader.vue';
 import DocumentLinesTable from '@/components/sales/DocumentLinesTable.vue';
 import CostInvoiceDialog from '@/components/sales/CostInvoiceDialog.vue';
+import PastCostsDialog from '@/components/sales/PastCostsDialog.vue';
 import InvoiceDialog from '@/components/sales/InvoiceDialog.vue';
 import InterventionInvoiceDialog from '@/components/interventions/InterventionInvoiceDialog.vue';
 import QuoteTotalsCard from '@/components/sales/QuoteTotalsCard.vue';
@@ -34,6 +35,19 @@ const { can } = usePermissions();
 
 const invoiceDialog = ref(false);
 const costDialog = ref(false);
+const pastCostsDialog = ref(false);
+
+async function removePastCost(expense) {
+    if (
+        await confirm({
+            title: "Togliere il costo dall'ordine?",
+            message: `${expense.label} di ${expense.supplier ?? ''} torna una spesa non collegata.`,
+            confirmText: 'Togli',
+        })
+    ) {
+        router.delete(route('sales.orders.past-costs.destroy', [props.order.id, expense.id]), { preserveScroll: true });
+    }
+}
 const pendingCosts = computed(() =>
     props.purchasing?.rebill_pending_count ? { count: props.purchasing.rebill_pending_count, amount: props.purchasing.rebill_pending_amount } : null,
 );
@@ -241,10 +255,20 @@ async function destroy() {
                             v-for="expense in purchasing.expenses"
                             :key="`expense-${expense.id}`"
                             :title="`${expense.label} · ${expense.supplier ?? ''}`"
-                            :subtitle="`${formatDate(expense.document_date)} · ${formatMoney(expense.subtotal)} + IVA`"
+                            :subtitle="`${formatDate(expense.document_date)} · ${formatMoney(expense.subtotal)} + IVA${expense.past_cost ? ' · costo pregresso' : ''}`"
                             prepend-icon="mdi-receipt-text-outline"
                             v-bind="link(route('purchases.expenses.show', expense.id))"
-                        />
+                        >
+                            <template v-if="expense.past_cost && can('expenses.manage')" #append>
+                                <v-btn
+                                    icon="mdi-close"
+                                    size="x-small"
+                                    variant="text"
+                                    title="Togli dall'ordine"
+                                    @click.prevent.stop="removePastCost(expense)"
+                                />
+                            </template>
+                        </v-list-item>
                     </v-list>
                     <v-card-actions
                         v-if="(can('purchases.manage') || can('expenses.manage') || can('invoices.manage')) && order.status !== 'cancelled'"
@@ -277,6 +301,9 @@ async function destroy() {
                             v-bind="link(route('purchases.expenses.create', { order: order.id }))"
                         >
                             Registra spesa
+                        </v-btn>
+                        <v-btn v-if="can('expenses.manage')" block variant="text" prepend-icon="mdi-history" @click="pastCostsDialog = true">
+                            Imputa costi pregressi
                         </v-btn>
                     </v-card-actions>
                 </v-card>
@@ -329,6 +356,7 @@ async function destroy() {
         </v-row>
 
         <CostInvoiceDialog v-model="costDialog" :organization-id="order.organization_id" :order-id="order.id" />
+        <PastCostsDialog v-if="purchasing" v-model="pastCostsDialog" :order-id="order.id" :order-number="order.number" />
         <InterventionInvoiceDialog v-model="interventionDialog" :organization-id="order.organization_id" :order-id="order.id" />
 
         <InvoiceDialog

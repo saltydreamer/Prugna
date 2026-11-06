@@ -40,6 +40,7 @@ use App\Http\Controllers\Sales\InvoiceDocumentController;
 use App\Http\Controllers\Sales\InvoiceSdiController;
 use App\Http\Controllers\Sales\OrderController;
 use App\Http\Controllers\Sales\OrderDocumentController;
+use App\Http\Controllers\Sales\OrderPastCostsController;
 use App\Http\Controllers\Sales\QuoteController;
 use App\Http\Controllers\Sales\QuoteDocumentController;
 use App\Http\Controllers\Sales\QuoteLookupController;
@@ -169,6 +170,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::patch('orders/{order}/status', [OrderController::class, 'updateStatus'])->name('orders.status');
         Route::get('orders/{order}/pdf', [OrderDocumentController::class, 'pdf'])->name('orders.pdf');
         Route::post('orders/{order}/invoice', [InvoiceController::class, 'storeFromOrder'])->name('orders.invoice');
+        // Temporary: past costs (already paid) of orders already invoiced, for the margin.
+        Route::get('orders/{order}/past-costs', [OrderPastCostsController::class, 'index'])->name('orders.past-costs.index');
+        Route::post('orders/{order}/past-costs', [OrderPastCostsController::class, 'store'])->name('orders.past-costs.store');
+        Route::delete('orders/{order}/past-costs/{expense}', [OrderPastCostsController::class, 'destroy'])->name('orders.past-costs.destroy');
 
         Route::post('estimates/read-link', [EstimateController::class, 'readLink'])->middleware('throttle:20,1')->name('estimates.read-link');
         Route::post('estimates/{estimate}/advantages', [EstimateController::class, 'advantages'])->middleware('throttle:10,1')->name('estimates.advantages');

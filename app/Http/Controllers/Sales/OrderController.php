@@ -196,6 +196,7 @@ class OrderController extends Controller
                 'supplier' => $expense->supplier['name'] ?? null,
                 'document_date' => $expense->document_date->toDateString(),
                 'subtotal' => (float) $expense->subtotal,
+                'past_cost' => $expense->past_cost,
             ])->all(),
             'costs' => $costs,
             'invoiced_costs' => round($invoicedCosts, 2),

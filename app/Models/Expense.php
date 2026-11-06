@@ -39,6 +39,7 @@ class Expense extends Model
             'vat_total' => 'decimal:2',
             'total' => 'decimal:2',
             'business_share' => 'decimal:2',
+            'past_cost' => 'boolean',
         ];
     }
 
