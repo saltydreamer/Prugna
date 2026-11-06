@@ -141,12 +141,31 @@ Su GitHub: *Settings → Actions → Runners → New self-hosted runner*, copia 
 INTERNAL=1 APP_DOMAIN=prugna.reimg.it TRUSTED_PROXIES=192.168.1.10 RUNNER_TOKEN=<token> bash /root/provision.sh
 ```
 
-`TRUSTED_PROXIES` è l'IP del reverse proxy (o `*`). Lo script installa Docker, crea l'utente `deploy`, `/srv/boilerplate/.env` con password casuali, il backup notturno e il runner (servizio di sistema, utente `deploy`). Niente swap né firewall: in un LXC si gestiscono da Proxmox.
+`TRUSTED_PROXIES` è l'IP LAN del reverse proxy (o `*`): metti il tuo, non quello dell'esempio (vedi il passo 3 per controllarlo). Lo script installa Docker, crea l'utente `deploy`, `/srv/boilerplate/.env` con password casuali, il backup notturno e il runner (servizio di sistema, utente `deploy`). Niente swap né firewall: in un LXC si gestiscono da Proxmox.
 
 ### 3. Reverse proxy e DNS
 
 - Record DNS **A** `prugna.reimg.it` → IP pubblico dell'ufficio.
 - Sul reverse proxy: `prugna.reimg.it` → `http://192.168.1.120:80` (certificato HTTPS sul proxy), con gli header `X-Forwarded-For`, `X-Forwarded-Proto` e `X-Forwarded-Host`; limite di upload almeno 25 MB (documenti fino a 20 MB).
+
+Con **Apache** (`a2enmod proxy proxy_http headers`), nel `VirtualHost *:443` di `prugna.reimg.it`. `X-Forwarded-Proto` va impostato a mano: Apache non lo manda, e senza Prugna crede di essere in HTTP (pagina senza stili, errori «Mixed Content»).
+
+```apache
+ProxyPreserveHost On
+ProxyTimeout 180
+RequestHeader set X-Forwarded-Proto "https"
+RequestHeader set X-Forwarded-Port "443"
+ProxyPass / http://192.168.1.120/
+ProxyPassReverse / http://192.168.1.120/
+```
+
+`TRUSTED_PROXIES` in `/srv/boilerplate/.env` dev'essere l'IP da cui il proxy raggiunge il container. Per vederlo, apri una pagina da `https://prugna.reimg.it` e poi, nel container:
+
+```bash
+cd /srv/boilerplate && docker compose exec app php artisan tinker --execute 'dump(DB::table("sessions")->orderByDesc("last_activity")->limit(3)->pluck("ip_address")->all());'
+```
+
+Se cambi `.env`, riavvia i servizi con `docker compose up -d --force-recreate app worker scheduler`.
 
 ### 4. Primo deploy
 
