@@ -63,7 +63,8 @@ class OrderRequest extends FormRequest
             'organization_id' => ['required', 'integer', Rule::exists('organizations', 'id')->whereNull('deleted_at')->where('role', 'customer')],
             ...$header,
             ...$this->lineRules(),
-            'lines.*.package_hours' => ['exclude_unless:lines.*.type,item', 'nullable', 'numeric', 'gt:0', 'max:100000'],
+            'lines.*.is_package' => ['boolean'],
+            'lines.*.package_hours' => ['exclude_unless:lines.*.type,item', 'required_if_accepted:lines.*.is_package', 'nullable', 'numeric', 'gt:0', 'max:100000'],
             'lines.*.package_months' => ['exclude_unless:lines.*.type,item', 'nullable', 'integer', 'between:1,120'],
         ];
     }
@@ -98,6 +99,16 @@ class OrderRequest extends FormRequest
             ...$this->lineAttributes(),
             'lines.*.package_hours' => 'ore del pacchetto',
             'lines.*.package_months' => 'validità del pacchetto',
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return [
+            'lines.*.package_hours.required_if_accepted' => __('Indica le ore del pacchetto.'),
         ];
     }
 

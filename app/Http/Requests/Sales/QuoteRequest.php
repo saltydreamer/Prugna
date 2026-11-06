@@ -71,7 +71,8 @@ class QuoteRequest extends FormRequest
             'lines.*.vat_rate_id' => ['exclude_unless:lines.*.type,item', 'required', 'integer', Rule::exists('vat_rates', 'id')],
             'lines.*.is_optional' => ['boolean'],
             'lines.*.is_selected' => ['boolean'],
-            'lines.*.package_hours' => ['exclude_unless:lines.*.type,item', 'nullable', 'numeric', 'gt:0', 'max:100000'],
+            'lines.*.is_package' => ['boolean'],
+            'lines.*.package_hours' => ['exclude_unless:lines.*.type,item', 'required_if_accepted:lines.*.is_package', 'nullable', 'numeric', 'gt:0', 'max:100000'],
             'lines.*.package_months' => ['exclude_unless:lines.*.type,item', 'nullable', 'integer', 'between:1,120'],
         ];
     }
@@ -117,6 +118,16 @@ class QuoteRequest extends FormRequest
             'lines.*.vat_rate_id' => 'IVA',
             'lines.*.package_hours' => 'ore del pacchetto',
             'lines.*.package_months' => 'validità del pacchetto',
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return [
+            'lines.*.package_hours.required_if_accepted' => __('Indica le ore del pacchetto.'),
         ];
     }
 }

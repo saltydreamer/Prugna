@@ -53,17 +53,28 @@ function addItem(product = null) {
         discount_percent: 0,
         vat_rate_id: product?.vat_rate_id ?? props.defaultVatRateId,
         // An article sold as prepaid hours: the hours are the quantity.
-        ...(props.allowPackages && product?.hour_package ? { package_hours: 1, package_months: product.package_months ?? null } : {}),
+        ...(props.allowPackages && product?.hour_package
+            ? { is_package: true, package_hours: 1, package_months: product.package_months ?? null }
+            : {}),
     });
+}
+
+function isHourly(line) {
+    return ['h', 'ore', 'ora'].includes(String(line.unit ?? '').toLowerCase());
+}
+
+/**
+ * Saved lines are packages when they have their hours; edited ones keep the choice even while the hours are empty.
+ */
+function isPackage(line) {
+    return line.is_package ?? (line.package_hours !== null && line.package_hours !== undefined);
 }
 
 /**
  * A package sold by the hour follows the quantity.
  */
 function onQuantity(line, quantity) {
-    const hourly = ['h', 'ore', 'ora'].includes(String(line.unit ?? '').toLowerCase());
-
-    if (hourly && line.package_hours !== null && line.package_hours !== undefined) {
+    if (isHourly(line) && isPackage(line)) {
         line.package_hours = Number(quantity) || null;
     }
 }
@@ -114,11 +125,11 @@ function setOptional(line, value) {
 }
 
 /**
- * An hour package starts with the hours of the line when it is sold by the hour.
+ * An hour package starts with the hours of the line when it is sold by the hour; otherwise the hours are typed in.
  */
 function setPackage(line, value) {
-    const hourly = ['h', 'ore', 'ora'].includes(String(line.unit ?? '').toLowerCase());
-    line.package_hours = value ? (hourly ? Number(line.quantity) || null : null) : null;
+    line.is_package = value;
+    line.package_hours = value ? (isHourly(line) ? Number(line.quantity) || null : (line.package_hours ?? null)) : null;
     line.package_months = value ? (line.package_months ?? 12) : null;
 }
 
@@ -276,13 +287,13 @@ function error(index, field) {
                             </template>
                             <template v-if="allowPackages">
                                 <v-checkbox
-                                    :model-value="line.package_hours !== null && line.package_hours !== undefined"
+                                    :model-value="isPackage(line)"
                                     label="Pacchetto ore"
                                     density="compact"
                                     hide-details
                                     @update:model-value="(value) => setPackage(line, value)"
                                 />
-                                <template v-if="line.package_hours !== null && line.package_hours !== undefined">
+                                <template v-if="isPackage(line)">
                                     <v-text-field
                                         v-model.number="line.package_hours"
                                         label="Ore"

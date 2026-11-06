@@ -103,6 +103,24 @@ class OrderHourPackageTest extends TestCase
         $this->assertSame(0, ServiceContract::query()->count());
     }
 
+    public function test_a_line_not_sold_by_the_hour_becomes_a_package_with_the_hours_typed_in(): void
+    {
+        $customer = Organization::factory()->create();
+        $payload = $this->payload($customer, 10);
+        $payload['lines'][1] = [...$payload['lines'][1], 'description' => 'Pacchetto assistenza', 'unit' => 'pz', 'unit_price' => 400, 'is_package' => true, 'package_hours' => null, 'package_months' => 6];
+
+        $this->actingAs($this->admin)->post('/sales/orders', $payload)->assertSessionHasErrors(['lines.1.package_hours' => 'Indica le ore del pacchetto.']);
+        $this->assertSame(0, Order::query()->count());
+
+        $payload['lines'][1]['package_hours'] = 8;
+        $this->actingAs($this->admin)->post('/sales/orders', $payload)->assertRedirect()->assertSessionHasNoErrors();
+
+        $contract = ServiceContract::query()->where('title', 'Pacchetto assistenza')->sole();
+        $this->assertSame('8.00', $contract->hours);
+        $this->assertSame('400.00', $contract->price);
+        $this->assertSame('2027-05-05', $contract->ends_on->toDateString());
+    }
+
     public function test_an_accepted_quote_and_its_order_share_the_contract(): void
     {
         $quote = Quote::factory()->sent()->create();
