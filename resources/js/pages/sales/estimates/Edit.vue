@@ -126,6 +126,11 @@ function resetLinkResult() {
     linkError.value = '';
 }
 
+function switchMode(mode) {
+    linkMode.value = mode;
+    resetLinkResult();
+}
+
 function setImage(file) {
     if (linkPreview.value) {
         URL.revokeObjectURL(linkPreview.value);
@@ -144,6 +149,7 @@ function pickImage(files) {
     }
 
     if (file.size > 10 * 1024 * 1024) {
+        linkMode.value = 'image';
         linkError.value = "L'immagine supera 10 MB: cattura solo la parte con nome e prezzo.";
 
         return true;
@@ -591,7 +597,7 @@ async function destroy() {
 
         <v-dialog v-model="linkDialog" max-width="600">
             <v-card title="Articolo dal negozio" subtitle="Nome e prezzo del prodotto li legge l'IA" @paste="onPaste">
-                <v-tabs v-model="linkMode" density="compact" class="px-4" @update:model-value="resetLinkResult">
+                <v-tabs :model-value="linkMode" density="compact" class="px-4" @update:model-value="switchMode">
                     <v-tab value="link" prepend-icon="mdi-link-variant">Link</v-tab>
                     <v-tab value="image" prepend-icon="mdi-monitor-screenshot">Screenshot</v-tab>
                 </v-tabs>
@@ -607,7 +613,7 @@ async function destroy() {
                             @keydown.enter.prevent="readLink"
                         />
                         <div v-if="linkError && canUseAi" class="mb-3">
-                            <v-btn size="small" variant="tonal" prepend-icon="mdi-monitor-screenshot" @click="linkMode = 'image'">
+                            <v-btn size="small" variant="tonal" prepend-icon="mdi-monitor-screenshot" @click="switchMode('image')">
                                 Usa uno screenshot
                             </v-btn>
                         </div>

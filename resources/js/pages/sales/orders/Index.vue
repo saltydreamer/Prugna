@@ -61,7 +61,7 @@ function load(params = {}) {
 
 function onOptions({ page, itemsPerPage, sortBy }) {
     const [sort] = sortBy;
-    const sortKey = sort?.key ?? 'number';
+    const sortKey = sort?.key ?? 'order_date';
     const sortDir = sort?.order ?? 'desc';
 
     if (

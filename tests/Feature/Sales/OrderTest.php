@@ -90,6 +90,18 @@ class OrderTest extends TestCase
                 ->where('counts.to_invoice', 2));
     }
 
+    public function test_orders_are_listed_newest_first_by_default(): void
+    {
+        $older = Order::factory()->create(['order_date' => '2026-09-01']);
+        $newer = Order::factory()->create(['order_date' => '2026-10-15']);
+        $oldest = Order::factory()->create(['order_date' => '2026-03-20']);
+
+        $this->actingAs($this->admin())->get('/sales/orders')
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('filters.sort_by', 'order_date')
+                ->where('orders.data', fn ($orders) => collect($orders)->pluck('id')->all() === [$newer->id, $older->id, $oldest->id]));
+    }
+
     public function test_a_manual_order_can_be_created_and_edited_until_invoiced(): void
     {
         $admin = $this->admin();

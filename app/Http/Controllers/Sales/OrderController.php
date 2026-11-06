@@ -49,6 +49,9 @@ class OrderController extends Controller
         ]);
 
         $status = $filters['status'] ?? 'active';
+        // Newest orders first by default; same day → by number.
+        $sortBy = $filters['sort_by'] ?? 'order_date';
+        $sortDir = $filters['sort_dir'] ?? 'desc';
 
         $base = Order::query()
             ->when($filters['organization'] ?? null, fn ($query, int $organization) => $query->where('organization_id', $organization));
@@ -60,7 +63,8 @@ class OrderController extends Controller
             ->when($status === 'active', fn ($query) => $query->whereIn('status', [OrderStatus::Open->value, OrderStatus::InProgress->value]))
             ->when($status === 'to_invoice', fn ($query) => $query->toInvoice())
             ->when(OrderStatus::tryFrom($status), fn ($query, OrderStatus $status) => $query->where('status', $status->value))
-            ->orderBy($filters['sort_by'] ?? 'number', $filters['sort_dir'] ?? 'desc')
+            ->orderBy($sortBy, $sortDir)
+            ->orderBy('number', $sortDir)
             ->orderByDesc('id')
             ->paginate($filters['per_page'] ?? 25)
             ->withQueryString();
@@ -71,8 +75,8 @@ class OrderController extends Controller
                 'search' => $filters['search'] ?? '',
                 'status' => $status,
                 'organization' => isset($filters['organization']) ? (int) $filters['organization'] : null,
-                'sort_by' => $filters['sort_by'] ?? 'number',
-                'sort_dir' => $filters['sort_dir'] ?? 'desc',
+                'sort_by' => $sortBy,
+                'sort_dir' => $sortDir,
                 'per_page' => (int) ($filters['per_page'] ?? 25),
             ],
             'statuses' => OrderStatus::options(),
