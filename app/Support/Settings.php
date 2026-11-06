@@ -21,7 +21,7 @@ class Settings
     /**
      * Values stored encrypted in the database.
      */
-    private const ENCRYPTED = ['mail.password', 'ai.api_key', 'sdi.api_key', 'sdi.token', 'sdi.webhook_secret', 'push.vapid_private_key'];
+    private const ENCRYPTED = ['mail.password', 'ai.api_key', 'sdi.api_key', 'sdi.token', 'sdi.company_token', 'sdi.webhook_secret', 'push.vapid_private_key'];
 
     /**
      * Defaults used until a value is saved.
@@ -60,6 +60,7 @@ class Settings
         'sdi.enabled' => false,
         'sdi.environment' => 'test',
         'sdi.auto_send' => true,
+        'sdi.company_enabled' => false,
         // € per call (VAT excluded) and free calls per day, from the Openapi price list (base prices):
         // editable in Impostazioni → Fatturazione elettronica.
         'sdi.prices' => [
@@ -73,6 +74,8 @@ class Settings
             'POST /api_configurations' => ['price' => 0.001, 'free' => 400],
             'GET /api_configurations' => ['price' => 0.001, 'free' => 1000],
             'DELETE /api_configurations/{id}' => ['price' => 0.001, 'free' => 50],
+            // Company service: set the price of your plan in the price list.
+            'GET /IT-advanced/{id}' => ['price' => 0, 'free' => 0],
         ],
         'interventions.rounding_minutes' => 30,
         'interventions.callout_product_id' => null,

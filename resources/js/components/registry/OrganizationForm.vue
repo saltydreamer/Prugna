@@ -8,7 +8,12 @@ const form = defineModel('form', { type: Object, required: true });
 defineProps({
     types: { type: Array, required: true },
     paymentTerms: { type: Array, default: () => [] },
+    /** «Compila» next to the VAT number: fills the form from the Registro Imprese (Openapi "Company"). */
+    lookup: { type: Boolean, default: false },
+    lookupLoading: { type: Boolean, default: false },
 });
+
+const emit = defineEmits(['lookup']);
 </script>
 
 <template>
@@ -28,9 +33,28 @@ defineProps({
                 <v-text-field
                     v-model="form.vat_number"
                     label="Partita IVA"
-                    hint="11 cifre per le partite IVA italiane, con prefisso del paese per quelle estere (es. DE123456789)."
+                    :hint="
+                        lookup
+                            ? '«Compila» cerca l\'azienda nel Registro Imprese (anche dal codice fiscale) e riempie dati fiscali, PEC e sede legale.'
+                            : '11 cifre per le partite IVA italiane, con prefisso del paese per quelle estere (es. DE123456789).'
+                    "
                     :error-messages="form.errors.vat_number"
-                />
+                >
+                    <template v-if="lookup" #append-inner>
+                        <v-btn
+                            size="small"
+                            variant="tonal"
+                            color="primary"
+                            prepend-icon="mdi-cloud-download-outline"
+                            :loading="lookupLoading"
+                            :disabled="!form.vat_number && !form.tax_code"
+                            title="Compila dal Registro Imprese"
+                            @click="emit('lookup')"
+                        >
+                            Compila
+                        </v-btn>
+                    </template>
+                </v-text-field>
             </v-col>
             <v-col cols="12" md="4">
                 <v-text-field v-model="form.tax_code" label="Codice fiscale" :error-messages="form.errors.tax_code" />

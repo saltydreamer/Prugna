@@ -30,6 +30,7 @@ use App\Http\Controllers\Purchases\PurchaseOrderController;
 use App\Http\Controllers\Purchases\PurchaseOrderDocumentController;
 use App\Http\Controllers\Purchases\ReceivedInvoiceController;
 use App\Http\Controllers\Pwa\PwaController;
+use App\Http\Controllers\Registry\CompanyDataController;
 use App\Http\Controllers\Registry\ContactController;
 use App\Http\Controllers\Registry\LocationController;
 use App\Http\Controllers\Registry\OrganizationController;
@@ -110,6 +111,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('organizations', RedirectController::class)->defaults('destination', '/registry/customers')->defaults('status', 302);
 
         Route::post('organizations/quick', [OrganizationController::class, 'quickStore'])->name('organizations.quick-store');
+        // Registro Imprese (Openapi "Company"): each lookup is charged.
+        Route::get('company-lookup', [CompanyDataController::class, 'lookup'])->middleware('throttle:30,1')->name('company-lookup');
+        Route::get('organizations/{organization}/company-data', [CompanyDataController::class, 'show'])->middleware('throttle:30,1')->name('organizations.company-data.show');
+        Route::put('organizations/{organization}/company-data', [CompanyDataController::class, 'update'])->name('organizations.company-data.update');
         Route::resource('organizations', OrganizationController::class)->except(['index', 'create', 'show']);
         // Archived organizations stay viewable (read-only) and restorable.
         Route::get('organizations/{organization}', [OrganizationController::class, 'show'])

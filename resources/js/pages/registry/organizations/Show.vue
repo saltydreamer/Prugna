@@ -4,6 +4,7 @@ import { router } from '@inertiajs/vue3';
 import { route } from 'ziggy-js';
 import PageHeader from '@/components/PageHeader.vue';
 import CustomerPriceList from '@/components/catalog/CustomerPriceList.vue';
+import CompanyDataDialog from '@/components/registry/CompanyDataDialog.vue';
 import ContactDialog from '@/components/registry/ContactDialog.vue';
 import LocationDialog from '@/components/registry/LocationDialog.vue';
 import InterventionInvoiceDialog from '@/components/interventions/InterventionInvoiceDialog.vue';
@@ -27,7 +28,11 @@ const props = defineProps({
     interventions: { type: Object, default: null },
     /** Customers: active hour contracts (null without access). */
     contracts: { type: Array, default: null },
+    /** «Aggiorna dal Registro Imprese» available (Openapi "Company" service switched on). */
+    companyLookup: { type: Boolean, default: false },
 });
+
+const companyDialog = ref(false);
 
 const interventionDialog = ref(false);
 
@@ -198,6 +203,14 @@ function restore() {
                     v-bind="link(route('purchases.orders.create', { supplier: organization.id }))"
                 >
                     Nuovo ordine fornitore
+                </v-btn>
+                <v-btn
+                    v-if="companyLookup && canEdit && !archived && (organization.vat_number || organization.tax_code)"
+                    variant="text"
+                    prepend-icon="mdi-cloud-sync-outline"
+                    @click="companyDialog = true"
+                >
+                    Aggiorna dal Registro Imprese
                 </v-btn>
                 <v-btn
                     v-if="canEdit"
@@ -589,6 +602,7 @@ function restore() {
 
         <InterventionInvoiceDialog v-if="interventions" v-model="interventionDialog" :organization-id="organization.id" />
 
+        <CompanyDataDialog v-if="companyLookup" v-model="companyDialog" :organization-id="organization.id" />
         <LocationDialog v-model="locationDialog" :organization-id="organization.id" :location="editingLocation" :types="locationTypes" />
         <ContactDialog v-model="contactDialog" :organization-id="organization.id" :contact="editingContact" :locations="organization.locations" />
     </div>
