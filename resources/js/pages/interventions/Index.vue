@@ -4,6 +4,7 @@ import { router } from '@inertiajs/vue3';
 import { route } from 'ziggy-js';
 import InterventionInvoiceDialog from '@/components/interventions/InterventionInvoiceDialog.vue';
 import InterventionStartDialog from '@/components/interventions/InterventionStartDialog.vue';
+import InvoicedOutsideDialog from '@/components/interventions/InvoicedOutsideDialog.vue';
 import PageHeader from '@/components/PageHeader.vue';
 import { useInertiaLink } from '@/composables/useInertiaLink';
 import { usePermissions } from '@/composables/usePermissions';
@@ -21,6 +22,8 @@ const props = defineProps({
     modes: { type: Array, required: true },
     statuses: { type: Array, required: true },
     rounding: { type: Number, required: true },
+    /** «Segna come già fatturati» (invoiced outside Prugna). */
+    canMarkInvoiced: { type: Boolean, default: false },
 });
 
 const { link } = useInertiaLink();
@@ -29,6 +32,7 @@ const toast = useToast();
 
 const loading = ref(false);
 const startDialog = ref(false);
+const invoicedOutsideDialog = ref(false);
 const query = reactive({
     search: props.filters.search,
     customer: props.filters.customer,
@@ -174,6 +178,9 @@ const selectable = (item) => item.status === 'to_invoice';
             <template #actions>
                 <v-btn v-if="canInvoice && query.customer" variant="tonal" prepend-icon="mdi-receipt-text-plus-outline" @click="invoiceCustomerAll">
                     Fattura interventi
+                </v-btn>
+                <v-btn v-if="canMarkInvoiced" variant="text" prepend-icon="mdi-receipt-text-check-outline" @click="invoicedOutsideDialog = true">
+                    Già fatturati…
                 </v-btn>
                 <template v-if="can('interventions.manage')">
                     <v-btn variant="tonal" prepend-icon="mdi-timer-play-outline" @click="startDialog = true">Avvia</v-btn>
@@ -357,6 +364,7 @@ const selectable = (item) => item.status === 'to_invoice';
         </v-card>
 
         <InterventionStartDialog v-model="startDialog" :organization-id="query.customer" />
+        <InvoicedOutsideDialog v-if="canMarkInvoiced" v-model="invoicedOutsideDialog" />
         <InterventionInvoiceDialog
             v-model="invoiceDialog"
             :organization-id="invoiceCustomer"

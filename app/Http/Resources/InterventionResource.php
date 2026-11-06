@@ -86,6 +86,7 @@ class InterventionResource extends JsonResource
             'status' => $status->value,
             'status_label' => $status->label(),
             'status_color' => $status->color(),
+            'invoiced_outside_at' => $this->invoiced_outside_at?->toIso8601String(),
             'running' => $this->isRunning(),
             'editable' => $this->isEditable(),
             'can' => [
@@ -94,6 +95,7 @@ class InterventionResource extends JsonResource
                 'sign' => $request->user()?->can('sign', $this->resource) ?? false,
                 'unsign' => $request->user()?->can('unsign', $this->resource) ?? false,
                 'send' => $request->user()?->can('send', $this->resource) ?? false,
+                'unmark_invoiced' => $request->user()?->can('unmarkInvoiced', $this->resource) ?? false,
             ],
         ];
     }

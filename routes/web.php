@@ -13,6 +13,7 @@ use App\Http\Controllers\DocumentImportController;
 use App\Http\Controllers\Field\FieldController;
 use App\Http\Controllers\Interventions\InterventionController;
 use App\Http\Controllers\Interventions\InterventionDocumentController;
+use App\Http\Controllers\Interventions\InterventionInvoicedOutsideController;
 use App\Http\Controllers\Interventions\InterventionSettingsController;
 use App\Http\Controllers\Interventions\ServiceContractController;
 use App\Http\Controllers\NotificationController;
@@ -228,6 +229,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::delete('categories/{category}', 'destroyCategory')->name('categories.destroy');
         });
 
+        Route::get('invoiced-outside', [InterventionInvoicedOutsideController::class, 'index'])->name('invoiced-outside.index');
+        Route::post('invoiced-outside', [InterventionInvoicedOutsideController::class, 'store'])->name('invoiced-outside.store');
+        Route::delete('{intervention}/invoiced-outside', [InterventionInvoicedOutsideController::class, 'destroy'])->name('invoiced-outside.destroy');
         Route::get('start-options', [InterventionController::class, 'startOptions'])->name('start-options');
         Route::post('start', [InterventionController::class, 'start'])->name('start');
         Route::get('customers/{organization}', [InterventionController::class, 'customer'])->name('customer');

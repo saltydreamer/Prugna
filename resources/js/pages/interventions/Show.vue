@@ -55,6 +55,18 @@ function stop() {
     router.post(route('interventions.stop', item.value.id));
 }
 
+async function unmarkInvoiced() {
+    const ok = await confirm({
+        title: 'Rimettere da fatturare?',
+        message: "L'intervento era segnato come già fatturato fuori da Prugna: tornerà tra quelli da fatturare.",
+        confirmText: 'Rimetti da fatturare',
+    });
+
+    if (ok) {
+        router.delete(route('interventions.invoiced-outside.destroy', item.value.id), { preserveScroll: true });
+    }
+}
+
 async function split() {
     const ok = await confirm({
         title: `Dividere in ${props.splitCount} interventi?`,
@@ -122,6 +134,15 @@ async function destroy() {
         </v-alert>
         <v-alert v-else-if="item.signed && item.status !== 'invoiced'" type="info" variant="tonal" class="mb-6" icon="mdi-draw">
             Rapportino firmato da {{ item.signed_by_name }}: l'intervento non si può più modificare.
+        </v-alert>
+        <v-alert v-else-if="item.invoiced_outside_at" type="success" variant="tonal" class="mb-6" icon="mdi-receipt-text-check-outline">
+            <div class="d-flex align-center flex-wrap ga-3">
+                <span class="flex-grow-1">
+                    Segnato come già fatturato fuori da Prugna il {{ new Date(item.invoiced_outside_at).toLocaleDateString('it-IT') }}: non si
+                    modifica e non viene più proposto in fattura.
+                </span>
+                <v-btn v-if="item.can.unmark_invoiced" variant="text" size="small" @click="unmarkInvoiced">Rimetti da fatturare</v-btn>
+            </div>
         </v-alert>
         <v-alert v-else-if="item.status === 'invoiced'" type="success" variant="tonal" class="mb-6" icon="mdi-receipt-text-check-outline">
             Fatturato in

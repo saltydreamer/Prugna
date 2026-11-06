@@ -178,7 +178,8 @@ class InvoiceRequest extends FormRequest
         foreach ($lines as $index => $line) {
             foreach ($line['interventions'] as $id) {
                 $intervention = $interventions->get((int) $id);
-                $elsewhere = $intervention?->invoiceLines->contains(fn (InvoiceLine $other) => ! $invoice instanceof Invoice || $other->invoice_id !== $invoice->id);
+                $elsewhere = $intervention?->isInvoicedOutsidePrugna()
+                    || $intervention?->invoiceLines->contains(fn (InvoiceLine $other) => ! $invoice instanceof Invoice || $other->invoice_id !== $invoice->id);
 
                 $message = match (true) {
                     ! $intervention || $intervention->organization_id !== $customerId => __("L'intervento non appartiene a questo cliente."),

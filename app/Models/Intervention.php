@@ -55,6 +55,7 @@ class Intervention extends Model
             'covered' => 'boolean',
             'signed_at' => 'datetime',
             'report_sent_at' => 'datetime',
+            'invoiced_outside_at' => 'datetime',
         ];
     }
 
@@ -160,9 +161,21 @@ class Intervention extends Model
         return $this->duration_minutes === null;
     }
 
+    /**
+     * In a Prugna invoice, or marked as invoiced outside Prugna.
+     */
     public function isInvoiced(): bool
     {
-        return $this->relationLoaded('invoiceLines') ? $this->invoiceLines->isNotEmpty() : $this->invoiceLines()->exists();
+        return $this->isInvoicedOutsidePrugna()
+            || ($this->relationLoaded('invoiceLines') ? $this->invoiceLines->isNotEmpty() : $this->invoiceLines()->exists());
+    }
+
+    /**
+     * Invoiced elsewhere (e.g. in Dolibarr before switching to Prugna).
+     */
+    public function isInvoicedOutsidePrugna(): bool
+    {
+        return $this->invoiced_outside_at !== null;
     }
 
     public function isSigned(): bool
@@ -282,7 +295,7 @@ class Intervention extends Model
      */
     public function scopeToInvoice(Builder $query): void
     {
-        $query->whereNotNull('duration_minutes')->where('billable', true)->where('covered', false)->whereDoesntHave('invoiceLines');
+        $query->whereNotNull('duration_minutes')->where('billable', true)->where('covered', false)->whereNull('invoiced_outside_at')->whereDoesntHave('invoiceLines');
     }
 
     /**
@@ -293,9 +306,9 @@ class Intervention extends Model
         match ($status) {
             InterventionStatus::Running->value => $query->whereNull('duration_minutes'),
             InterventionStatus::ToInvoice->value => $query->toInvoice(),
-            InterventionStatus::Invoiced->value => $query->whereHas('invoiceLines'),
-            InterventionStatus::NotBillable->value => $query->whereNotNull('duration_minutes')->where('billable', false)->whereDoesntHave('invoiceLines'),
-            InterventionStatus::Covered->value => $query->whereNotNull('duration_minutes')->where('billable', true)->where('covered', true)->whereDoesntHave('invoiceLines'),
+            InterventionStatus::Invoiced->value => $query->where(fn (Builder $query) => $query->whereNotNull('invoiced_outside_at')->orWhereHas('invoiceLines')),
+            InterventionStatus::NotBillable->value => $query->whereNotNull('duration_minutes')->where('billable', false)->whereNull('invoiced_outside_at')->whereDoesntHave('invoiceLines'),
+            InterventionStatus::Covered->value => $query->whereNotNull('duration_minutes')->where('billable', true)->where('covered', true)->whereNull('invoiced_outside_at')->whereDoesntHave('invoiceLines'),
             default => null,
         };
     }

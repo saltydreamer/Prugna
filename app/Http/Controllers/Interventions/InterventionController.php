@@ -124,6 +124,7 @@ class InterventionController extends Controller
             'modes' => InterventionMode::options(),
             'statuses' => InterventionStatus::options(),
             'rounding' => Intervention::rounding(),
+            'canMarkInvoiced' => $user->can('markInvoiced', Intervention::class),
         ]);
     }
 

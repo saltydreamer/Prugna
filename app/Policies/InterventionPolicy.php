@@ -63,6 +63,19 @@ class InterventionPolicy
         return ! $intervention->isRunning() && $this->owns($user, $intervention);
     }
 
+    /**
+     * Mark interventions as invoiced outside Prugna (e.g. in Dolibarr): billing staff who see everyone's.
+     */
+    public function markInvoiced(User $user): bool
+    {
+        return $user->can(Permission::InvoicesManage->value) && $user->can(Permission::InterventionsSupervise->value);
+    }
+
+    public function unmarkInvoiced(User $user, Intervention $intervention): bool
+    {
+        return $intervention->isInvoicedOutsidePrugna() && $this->markInvoiced($user);
+    }
+
     private function owns(User $user, Intervention $intervention): bool
     {
         return $user->can(Permission::InterventionsManage->value)
