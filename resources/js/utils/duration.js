@@ -33,6 +33,16 @@ export function formatElapsed(fromIso, now = Date.now()) {
 }
 
 /**
+ * The full hour just passed: 14:37 → 14:00 (default start of the interventions in "Interventi sul campo").
+ */
+export function startOfHour(date = new Date()) {
+    const value = new Date(date);
+    value.setMinutes(0, 0, 0);
+
+    return value;
+}
+
+/**
  * Minutes rounded up to the billing block (as on the server).
  */
 export function roundUp(minutes, block) {
