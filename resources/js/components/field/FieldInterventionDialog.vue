@@ -1,7 +1,7 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue';
 import SignatureDialog from '@/components/interventions/SignatureDialog.vue';
-import { formatHours, formatMinutes, roundUp } from '@/utils/duration';
+import { formatHours, formatMinutes, roundUp, startOfHour } from '@/utils/duration';
 import { formatMoney } from '@/utils/format';
 
 /**
@@ -35,7 +35,8 @@ const blank = () => ({
     location_id: null,
     category_id: props.categories[0]?.value ?? null,
     mode: 'remote',
-    started_at: toLocalInput(new Date(Date.now() - 3_600_000)),
+    // Recorded afterwards: one hour of work, from the full hour before (14:37 → 13:00).
+    started_at: toLocalInput(startOfHour(new Date(Date.now() - 3_600_000))),
     hours: 1,
     minutes: 0,
     description: '',

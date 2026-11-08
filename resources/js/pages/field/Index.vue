@@ -7,7 +7,7 @@ import PageHeader from '@/components/PageHeader.vue';
 import { useConfirm } from '@/composables/useConfirm';
 import { useInertiaLink } from '@/composables/useInertiaLink';
 import { useToast } from '@/composables/useToast';
-import { formatElapsed, formatMinutes } from '@/utils/duration';
+import { formatElapsed, formatMinutes, startOfHour } from '@/utils/duration';
 import { fieldQueue, loadQueue, newClientUuid, removeFromQueue, saveToQueue, syncQueue } from '@/utils/fieldQueue';
 
 /**
@@ -56,7 +56,15 @@ function readTimer() {
 }
 
 const timer = ref(readTimer());
-const timerForm = reactive({ organization_id: null, category_id: props.categories[0]?.value ?? null, mode: 'remote' });
+const timerForm = reactive({ organization_id: null, category_id: props.categories[0]?.value ?? null, mode: 'remote', start: '' });
+
+const timeInput = (date) => `${pad(date.getHours())}:${pad(date.getMinutes())}`;
+
+/** Start time "HH:MM": the one chosen, else the full hour just passed (it follows the clock until changed). */
+const timerStart = computed({
+    get: () => timerForm.start || timeInput(startOfHour(new Date(now.value))),
+    set: (value) => (timerForm.start = value ?? ''),
+});
 
 function startTimer() {
     if (!timerForm.organization_id || !timerForm.category_id) {
@@ -65,8 +73,20 @@ function startTimer() {
         return;
     }
 
-    timer.value = { ...timerForm, started_at: new Date().toISOString() };
+    const [hours, minutes] = timerStart.value.split(':').map(Number);
+    const startedAt = new Date();
+    startedAt.setHours(hours, minutes, 0, 0);
+
+    if (Number.isNaN(startedAt.getTime()) || startedAt.getTime() > Date.now()) {
+        toast.error("L'ora di inizio è nel futuro: scegline una già passata.");
+
+        return;
+    }
+
+    const { organization_id, category_id, mode } = timerForm;
+    timer.value = { organization_id, category_id, mode, started_at: startedAt.toISOString() };
     localStorage.setItem(TIMER_KEY, JSON.stringify(timer.value));
+    timerForm.start = '';
 }
 
 function clearTimer() {
@@ -196,6 +216,18 @@ async function discard(item) {
                     <v-card-text v-else>
                         <v-autocomplete v-model="timerForm.organization_id" :items="customers" label="Cliente" class="mb-2" />
                         <v-select v-model="timerForm.category_id" :items="categories" label="Categoria" class="mb-2" />
+                        <v-text-field
+                            v-model="timerStart"
+                            type="time"
+                            label="Inizio"
+                            hint="Di base l'ora piena appena passata"
+                            persistent-hint
+                            class="mb-4"
+                        >
+                            <template #append-inner>
+                                <v-btn size="small" variant="text" @click="timerStart = timeInput(new Date())">Adesso</v-btn>
+                            </template>
+                        </v-text-field>
                         <v-btn-toggle v-model="timerForm.mode" mandatory color="primary" variant="outlined" divided class="w-100">
                             <v-btn v-for="mode in modes" :key="mode.value" :value="mode.value" :prepend-icon="mode.icon" class="flex-grow-1">
                                 {{ mode.title }}
