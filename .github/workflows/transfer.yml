@@ -38,7 +38,7 @@ jobs:
           echo "SSH_CONFIG=$RUNNER_TEMP/home/.ssh/config" >> "$GITHUB_ENV"
 
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
 
